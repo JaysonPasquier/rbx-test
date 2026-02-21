@@ -1,78 +1,108 @@
--- Rift Scanner - CLICKABLE VERSION (100% Working)
--- Fixed button clicks + draggable mini button
+-- Rift Scanner - PERFECTLY SCALED + ACTIVE RIFTS ONLY
+-- Left sidebar tabs + ONLY spawned rifts + proper scaling
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Create GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RiftMenu"
-ScreenGui.Parent = PlayerGui
+ScreenGui.Name = "RiftScanner"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
 
--- DRAGGABLE Mini button 🌀 (FIXED)
+-- PERFECTLY SCALED Mini Button 🌀
 local MiniBtn = Instance.new("TextButton")
-MiniBtn.Name = "MiniButton"
 MiniBtn.Size = UDim2.new(0, 60, 0, 60)
-MiniBtn.Position = UDim2.new(1, -70, 0, 30)
+MiniBtn.Position = UDim2.new(1, -75, 0, 20)
+MiniBtn.AnchorPoint = Vector2.new(1, 0)
 MiniBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
 MiniBtn.Text = "🌀"
 MiniBtn.TextColor3 = Color3.new(1,1,1)
 MiniBtn.TextScaled = true
 MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.Active = true
-MiniBtn.Draggable = true  -- MAKES IT MOVABLE!
+MiniBtn.Draggable = true
 MiniBtn.Parent = ScreenGui
 
 local MiniCorner = Instance.new("UICorner")
 MiniCorner.CornerRadius = UDim.new(0, 15)
 MiniCorner.Parent = MiniBtn
 
--- Main frame (HIDDEN initially)
+-- Main Frame (PERFECT SCALE)
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainMenu"
-MainFrame.Size = UDim2.new(0, 700, 0, 600)
-MainFrame.Position = UDim2.new(0.5, -350, 0.5, -300)
+MainFrame.Size = UDim2.new(0, 500, 0, 400)  -- Fixed pixel size
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
 MainFrame.Active = true
-MainFrame.Draggable = true  -- MAKES MAIN WINDOW MOVABLE!
+MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 15)
+MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = MainFrame
 
--- Header bar
+-- LEFT SIDEBAR TABS (25% width)
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 140, 1, -10)
+Sidebar.Position = UDim2.new(0, 5, 0, 5)
+Sidebar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0, 8)
+SidebarCorner.Parent = Sidebar
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Padding = UDim.new(0, 5)
+SidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Parent = Sidebar
+
+-- MAIN CONTENT AREA (75% width)
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -155, 1, -10)
+ContentArea.Position = UDim2.new(0, 150, 0, 5)
+ContentArea.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+ContentArea.BorderSizePixel = 0
+ContentArea.Parent = MainFrame
+
+local ContentCorner = Instance.new("UICorner")
+ContentCorner.CornerRadius = UDim.new(0, 8)
+ContentCorner.Parent = ContentArea
+
+-- HEADER
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 60)
-Header.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+Header.Size = UDim2.new(1, -10, 0, 45)
+Header.Position = UDim2.new(0, 5, 0, 0)
+Header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
 Header.Parent = MainFrame
 
 local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 15)
+HeaderCorner.CornerRadius = UDim.new(0, 8)
 HeaderCorner.Parent = Header
 
--- Title
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0, 200, 1, 0)
-TitleLabel.Position = UDim2.new(0, 20, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "🌀 RIFT SCANNER v3.1"
-TitleLabel.TextColor3 = Color3.new(1,1,1)
-TitleLabel.TextScaled = true
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.Parent = Header
+local HeaderLabel = Instance.new("TextLabel")
+HeaderLabel.Size = UDim2.new(1, -60, 1, 0)
+HeaderLabel.Position = UDim2.new(0, 10, 0, 0)
+HeaderLabel.BackgroundTransparency = 1
+HeaderLabel.Text = "🌀 ACTIVE RIFTS"
+HeaderLabel.TextColor3 = Color3.new(1,1,1)
+HeaderLabel.TextScaled = true
+HeaderLabel.Font = Enum.Font.GothamBold
+HeaderLabel.Parent = Header
 
--- CLOSE BUTTON (top right)
+-- CLOSE BUTTON
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 45, 0, 45)
-CloseBtn.Position = UDim2.new(1, -55, 0, 8)
+CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+CloseBtn.Position = UDim2.new(1, -45, 0, 5)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.new(1,1,1)
@@ -82,175 +112,222 @@ CloseBtn.Active = true
 CloseBtn.Parent = Header
 
 local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 10)
+CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
--- TABS (simple working version)
-local TabFrame = Instance.new("Frame")
-TabFrame.Size = UDim2.new(1, -20, 0, 50)
-TabFrame.Position = UDim2.new(0, 10, 1, -55)
-TabFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-TabFrame.Parent = MainFrame
+-- ACTIVE RIFTS LIST (ScrollFrame)
+local RiftScroll = Instance.new("ScrollingFrame")
+RiftScroll.Size = UDim2.new(1, -10, 1, -10)
+RiftScroll.Position = UDim2.new(0, 5, 0, 5)
+RiftScroll.BackgroundTransparency = 1
+RiftScroll.ScrollBarThickness = 6
+RiftScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 150, 255)
+RiftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+RiftScroll.Parent = ContentArea
 
-local TabCorner = Instance.new("UICorner")
-TabCorner.CornerRadius = UDim.new(0, 10)
-TabCorner.Parent = TabFrame
+local RiftLayout = Instance.new("UIListLayout")
+RiftLayout.Padding = UDim.new(0, 8)
+RiftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+RiftLayout.Parent = RiftScroll
 
-local TabLayout = Instance.new("UIListLayout")
-TabLayout.FillDirection = Enum.FillDirection.Horizontal
-TabLayout.Padding = UDim.new(0, 5)
-TabLayout.Parent = TabFrame
+-- LEFT TAB BUTTONS
+local TabNames = {"RIFTS", "INFO"}
+local ActiveTab = "RIFTS"
 
--- Content area
-local ContentFrame = Instance.new("Frame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -140)
-ContentFrame.Position = UDim2.new(0, 10, 0, 70)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.Parent = MainFrame
-
--- SIMPLE TAB SYSTEM (always works)
-local CurrentTabContent = nil
-
-local function clearContent()
-    if CurrentTabContent then
-        CurrentTabContent:Destroy()
-    end
+for i, tabName in ipairs(TabNames) do
+    local TabBtn = Instance.new("TextButton")
+    TabBtn.Size = UDim2.new(1, -10, 0, 45)
+    TabBtn.Position = UDim2.new(0, 5, 0, (i-1) * 55)
+    TabBtn.BackgroundColor3 = tabName == "RIFTS" and Color3.fromRGB(70, 150, 255) or Color3.fromRGB(55, 55, 75)
+    TabBtn.Text = tabName
+    TabBtn.TextColor3 = Color3.new(1,1,1)
+    TabBtn.TextScaled = true
+    TabBtn.Font = Enum.Font.GothamBold
+    TabBtn.Active = true
+    TabBtn.Parent = Sidebar
+    
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 8)
+    TabCorner.Parent = TabBtn
+    
+    TabBtn.MouseButton1Click:Connect(function()
+        ActiveTab = tabName
+        -- Update tab colors
+        for _, child in pairs(Sidebar:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
+            end
+        end
+        TabBtn.BackgroundColor3 = Color3.fromRGB(70, 150, 255)
+        
+        if tabName == "INFO" then
+            -- Clear rift list
+            for _, child in pairs(RiftScroll:GetChildren()) do
+                if child:IsA("GuiObject") and child ~= RiftLayout then
+                    child:Destroy()
+                end
+            end
+            RiftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        else
+            updateRiftList()
+        end
+    end)
 end
 
-local function createRiftList()
-    clearContent()
-    
-    CurrentTabContent = Instance.new("ScrollingFrame")
-    CurrentTabContent.Name = "RiftContent"
-    CurrentTabContent.Size = UDim2.new(1, 0, 1, 0)
-    CurrentTabContent.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    CurrentTabContent.BorderSizePixel = 0
-    CurrentTabContent.ScrollBarThickness = 10
-    CurrentTabContent.Parent = ContentFrame
-    
-    local ContentCorner = Instance.new("UICorner")
-    ContentCorner.CornerRadius = UDim.new(0, 12)
-    ContentCorner.Parent = CurrentTabContent
-    
-    local ListLayout = Instance.new("UIListLayout")
-    ListLayout.Padding = UDim.new(0, 8)
-    ListLayout.Parent = CurrentTabContent
-    
-    -- Try to load rift data
-    local rifts = {}
-    local success, result = pcall(function()
-        return require(ReplicatedStorage.Shared.Data.Rifts)
-    end)
-    if success then 
-        rifts = result 
+-- RIFT DATA
+local ActiveRifts = {}
+local HumanoidRootPart = nil
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+end)
+if LocalPlayer.Character then
+    HumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getEggPlatformSpawn(riftModel)
+    local platform = riftModel:FindFirstChild("EggPlatformSpawn")
+    if platform then
+        local children = platform:GetChildren()
+        if #children >= 4 and children[4]:IsA("BasePart") then
+            return children[4]
+        elseif platform.PrimaryPart then
+            return platform.PrimaryPart
+        else
+            for _, child in pairs(platform:GetChildren()) do
+                if child:IsA("BasePart") then return child end
+            end
+        end
+    end
+    return nil
+end
+
+local function parseRiftLuck(riftModel)
+    local luck = "?"
+    local display = riftModel:FindFirstChild("Display")
+    if display and display:FindFirstChild("SurfaceGui") then
+        for _, child in pairs(display.SurfaceGui:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Name == "Luck" then
+                luck = child.Text
+                break
+            end
+        end
+    end
+    return luck
+end
+
+function updateRiftList()
+    -- Clear existing
+    for _, child in pairs(RiftScroll:GetChildren()) do
+        if child:IsA("GuiObject") and child ~= RiftLayout then
+            child:Destroy()
+        end
     end
     
-    -- Create buttons for each rift
-    for name, data in pairs(rifts) do
-        if not data.Ignore then
+    ActiveRifts = {}
+    local riftsFolder = workspace:FindFirstChild("Rendered") and workspace.Rendered:FindFirstChild("Rifts")
+    if not riftsFolder then 
+        RiftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        return 
+    end
+    
+    for _, riftModel in pairs(riftsFolder:GetChildren()) do
+        local platform = getEggPlatformSpawn(riftModel)
+        if platform then  -- Only valid rifts
+            local luck = parseRiftLuck(riftModel)
+            local distance = HumanoidRootPart and (platform.Position - HumanoidRootPart.Position).Magnitude or 999
+            
+            table.insert(ActiveRifts, {
+                Model = riftModel,
+                Name = riftModel.Name,
+                Platform = platform,
+                Luck = luck,
+                Distance = distance
+            })
+            
+            -- CREATE RIFT BUTTON
             local RiftBtn = Instance.new("TextButton")
-            RiftBtn.Size = UDim2.new(1, 0, 0, 60)
-            RiftBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
+            RiftBtn.Size = UDim2.new(1, 0, 0, 65)
+            RiftBtn.BackgroundColor3 = Color3.fromRGB(55, 75, 120)
             RiftBtn.Text = ""
             RiftBtn.Active = true
-            RiftBtn.Parent = CurrentTabContent
+            RiftBtn.Parent = RiftScroll
             
-            local BtnCorner = Instance.new("UICorner")
-            BtnCorner.CornerRadius = UDim.new(0, 10)
-            BtnCorner.Parent = RiftBtn
+            local RiftCorner = Instance.new("UICorner")
+            RiftCorner.CornerRadius = UDim.new(0, 10)
+            RiftCorner.Parent = RiftBtn
             
+            -- ICON
             local Icon = Instance.new("TextLabel")
-            Icon.Size = UDim2.new(0, 50, 0.8, 0)
-            Icon.Position = UDim2.new(0, 15, 0.1, 0)
-            Icon.BackgroundTransparency = 1
-            Icon.Text = data.Type == "Egg" and "🥚" or data.Type == "Chest" and "📦" or "🎁"
+            Icon.Size = UDim2.new(0, 55, 0, 55)
+            Icon.Position = UDim2.new(0, 10, 0.5, -27.5)
+            Icon.AnchorPoint = Vector2.new(0, 0.5)
+            Icon.BackgroundColor3 = Color3.fromRGB(70, 90, 140)
+            Icon.Text = "🥚"
             Icon.TextColor3 = Color3.new(1,1,1)
             Icon.TextScaled = true
             Icon.Font = Enum.Font.GothamBold
             Icon.Parent = RiftBtn
             
+            local IconCorner = Instance.new("UICorner")
+            IconCorner.CornerRadius = UDim.new(0, 12)
+            IconCorner.Parent = Icon
+            
+            -- NAME
             local NameLabel = Instance.new("TextLabel")
-            NameLabel.Size = UDim2.new(1, -180, 0.6, 0)
-            NameLabel.Position = UDim2.new(0, 75, 0, 5)
+            NameLabel.Size = UDim2.new(0, 200, 0.4, 0)
+            NameLabel.Position = UDim2.new(0, 75, 0, 8)
             NameLabel.BackgroundTransparency = 1
-            NameLabel.Text = (data.DisplayName or name) .. " (" .. data.Type .. ")"
+            NameLabel.Text = riftModel.Name
             NameLabel.TextColor3 = Color3.new(1,1,1)
             NameLabel.TextScaled = true
             NameLabel.Font = Enum.Font.GothamBold
             NameLabel.TextXAlignment = Enum.TextXAlignment.Left
             NameLabel.Parent = RiftBtn
             
-            local StatusLabel = Instance.new("TextLabel")
-            StatusLabel.Size = UDim2.new(0, 150, 1, 0)
-            StatusLabel.Position = UDim2.new(1, -160, 0, 0)
-            StatusLabel.BackgroundTransparency = 1
-            StatusLabel.Text = "No active rifts"
-            StatusLabel.TextColor3 = Color3.fromRGB(200, 100, 100)
-            StatusLabel.TextScaled = true
-            StatusLabel.Font = Enum.Font.GothamBold
-            StatusLabel.TextXAlignment = Enum.TextXAlignment.Right
-            StatusLabel.Parent = RiftBtn
+            -- LUCK + DISTANCE
+            local InfoLabel = Instance.new("TextLabel")
+            InfoLabel.Size = UDim2.new(0, 120, 0.6, 0)
+            InfoLabel.Position = UDim2.new(1, -130, 0, 8)
+            InfoLabel.BackgroundTransparency = 1
+            InfoLabel.Text = luck .. "\n" .. math.floor(distance) .. "m"
+            InfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+            InfoLabel.TextScaled = true
+            InfoLabel.Font = Enum.Font.Gotham
+            InfoLabel.TextXAlignment = Enum.TextXAlignment.Right
+            InfoLabel.Parent = RiftBtn
             
+            -- TELEPORT ON CLICK
             RiftBtn.MouseButton1Click:Connect(function()
-                print("Clicked rift: " .. name)  -- DEBUG
+                if platform and HumanoidRootPart then
+                    HumanoidRootPart.CFrame = CFrame.new(platform.Position + Vector3.new(0, 8, 0))
+                    print("✨ TP to " .. riftModel.Name .. " (x" .. luck .. ")")
+                end
             end)
         end
     end
+    
+    -- Update scroll size
+    RiftScroll.CanvasSize = UDim2.new(0, 0, 0, RiftLayout.AbsoluteContentSize.Y + 20)
 end
 
--- Create tab buttons
-local tabNames = {"INFO", "RIFTS"}
-for i, tabName in ipairs(tabNames) do
-    local TabBtn = Instance.new("TextButton")
-    TabBtn.Size = UDim2.new(0.48, -5, 0.9, 0)
-    TabBtn.Position = UDim2.new((i-1)*0.5, 0, 0.05, 0)
-    TabBtn.BackgroundColor3 = i == 1 and Color3.fromRGB(70, 150, 255) or Color3.fromRGB(60, 60, 80)
-    TabBtn.Text = tabName
-    TabBtn.TextColor3 = Color3.new(1,1,1)
-    TabBtn.TextScaled = true
-    TabBtn.Font = Enum.Font.GothamBold
-    TabBtn.Active = true
-    TabBtn.Parent = TabFrame
-    
-    local TabCorner2 = Instance.new("UICorner")
-    TabCorner2.CornerRadius = UDim.new(0, 10)
-    TabCorner2.Parent = TabBtn
-    
-    TabBtn.MouseButton1Click:Connect(function()
-        for _, btn in pairs(TabFrame:GetChildren()) do
-            if btn:IsA("TextButton") then
-                btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-            end
-        end
-        TabBtn.BackgroundColor3 = Color3.fromRGB(70, 150, 255)
-        
-        if tabName == "INFO" then
-            clearContent()
-            local InfoLabel = Instance.new("TextLabel")
-            InfoLabel.Size = UDim2.new(1, 0, 1, 0)
-            InfoLabel.BackgroundTransparency = 1
-            InfoLabel.Text = "🌀 Rift Scanner v3.1\n✅ Clickable & Draggable\n📱 Working perfectly!"
-            InfoLabel.TextColor3 = Color3.new(1,1,1)
-            InfoLabel.TextScaled = true
-            InfoLabel.Font = Enum.Font.GothamBold
-            InfoLabel.Parent = ContentFrame
-            CurrentTabContent = InfoLabel
-        elseif tabName == "RIFTS" then
-            createRiftList()
-        end
-    end)
-end
-
--- BUTTON EVENTS (SIMPLE & WORKING)
+-- EVENTS
 MiniBtn.MouseButton1Click:Connect(function()
-    print("🌀 Button clicked!")  -- DEBUG - you should see this!
     MainFrame.Visible = not MainFrame.Visible
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    print("❌ Close clicked!")
     ScreenGui:Destroy()
 end)
 
-print("🌀 Rift Menu LOADED - Drag 🌀 button OR click it to open!")
-print("Drag main window too! Everything works now!")
+-- Update loop
+spawn(function()
+    while ScreenGui.Parent do
+        if ActiveTab == "RIFTS" then
+            updateRiftList()
+        end
+        wait(1)
+    end
+end)
+
+print("🌀 Rift Scanner LOADED - Drag 🌀 + Click for ACTIVE rifts only!")
