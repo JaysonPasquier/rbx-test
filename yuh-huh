@@ -1,318 +1,377 @@
--- Rift Scanner - MOBILE PERFECT + RESPONSIVE SCALE
--- Adapts to ANY screen size + Always centered
+-- BGSI Premium Hub (Rayfield v2.1+) with Pet/Codes Data
+-- Key: uIeCsXNDMliclXkKGlfNwXHZHFblrJZl
+-- Dark theme, white text, semi-transparent
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+local RS = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local player = Players.LocalPlayer
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RiftScanner"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.IgnoreGuiInset = true  -- Full screen access
-ScreenGui.Parent = PlayerGui
+-- === PREMIUM CHECK ===
+local PREMIUM_KEY = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
+if getgenv().script_key ~= PREMIUM_KEY then return end
 
--- RESPONSIVE Mini Button 🌀 (0.08 of screen width)
-local MiniBtn = Instance.new("TextButton")
-MiniBtn.Size = UDim2.new(0.08, 0, 0.08, 0)
-MiniBtn.Position = UDim2.new(1, -0.08, 0.05, 0)
-MiniBtn.AnchorPoint = Vector2.new(1, 0)
-MiniBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
-MiniBtn.Text = "🌀"
-MiniBtn.TextColor3 = Color3.new(1,1,1)
-MiniBtn.TextScaled = true
-MiniBtn.Font = Enum.Font.GothamBold
-MiniBtn.Active = true
-MiniBtn.Draggable = true
-MiniBtn.Parent = ScreenGui
+-- === RAYFIELD v2.1+ (Dark Theme) ===
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+local Window = Rayfield:CreateWindow({
+   Name = "🧼 BGSI Premium Hub v2.1",
+   LoadingTitle = "Loading BGSI Hub...",
+   LoadingSubtitle = "by sこrぴお | Dark Edition",
+   ConfigurationSaving = {Enabled = false},
+   Discord = {Enabled = false},
+   KeySystem = false
+})
 
-local MiniCorner = Instance.new("UICorner")
-MiniCorner.CornerRadius = UDim.new(1, 0)
-MiniCorner.Parent = MiniBtn
+-- Force Dark Theme + White Text
+Rayfield:SetTheme("Dark")
 
--- RESPONSIVE Main Frame (80% width, 70% height)
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.85, 0, 0.75, 0)
-MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)  -- ALWAYS CENTERED
-MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-MainFrame.BorderSizePixel = 0
-MainFrame.Visible = false
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+-- === STATE ===
+local state = {
+    startTime = tick(),
+    autoBlow = false,
+    autoHatch = false,
+    riftPriority = nil,
+    eggPriority = nil,
+    webhookUrl = "",
+    webhookStats = true,
+    webhookHatch = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=false, Secret=true},
+    currentRifts = {},
+    currentEggs = {},
+    stats = {bubbles=0, hatches=0, coins=0, bubbleStock=0, gems=0},
+    lastPetRarity = nil
+}
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 16)
-MainCorner.Parent = MainFrame
+-- === PETS & CODES DATA ===
+local petData = require(RS.Shared.Data.Pets)
+local codeData = require(RS.Shared.Data.Codes)
+local rarities = {"Common", "Unique", "Rare", "Epic", "Legendary", "Secret"}
 
--- TOP HEADER (full width)
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 50)
-Header.Position = UDim2.new(0, 0, 0, 0)
-Header.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-Header.Parent = MainFrame
-
-local HeaderCorner = Instance.new("UICorner", Header)
-HeaderCorner.CornerRadius = UDim.new(0, 16)
-
-local HeaderLabel = Instance.new("TextLabel")
-HeaderLabel.Size = UDim2.new(1, -70, 1, 0)
-HeaderLabel.Position = UDim2.new(0, 15, 0, 0)
-HeaderLabel.BackgroundTransparency = 1
-HeaderLabel.Text = "🌀 ACTIVE RIFTS"
-HeaderLabel.TextColor3 = Color3.new(1,1,1)
-HeaderLabel.TextScaled = true
-HeaderLabel.Font = Enum.Font.GothamBold
-HeaderLabel.Parent = Header
-
--- CLOSE BUTTON (top right)
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 40, 0, 40)
-CloseBtn.Position = UDim2.new(1, -50, 0, 5)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.new(1,1,1)
-CloseBtn.TextScaled = true
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Active = true
-CloseBtn.Parent = Header
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = UDim.new(0, 10)
-CloseCorner.Parent = CloseBtn
-
--- LEFT SIDEBAR (20% width)
-local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0.22, 0, 1, -60)
-Sidebar.Position = UDim2.new(0, 0, 0, 50)
-Sidebar.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-Sidebar.BorderSizePixel = 0
-Sidebar.Parent = MainFrame
-
-local SidebarCorner = Instance.new("UICorner", Sidebar)
-SidebarCorner.CornerRadius = UDim.new(0, 12)
-
-local SidebarLayout = Instance.new("UIListLayout")
-SidebarLayout.Padding = UDim.new(0, 8)
-SidebarLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-SidebarLayout.Parent = Sidebar
-
--- MAIN CONTENT (78% width)
-local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(0.78, 0, 1, -60)
-ContentArea.Position = UDim2.new(0.22, 0, 0, 50)
-ContentArea.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-ContentArea.BorderSizePixel = 0
-ContentArea.Parent = MainFrame
-
-local ContentCorner = Instance.new("UICorner", ContentArea)
-ContentCorner.CornerRadius = UDim.new(0, 12)
-
--- RIFTS SCROLLFRAME
-local RiftScroll = Instance.new("ScrollingFrame")
-RiftScroll.Size = UDim2.new(1, -12, 1, -12)
-RiftScroll.Position = UDim2.new(0, 6, 0, 6)
-RiftScroll.BackgroundTransparency = 1
-RiftScroll.ScrollBarThickness = 6
-RiftScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 150, 255)
-RiftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-RiftScroll.Parent = ContentArea
-
-local RiftLayout = Instance.new("UIListLayout")
-RiftLayout.Padding = UDim.new(0, 6)
-RiftLayout.SortOrder = Enum.SortOrder.LayoutOrder
-RiftLayout.Parent = RiftScroll
-
--- LEFT TABS (2 buttons)
-local tabs = {"RIFTS", "INFO"}
-local currentTab = "RIFTS"
-
-for i, tabName in ipairs(tabs) do
-    local TabBtn = Instance.new("TextButton")
-    TabBtn.Size = UDim2.new(0.9, 0, 0.22, 0)
-    TabBtn.Position = UDim2.new(0.05, 0, (i-1)*0.28, 0)
-    TabBtn.BackgroundColor3 = tabName == "RIFTS" and Color3.fromRGB(70, 150, 255) or Color3.fromRGB(55, 55, 75)
-    TabBtn.Text = tabName
-    TabBtn.TextColor3 = Color3.new(1,1,1)
-    TabBtn.TextScaled = true
-    TabBtn.Font = Enum.Font.GothamBold
-    TabBtn.Active = true
-    TabBtn.Parent = Sidebar
-    
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 10)
-    TabCorner.Parent = TabBtn
-    
-    TabBtn.MouseButton1Click:Connect(function()
-        currentTab = tabName
-        
-        -- Update tab colors
-        for _, child in pairs(Sidebar:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.BackgroundColor3 = Color3.fromRGB(55, 55, 75)
-            end
-        end
-        TabBtn.BackgroundColor3 = Color3.fromRGB(70, 150, 255)
-        
-        if tabName == "INFO" then
-            -- Show info
-            for _, child in pairs(RiftScroll:GetChildren()) do
-                if child:IsA("GuiObject") and child ~= RiftLayout then
-                    child:Destroy()
-                end
-            end
-            RiftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-        else
-            updateRiftList()
-        end
+-- === WEBHOOK SYSTEM ===
+local function SendWebhook(url, msg)
+    local headers = {["Content-Type"] = "application/json"}
+    local data = {["content"] = msg}
+    pcall(function()
+        request({Url=url, Method="POST", Headers=headers, Body=HttpService:JSONEncode(data)})
     end)
 end
 
--- RIFT DATA
-local ActiveRifts = {}
-local HumanoidRootPart = nil
+-- === STATS TRACKER ===
+local function updateStats()
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if leaderstats then
+        state.stats.bubbles = leaderstats:FindFirstChild("Bubbles") and leaderstats.Bubbles.Value or 0
+        state.stats.hatches = leaderstats:FindFirstChild("Hatches") and leaderstats.Hatches.Value or 0
+    end
 
-LocalPlayer.CharacterAdded:Connect(function(char)
-    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-end)
-if LocalPlayer.Character then
-    HumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-end
-
-local function getEggPlatformSpawn(riftModel)
-    local platform = riftModel:FindFirstChild("EggPlatformSpawn")
-    if platform then
-        local children = platform:GetChildren()
-        if #children >= 4 and children[4]:IsA("BasePart") then
-            return children[4]
-        elseif platform.PrimaryPart then
-            return platform.PrimaryPart
-        else
-            for _, child in pairs(platform:GetChildren()) do
-                if child:IsA("BasePart") then return child end
+    -- UI Currency (Coins, Bubble Stock, Gems)
+    local screenGui = playerGui:FindFirstChild("ScreenGui")
+    if screenGui then
+        local hud = screenGui:FindFirstChild("HUD", true)
+        if hud then
+            local currencyFrame = hud:FindFirstChild("Left", true):FindFirstChild("Currency", true)
+            if currencyFrame then
+                for _, currency in pairs(currencyFrame:GetChildren()) do
+                    local label = currency:FindFirstChild("Frame", true):FindFirstChild("Label")
+                    if label and label:IsA("TextLabel") then
+                        local value = tonumber(label.Text:match("%d+")) or 0
+                        local name = currency.Name:lower()
+                        if name == "coins" then state.stats.coins = value end
+                        if name == "bubble" then state.stats.bubbleStock = value end
+                        if name == "gems" then state.stats.gems = value end
+                    end
+                end
             end
         end
     end
-    return nil
 end
 
-local function parseRiftLuck(riftModel)
-    local luck = "?"
-    local display = riftModel:FindFirstChild("Display")
-    if display and display:FindFirstChild("SurfaceGui") then
-        for _, child in pairs(display.SurfaceGui:GetDescendants()) do
-            if child:IsA("TextLabel") and child.Name == "Luck" then
-                luck = child.Text
+-- === RIFT SCANNER ===
+local function scanRifts()
+    state.currentRifts = {}
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered and rendered:FindFirstChild("Rifts") then
+        for _, rift in pairs(rendered.Rifts:GetChildren()) do
+            local display = rift:FindFirstChild("Display")
+            if display then
+                local timer = display:FindFirstChild("Timer")
+                local icon = display:FindFirstChild("Icon")
+                local luck = icon and icon:FindFirstChild("Luck")
+                table.insert(state.currentRifts, {
+                    name = rift.Name,
+                    timer = timer and timer.Text or "?",
+                    luck = luck and luck.Text or "?",
+                    instance = rift
+                })
+            end
+        end
+    end
+end
+
+-- === EGG SCANNER ===
+local function scanEggs()
+    state.currentEggs = {}
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered then
+        for _, folder in pairs(rendered:GetChildren()) do
+            if folder.Name:lower():find("chuncker") then
+                for _, egg in pairs(folder:GetChildren()) do
+                    if egg.Name ~= "Coming Soon" then
+                        table.insert(state.currentEggs, {
+                            name = egg.Name,
+                            instance = egg
+                        })
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- === TELEPORT ===
+local function tpToModel(model)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = player.Character.HumanoidRootPart
+        local cf = model:FindFirstChild("EggPlatformSpawn") and model.EggPlatformSpawn:GetModelCFrame() or model:GetModelCFrame()
+        hrp.CFrame = cf + Vector3.new(0, 5, 0)
+    end
+end
+
+-- === MAIN LOOP ===
+task.spawn(function()
+    while true do
+        updateStats()
+        scanRifts()
+        scanEggs()
+
+        -- Auto Blow (Dex: ReplicatedStorage.Remotes.BlowBubbleRemote)
+        if state.autoBlow then
+            -- TODO: RS.Remotes.BlowBubbleRemote:FireServer()
+            task.wait(math.random(45, 55)/1000)
+        end
+
+        -- Auto Hatch Priority
+        if state.autoHatch and state.eggPriority then
+            for _, egg in pairs(state.currentEggs) do
+                if egg.name == state.eggPriority then
+                    tpToModel(egg.instance)
+                    break
+                end
+            end
+        end
+
+        -- Rift Priority
+        if state.riftPriority then
+            for _, rift in pairs(state.currentRifts) do
+                if rift.name == state.riftPriority then
+                    tpToModel(rift.instance)
+                    break
+                end
+            end
+        end
+
+        task.wait(0.1)
+    end
+end)
+
+-- === UI TABS ===
+
+-- 🏠 MAIN TAB (Stats + Runtime)
+local MainTab = Window:CreateTab("🏠 Main", 4483362458)
+MainTab:CreateLabel("Runtime & Stats")
+local runtimeLabel = MainTab:CreateLabel("Runtime: 00:00:00")
+local statsSection = MainTab:CreateSection("Live Stats")
+
+local bubblesLabel = MainTab:CreateLabel("Bubbles: 0")
+local hatchesLabel = MainTab:CreateLabel("Hatches: 0")
+local coinsLabel = MainTab:CreateLabel("Coins: 0")
+local bubbleStockLabel = MainTab:CreateLabel("Bubble Stock: 0")
+local gemsLabel = MainTab:CreateLabel("Gems: 0")
+
+-- 🔧 FARMING TAB
+local FarmTab = Window:CreateTab("🔧 Farming", 4483362458)
+FarmTab:CreateToggle({
+    Name = "🧼 Auto Blow Bubble (50ms)",
+    CurrentValue = false,
+    Flag = "BGSIAutoBlow",
+    Callback = function(Value)
+        state.autoBlow = Value
+    end
+})
+
+-- 🥚 EGGS TAB
+local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
+local eggDropdown = EggsTab:CreateDropdown({
+    Name = "Select Egg (Teleport + Priority)",
+    Options = {},
+    CurrentOption = "",
+    MultipleOptions = false,
+    Flag = "BGSIEggSelect",
+    Callback = function(Option)
+        state.eggPriority = Option
+        -- Instant teleport
+        for _, egg in pairs(state.currentEggs) do
+            if egg.name == Option then
+                tpToModel(egg.instance)
                 break
             end
         end
     end
-    return luck
+})
+
+EggsTab:CreateToggle({
+    Name = "Auto Hatch Selected Egg",
+    CurrentValue = false,
+    Flag = "BGSIAutoHatch",
+    Callback = function(Value)
+        state.autoHatch = Value
+    end
+})
+
+EggsTab:CreateButton({
+    Name = "🔄 Refresh Egg List",
+    Callback = function()
+        scanEggs()
+        local names = {}
+        for _, egg in pairs(state.currentEggs) do table.insert(names, egg.name) end
+        eggDropdown:Refresh(names, true)
+    end
+})
+
+-- 🌌 RIFTS TAB
+local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
+local riftDropdown = RiftsTab:CreateDropdown({
+    Name = "Active Rifts (Timer | Luck)",
+    Options = {},
+    CurrentOption = "",
+    MultipleOptions = false,
+    Flag = "BGSIRiftSelect",
+    Callback = function(Option)
+        local riftName = Option:match("^(.+?) |")
+        state.riftPriority = riftName
+        for _, rift in pairs(state.currentRifts) do
+            if rift.name == riftName then
+                tpToModel(rift.instance)
+                break
+            end
+        end
+    end
+})
+
+RiftsTab:CreateButton({
+    Name = "🔄 Refresh Rifts",
+    Callback = function()
+        scanRifts()
+        local names = {}
+        for _, rift in pairs(state.currentRifts) do
+            table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
+        end
+        riftDropdown:Refresh(names, true)
+    end
+})
+
+-- 📊 WEBHOOKS TAB
+local WebhookTab = Window:CreateTab("📊 Webhooks", 4483362458)
+WebhookTab:CreateInput({
+    Name = "Discord Webhook URL",
+    PlaceholderText = "https://discord.com/api/webhooks/...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        state.webhookUrl = Text
+    end
+})
+
+WebhookTab:CreateToggle({
+    Name = "📈 Send Stats (non-zero only)",
+    CurrentValue = true,
+    Flag = "WebhookStats",
+    Callback = function(Value)
+        state.webhookStats = Value
+    end
+})
+
+-- Rarity Webhook Toggles
+local raritySection = WebhookTab:CreateSection("Hatch Notifications")
+for _, rarity in ipairs(rarities) do
+    WebhookTab:CreateToggle({
+        Name = rarity .. " Pets",
+        CurrentValue = (rarity == "Secret" or rarity == "Legendary"),
+        Flag = "Webhook" .. rarity,
+        Callback = function(Value)
+            state.webhookHatch[rarity] = Value
+        end
+    })
 end
 
-function updateRiftList()
-    ActiveRifts = {}
-    
-    local riftsFolder = workspace:FindFirstChild("Rendered") 
-        and workspace.Rendered:FindFirstChild("Rifts")
-    if not riftsFolder then return end
-    
-    -- Clear list
-    for _, child in pairs(RiftScroll:GetChildren()) do
-        if child:IsA("GuiObject") and child ~= RiftLayout then
-            child:Destroy()
+WebhookTab:CreateButton({
+    Name = "🧪 Test Webhook",
+    Callback = function()
+        if state.webhookUrl == "" then return Rayfield:Notify({Title="Error", Content="Enter webhook URL first!", Duration=3}) end
+
+        local msg = "**🧼 BGSI Stats** `" .. os.date("%H:%M:%S") .. "`\n"
+        local fields = {}
+        if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: **" .. state.stats.bubbles .. "**") end
+        if state.stats.hatches > 0 then table.insert(fields, "Hatches: **" .. state.stats.hatches .. "**") end
+        if state.stats.coins > 0 then table.insert(fields, "Coins: **" .. state.stats.coins .. "**") end
+        if state.stats.gems > 0 then table.insert(fields, "Gems: **" .. state.stats.gems .. "**") end
+
+        if #fields > 0 then
+            SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
+            Rayfield:Notify({Title="Success", Content="Webhook sent!", Duration=2, Image=4483362458})
         end
     end
-    
-    for _, riftModel in pairs(riftsFolder:GetChildren()) do
-        local platform = getEggPlatformSpawn(riftModel)
-        if platform then
-            local luck = parseRiftLuck(riftModel)
-            local distance = HumanoidRootPart and (platform.Position - HumanoidRootPart.Position).Magnitude or 999
-            
-            -- RIFT BUTTON
-            local RiftBtn = Instance.new("TextButton")
-            RiftBtn.Size = UDim2.new(1, 0, 0, 65)
-            RiftBtn.BackgroundColor3 = Color3.fromRGB(55, 75, 120)
-            RiftBtn.Text = ""
-            RiftBtn.Active = true
-            RiftBtn.Parent = RiftScroll
-            
-            local RiftCorner = Instance.new("UICorner")
-            RiftCorner.CornerRadius = UDim.new(0, 12)
-            RiftCorner.Parent = RiftBtn
-            
-            -- ICON
-            local Icon = Instance.new("TextLabel")
-            Icon.Size = UDim2.new(0, 55, 0, 55)
-            Icon.Position = UDim2.new(0, 12, 0.5, -27.5)
-            Icon.AnchorPoint = Vector2.new(0, 0.5)
-            Icon.BackgroundColor3 = Color3.fromRGB(70, 90, 140)
-            Icon.Text = "🥚"
-            Icon.TextColor3 = Color3.new(1,1,1)
-            Icon.TextScaled = true
-            Icon.Font = Enum.Font.GothamBold
-            Icon.Parent = RiftBtn
-            
-            local IconCorner = Instance.new("UICorner")
-            IconCorner.CornerRadius = UDim.new(1, 0)
-            IconCorner.Parent = Icon
-            
-            -- NAME (left)
-            local NameLabel = Instance.new("TextLabel")
-            NameLabel.Size = UDim2.new(0.5, -10, 0.5, 0)
-            NameLabel.Position = UDim2.new(0, 75, 0.25, 0)
-            NameLabel.BackgroundTransparency = 1
-            NameLabel.Text = riftModel.Name
-            NameLabel.TextColor3 = Color3.new(1,1,1)
-            NameLabel.TextScaled = true
-            NameLabel.Font = Enum.Font.GothamBold
-            NameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            NameLabel.Parent = RiftBtn
-            
-            -- LUCK + DIST (right)
-            local InfoLabel = Instance.new("TextLabel")
-            InfoLabel.Size = UDim2.new(0.45, -10, 0.5, 0)
-            InfoLabel.Position = UDim2.new(0.52, 0, 0.25, 0)
-            InfoLabel.BackgroundTransparency = 1
-            InfoLabel.Text = luck .. "\n" .. math.floor(distance) .. "m"
-            InfoLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
-            InfoLabel.TextScaled = true
-            InfoLabel.Font = Enum.Font.Gotham
-            InfoLabel.TextXAlignment = Enum.TextXAlignment.Right
-            InfoLabel.Parent = RiftBtn
-            
-            -- TELEPORT
-            RiftBtn.MouseButton1Click:Connect(function()
-                if platform and HumanoidRootPart then
-                    HumanoidRootPart.CFrame = CFrame.new(platform.Position + Vector3.new(0, 8, 0))
-                end
-            end)
-        end
+})
+
+-- === PETS & CODES DISPLAY ===
+local DataTab = Window:CreateTab("📋 Data", 4483362458)
+
+-- Pet Rarity List
+local petSection = DataTab:CreateSection("Pet Rarities (ReplicatedStorage.Shared.Data.Pets)")
+for petName, petData in pairs(petData) do
+    if type(petData) == "table" and petData.Rarity then
+        DataTab:CreateLabel(petName .. " [" .. petData.Rarity .. "]")
     end
 end
 
--- EVENTS
-MiniBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
-end)
+-- Active Codes
+local codeSection = DataTab:CreateSection("Active Codes (ReplicatedStorage.Shared.Data.Codes)")
+for codeName, rewards in pairs(codeData) do
+    DataTab:CreateLabel("`" .. codeName .. "` → " .. HttpService:JSONEncode(rewards):sub(1, 100) .. "...")
+end
 
-CloseBtn.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+-- === UI UPDATE LOOP ===
+task.spawn(function()
+    while true do
+        -- Update main stats display
+        local runtime = tick() - state.startTime
+        local h, m, s = math.floor(runtime/3600), math.floor((runtime%3600)/60), math.floor(runtime%60)
 
--- AUTO UPDATE
-spawn(function()
-    while ScreenGui.Parent do
-        if currentTab == "RIFTS" then
-            updateRiftList()
+        -- Webhook stats (non-zero only)
+        if state.webhookUrl ~= "" and state.webhookStats then
+            local msg = "**🧼 BGSI Hub** `" .. player.Name .. "`\n"
+            local fields = {}
+            if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: " .. state.stats.bubbles) end
+            if state.stats.hatches > 0 then table.insert(fields, "Hatches: " .. state.stats.hatches) end
+            if state.stats.coins > 0 then table.insert(fields, "Coins: " .. state.stats.coins) end
+            if state.stats.gems > 0 then table.insert(fields, "Gems: " .. state.stats.gems) end
+
+            if #fields > 0 and tick() % 60 < 1 then -- Once per minute
+                SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
+            end
         end
-        wait(1)
+
+        task.wait(1)
     end
 end)
 
-print("🌀 Mobile Rift Scanner LOADED - Perfect scale + Always centered!")
+-- Initial scans
+scanRifts()
+scanEggs()
+
+print("🧼 BGSI Premium Hub v2.1+ LOADED (Rayfield Dark)")
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🧼 BGSI Hub";
+    Text = "Rayfield Dark loaded! Dex remotes next...";
+    Duration = 5
+})
