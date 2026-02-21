@@ -7,276 +7,29 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
-local TweenService = game:GetService("TweenService")
-local _RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Premium Hub v2026 - FIXED MOBILE VERSION LOADING...")
+print("🧼 BGSI Premium Hub v2026 - LOADING...")
 
 -- Load Linoria Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
 
--- === BACKGROUND FRAME (BEHIND EVERYTHING) ===
-local BgGui = Instance.new("ScreenGui")
-BgGui.Name = "BGSIBackground"
-BgGui.ResetOnSpawn = false
-BgGui.DisplayOrder = 1  -- LOW priority (behind everything)
-BgGui.Parent = playerGui
+print("✅ LinoriaLib loaded successfully")
 
-local BgFrame = Instance.new("Frame")
-BgFrame.Size = UDim2.new(1, 0, 1, 0)
-BgFrame.Position = UDim2.new(0, 0, 0, 0)
-BgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-BgFrame.BackgroundTransparency = 0.3
-BgFrame.BorderSizePixel = 0
-BgFrame.Parent = BgGui
-
--- === CREATE COMPACT MOBILE WINDOW ===
+-- === CREATE WINDOW ===
 local Window = Library:CreateWindow({
-    Title = "🧼 BGSI Premium Hub v2026",  -- ✅ FIXED TITLE
+    Title = "🧼 BGSI Premium Hub v2026",
     Center = true,
     AutoShow = true,
-    TabPadding = 4,  -- Smaller padding
-    MenuFadeTime = 0.3,
+    TabPadding = 8,
+    MenuFadeTime = 0.2
 })
 
--- ✅ FIX 1: PROPERLY FIND LINORIA'S FRAME (fixes ZIndex nil error)
-task.wait(0.5)
-local Frame = nil
-local ScreenGui = nil
-
--- Search for Linoria's ScreenGui in PlayerGui
-for _, gui in pairs(playerGui:GetChildren()) do
-    if gui:IsA("ScreenGui") and (gui.Name == "LinoriaGui" or gui.Name:find("Library")) then
-        ScreenGui = gui
-        -- Find the main window holder frame
-        for _, child in pairs(gui:GetDescendants()) do
-            if child:IsA("Frame") and child.Name == "Window" then
-                Frame = child
-                break
-            end
-        end
-        if not Frame then
-            Frame = gui:FindFirstChildWhichIsA("Frame")
-        end
-        break
-    end
-end
-
--- Fallback: Try CoreGui
-if not Frame then
-    local CoreGui = game:GetService("CoreGui")
-    for _, gui in pairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and (gui.Name == "LinoriaGui" or gui.Name:find("Library")) then
-            ScreenGui = gui
-            Frame = gui:FindFirstChildWhichIsA("Frame")
-            break
-        end
-    end
-end
-
--- Final fallback: Use Library.ScreenGui if exposed
-if not Frame and Library.ScreenGui then
-    ScreenGui = Library.ScreenGui
-    Frame = ScreenGui:FindFirstChildWhichIsA("Frame")
-end
-
-if not Frame then
-    warn("❌ CRITICAL: Could not find Linoria window frame!")
-    warn("Available GUIs in PlayerGui:")
-    for _, gui in pairs(playerGui:GetChildren()) do
-        warn("  - " .. gui.Name .. " (" .. gui.ClassName .. ")")
-    end
-    return
-end
-
-print("✅ Found Linoria Frame: " .. Frame.Name)
-
--- Set proper display order
-if ScreenGui then
-    ScreenGui.DisplayOrder = 5  -- Above background
-end
-
--- Adjust frame properties for mobile
-Frame.Size = UDim2.new(0, 480, 0, 260)
-Frame.Position = UDim2.new(0.5, -240, 0.5, -130)
-Frame.ZIndex = 10
-Frame.BackgroundTransparency = 0.1
-Frame.Active = true  -- ✅ FIX 3: Enable input capture for dragging
-
--- === MINIMIZE STATE ===
-local isMinimized = false
-local originalSize = UDim2.new(0, 480, 0, 260)
-local originalPosition = UDim2.new(0.5, -240, 0.5, -130)
-
--- ✅ FIX 4: TOP-RIGHT MINIMIZE BUTTON (properly positioned and functional)
-local MinimizeButton = Instance.new("TextButton")
-MinimizeButton.Name = "MinimizeBtn"
-MinimizeButton.Size = UDim2.new(0, 30, 0, 26)
-MinimizeButton.Position = UDim2.new(1, -35, 0, 4)
-MinimizeButton.AnchorPoint = Vector2.new(0, 0)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-MinimizeButton.Text = "➖"
-MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
-MinimizeButton.TextSize = 18
-MinimizeButton.Font = Enum.Font.GothamBold
-MinimizeButton.ZIndex = 100  -- Very high to stay on top
-MinimizeButton.Active = true  -- Prevent drag when clicking button
-MinimizeButton.Parent = Frame
-
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 6)
-MinCorner.Parent = MinimizeButton
-
-local MinStroke = Instance.new("UIStroke")
-MinStroke.Color = Color3.new(1, 1, 1)
-MinStroke.Thickness = 1.5
-MinStroke.Parent = MinimizeButton
-
-print("✅ Minimize button created and parented")
-
--- ✅ FIX 2: Minimize toggle with proper content visibility
-local function toggleMinimize()
-    isMinimized = not isMinimized
-
-    if isMinimized then
-        -- Shrink window
-        TweenService:Create(Frame, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
-            Size = UDim2.new(0, 260, 0, 36),
-            Position = UDim2.new(0.5, -130, 0, 20)
-        }):Play()
-
-        -- Hide ALL content inside Frame except minimize button
-        for _, child in pairs(Frame:GetDescendants()) do
-            if child ~= MinimizeButton and child:IsA("GuiObject") and child.Name ~= "MinimizeBtn" then
-                pcall(function()
-                    if child:FindFirstAncestorWhichIsA("TextButton") ~= MinimizeButton then
-                        child.Visible = false
-                    end
-                end)
-            end
-        end
-
-        MinimizeButton.Text = "⬆"
-        MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
-        Library:Notify("📱 Menu minimized!", 2)
-
-    else
-        -- Restore window
-        TweenService:Create(Frame, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
-            Size = originalSize,
-            Position = originalPosition
-        }):Play()
-
-        -- Show ALL content again
-        task.wait(0.26)  -- Wait for tween to finish
-        for _, child in pairs(Frame:GetDescendants()) do
-            if child:IsA("GuiObject") then
-                pcall(function()
-                    child.Visible = true
-                end)
-            end
-        end
-
-        MinimizeButton.Text = "➖"
-        MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-        Library:Notify("✅ Menu restored!", 2)
-    end
-end
-
-MinimizeButton.MouseButton1Click:Connect(function()
-    toggleMinimize()
-end)
-
-print("✅ Minimize function connected")
-
--- ✅ FIX 3: FULL DRAG SYSTEM (Title bar + Mobile + PC)
-local dragging = false
-local dragStart = nil
-local startPos = nil
-
--- Find title bar for dragging (stored for potential future use)
-local _TitleBar = Frame:FindFirstChild("Title") or Frame:FindFirstChild("TitleBar") or Frame
-
-local function onInputBegan(input)
-    if isMinimized then return end
-
-    -- Only drag if clicking/touching minimize button is NOT the target
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-
-        local absPos = Frame.AbsolutePosition
-        local absSize = Frame.AbsoluteSize
-        local inputPos = input.Position
-
-        -- Check if input is in top 40px (title bar area)
-        local isInTitleBar = inputPos.Y >= absPos.Y and
-                            inputPos.Y <= absPos.Y + 40 and
-                            inputPos.X >= absPos.X and
-                            inputPos.X <= absPos.X + absSize.X
-
-        -- Make sure not clicking minimize button
-        local minBtnPos = MinimizeButton.AbsolutePosition
-        local minBtnSize = MinimizeButton.AbsoluteSize
-        local isClickingMinBtn = inputPos.X >= minBtnPos.X and
-                                inputPos.X <= minBtnPos.X + minBtnSize.X and
-                                inputPos.Y >= minBtnPos.Y and
-                                inputPos.Y <= minBtnPos.Y + minBtnSize.Y
-
-        if isInTitleBar and not isClickingMinBtn then
-            dragging = true
-            dragStart = input.Position
-            startPos = Frame.Position
-
-            -- Visual feedback
-            TweenService:Create(Frame, TweenInfo.new(0.1), {
-                BackgroundTransparency = 0.05
-            }):Play()
-        end
-    end
-end
-
--- Connect to Frame's input
-Frame.InputBegan:Connect(onInputBegan)
-
--- Also listen globally for better mobile support
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and not isMinimized then
-        onInputBegan(input)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and not isMinimized and
-       (input.UserInputType == Enum.UserInputType.MouseMovement or
-        input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        Frame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or
-       input.UserInputType == Enum.UserInputType.Touch then
-        if dragging then
-            dragging = false
-            -- Restore transparency
-            TweenService:Create(Frame, TweenInfo.new(0.1), {
-                BackgroundTransparency = 0.1
-            }):Play()
-        end
-    end
-end)
-
-print("✅ Drag system initialized (title bar draggable)")
+print("✅ Window created - LinoriaLib handles all UI automatically")
 
 -- === STATE MANAGEMENT ===
 local state = {
@@ -529,32 +282,15 @@ else
     PetGroupBox:AddLabel("Pet data not available in this game")
 end
 
--- ✅ FIX 2: Force all tab content to be visible after creation
-task.wait(0.2)
-print("✅ Ensuring all tab content is visible...")
-pcall(function()
-    for _, descendant in pairs(Frame:GetDescendants()) do
-        if descendant:IsA("GuiObject") then
-            -- Make sure all UI elements are visible
-            if descendant.Name ~= "MinimizeBtn" then
-                descendant.Visible = true
-            end
-        end
-    end
-end)
-
 print("✅ All tabs created successfully!")
-print("📊 Main Tab: Live stats tracking")
-print("🔧  Farm Tab: Auto blow bubbles")
-print("🥚 Eggs Tab: Egg scanner + auto hatch")
-print("🌌 Rifts Tab: Rift scanner + teleport")
-print("📊 Webhook Tab: Discord webhook setup")
-print("📋 Data Tab: Pet data display")
 
--- === ADDONS ===
+-- ✅ Setup Theme & Save Managers
 ThemeManager:SetLibrary(Library)
-ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
+SaveManager:SetFolder("BGSIHub")
+ThemeManager:ApplyToTab(DataTab)  -- Add theme options to last tab
+SaveManager:BuildConfigSection(DataTab)  -- Add save/load to last tab
+print("✅ Theme and Save managers ready")
 
 -- === MAIN LOOPS ===
 task.spawn(function()
@@ -592,21 +328,24 @@ task.spawn(function()
     end
 end)
 
--- Initial scan
+-- Initial scans
 scanEggs()
 scanRifts()
 
-print("✅ ============================================")
-print("✅ BGSI Premium Hub v2026 - FULLY LOADED!")
-print("✅ ============================================")
-print("📱 FEATURES:")
-print("   ➖ Minimize Button: Top-right corner")
-print("   🖐️  Drag: Click/touch title bar to move")
-print("   📊 Live Stats: Updating every second")
-print("   🥚 Egg Scanner: Dropdown + Auto Hatch")
-print("   🌌 Rift Scanner: Dropdown + Teleport")
-print("   💬 Discord Webhook: Stats reporting")
-print("✅ ============================================")
+print("✅ ==========================================")
+print("✅ BGSI Premium Hub v2026 - READY!")
+print("✅ ==========================================")
+print("📋 Tabs Available:")
+print("   🏠 Main - Live stats")
+print("   🔧 Farm - Auto features")
+print("   🥚 Eggs - Scanner & auto hatch")
+print("   🌌 Rifts - Scanner & teleport")
+print("   📊 Webhook - Discord integration")
+print("   📋 Data - Pet info & settings")
+print("✅ ==========================================")
+print("💡 Right-click title bar to minimize")
+print("💡 Drag title bar to move window")
+print("💡 Use 'UI Settings' groupbox for themes")
+print("✅ ==========================================")
 
-Library:Notify("🧼 BGSI v2026 LOADED!\n➖ Minimize | Drag title bar", 5)
-print("🎉 Ready to use! No errors detected.")
+Library:Notify("🧼 BGSI Hub Ready!", 3)
