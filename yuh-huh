@@ -365,26 +365,30 @@ ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
 
--- === MOBILE BUTTON TOGGLE ===
--- With this FIXED version:
-local menuVisible = false
+-- === FIXED MOBILE BUTTON TOGGLE (Replace your current one) ===
+-- Get Linoria's actual ScreenGui and toggle it directly
+local linoriaGui = playerGui:WaitForChild("LinoriaLib", 5)
+
 MenuButton.MouseButton1Click:Connect(function()
-    menuVisible = not menuVisible
-    Library.Toggle()  -- ✅ CORRECT Linoria method
-    if menuVisible then
-        MenuButton.Text = "❌"
-        MenuButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-        TweenService:Create(MenuButton, TweenInfo.new(0.2), {
-            Size = UDim2.new(0, 90, 0, 90),
-            BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-        }):Play()
+    if linoriaGui then
+        linoriaGui.Enabled = not linoriaGui.Enabled
+        if linoriaGui.Enabled then
+            MenuButton.Text = "❌"
+            MenuButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+            TweenService:Create(MenuButton, TweenInfo.new(0.2), {
+                Size = UDim2.new(0, 90, 0, 90),
+                BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+            }):Play()
+        else
+            MenuButton.Text = "🧼"
+            MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+            TweenService:Create(MenuButton, TweenInfo.new(0.2), {
+                Size = UDim2.new(0, 80, 0, 80),
+                BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+            }):Play()
+        end
     else
-        MenuButton.Text = "🧼"
-        MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-        TweenService:Create(MenuButton, TweenInfo.new(0.2), {
-            Size = UDim2.new(0, 40, 0, 40),
-            BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-        }):Play()
+        Library:Notify("Linoria GUI not found!", 3)
     end
 end)
 
