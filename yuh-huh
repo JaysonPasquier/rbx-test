@@ -14,7 +14,7 @@ local PREMIUM_KEY = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 if getgenv().script_key ~= PREMIUM_KEY then return end
 
 -- === RAYFIELD v2.1+ (Dark Theme) ===
-local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
    Name = "🧼 BGSI Premium Hub v2.1",
    LoadingTitle = "Loading BGSI Hub...",
