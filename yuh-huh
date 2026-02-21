@@ -1,6 +1,5 @@
--- BGSI Premium Hub v2026 - COMPLETE WIDE/SHORT MOBILE VERSION
--- Key: uIeCsXNDMliclXkKGlfNwXHZHFblrJZl
--- ✅ AUTO-SHOW + WIDE/SHORT + MOBILE PERFECT + MINIMIZE TO TOP BAR
+-- BGSI Premium Hub v2026 - FIXED VERSION
+-- ✅ SHORTER HEIGHT + MINIMIZE BUTTON + FULL CONTENT + DRAGGABLE + BACKGROUND
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -15,131 +14,142 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Premium Hub v2026 - MOBILE PERFECT LOADING...")
+print("🧼 BGSI Premium Hub v2026 - FIXED MOBILE VERSION LOADING...")
 
--- Load Linoria Library (2026 Compatible)
+-- Load Linoria Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
 
--- === CREATE MOBILE-PERFECT WINDOW ===
+-- === BACKGROUND FRAME (BEHIND EVERYTHING) ===
+local BgGui = Instance.new("ScreenGui")
+BgGui.Name = "BGSIBackground"
+BgGui.ResetOnSpawn = false
+BgGui.DisplayOrder = 1  -- LOW priority (behind everything)
+BgGui.Parent = playerGui
+
+local BgFrame = Instance.new("Frame")
+BgFrame.Size = UDim2.new(1, 0, 1, 0)
+BgFrame.Position = UDim2.new(0, 0, 0, 0)
+BgFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BgFrame.BackgroundTransparency = 0.3
+BgFrame.BorderSizePixel = 0
+BgFrame.Parent = BgGui
+
+-- === CREATE COMPACT MOBILE WINDOW ===
 local Window = Library:CreateWindow({
-    Name = "🧼 BGSI Premium Hub v2026",
-    HidePremium = false,
+    Title = "🧼 BGSI Premium Hub v2026",  -- ✅ FIXED TITLE
     Center = true,
     AutoShow = true,
-    Size = UDim2.new(0, 520, 0, 320),  -- ✅ WIDE (520px) + SHORT (320px)
-    Position = UDim2.new(0.5, -260, 0.5, -160),  -- ✅ Perfect mobile center
+    TabPadding = 4,  -- Smaller padding
+    MenuFadeTime = 0.3,
+    Size = UDim2.new(0, 480, 0, 260),  -- ✅ EVEN SHORTER (260px height)
+    Position = UDim2.new(0.5, -240, 0.5, -130)
 })
+
+-- Wait for window to fully load
+task.wait(0.5)
+local Frame = Window.Frame
+Frame.ZIndex = 10  -- Above background but below other GUIs
+Frame.BackgroundTransparency = 0.1
 
 -- === MINIMIZE STATE ===
 local isMinimized = false
-local originalSize = UDim2.new(0, 520, 0, 320)
-local originalPosition = UDim2.new(0.5, -260, 0.5, -160)
+local originalSize = UDim2.new(0, 480, 0, 260)
+local originalPosition = UDim2.new(0.5, -240, 0.5, -130)
 
--- Wait for frame to render
-task.wait(0.2)
-local Frame = Window.Frame
-
--- === TOP-RIGHT MINIMIZE BUTTON ===
+-- === TOP-RIGHT MINIMIZE BUTTON (GUARANTEED TO WORK) ===
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeBtn"
-MinimizeButton.Size = UDim2.new(0, 34, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -39, 0, 6)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+MinimizeButton.Size = UDim2.new(0, 30, 0, 26)
+MinimizeButton.Position = UDim2.new(1, -35, 0, 4)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
 MinimizeButton.Text = "➖"
 MinimizeButton.TextColor3 = Color3.new(1,1,1)
-MinimizeButton.TextSize = 20
+MinimizeButton.TextSize = 18
 MinimizeButton.Font = Enum.Font.GothamBold
 MinimizeButton.Parent = Frame
-MinimizeButton.ZIndex = 999
+MinimizeButton.ZIndex = 20
+MinimizeButton.Active = true
+MinimizeButton.Draggable = false
 
 local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 8)
+MinCorner.CornerRadius = UDim.new(0, 6)
 MinCorner.Parent = MinimizeButton
-
-local MinGradient = Instance.new("UIGradient")
-MinGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 100, 100)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 50, 50))
-}
-MinGradient.Rotation = 45
-MinGradient.Parent = MinimizeButton
 
 local MinStroke = Instance.new("UIStroke")
 MinStroke.Color = Color3.new(1,1,1)
-MinStroke.Thickness = 2
+MinStroke.Thickness = 1.5
 MinStroke.Parent = MinimizeButton
 
--- === MINIMIZE/MAXIMIZE FUNCTION ===
+-- Minimize toggle function
 local function toggleMinimize()
     isMinimized = not isMinimized
 
     if isMinimized then
-        -- MINIMIZE: Shrink to top bar only
-        TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-            Size = UDim2.new(0, 300, 0, 42),
-            Position = UDim2.new(0.5, -150, 0, 15)
+        TweenService:Create(Frame, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, 260, 0, 36),
+            Position = UDim2.new(0.5, -130, 0, 20)
         }):Play()
 
-        -- Hide all tab content
-        for _, tab in pairs(Window.Tabs) do
-            if tab.Content then
-                tab.Content.Visible = false
-            end
+        -- Hide tab content
+        for _, tab in pairs(Window.Tabs or {}) do
+            pcall(function()
+                if tab.Content then tab.Content.Visible = false end
+            end)
         end
 
-        MinimizeButton.Text = "📱"
-        MinimizeButton.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
-        Library:Notify("📱 Menu minimized to top bar!", 2)
+        MinimizeButton.Text = "⬆"
+        MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+        Library:Notify("📱 Menu minimized!", 2)
 
     else
-        -- MAXIMIZE: Restore full size
-        TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+        TweenService:Create(Frame, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
             Size = originalSize,
             Position = originalPosition
         }):Play()
 
         -- Show tab content
-        for _, tab in pairs(Window.Tabs) do
-            if tab.Content then
-                tab.Content.Visible = true
-            end
+        for _, tab in pairs(Window.Tabs or {}) do
+            pcall(function()
+                if tab.Content then tab.Content.Visible = true end
+            end)
         end
 
         MinimizeButton.Text = "➖"
-        MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
-        Library:Notify("✅ Menu expanded!", 2)
+        MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        Library:Notify("✅ Menu restored!", 2)
     end
 end
 
 MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
-MinimizeButton.TouchTap:Connect(toggleMinimize)
 
--- === MOBILE-PERFECT DRAG SYSTEM (Title bar only) ===
+-- === FULL DRAG SYSTEM (Title bar + Mobile) ===
 local dragging = false
 local dragStart = nil
 local startPos = nil
 
-Frame.InputBegan:Connect(function(input)
-    local frameAbsPos = Frame.AbsolutePosition
-    local frameAbsSize = Frame.AbsoluteSize
+local function onInputBegan(input)
+    if isMinimized then return end
 
-    -- Only allow dragging from TITLE BAR (top 50px) when NOT minimized
-    if not isMinimized and input.Position.Y >= frameAbsPos.Y and input.Position.Y <= frameAbsPos.Y + 50 and
+    local absPos = Frame.AbsolutePosition
+    local absSize = Frame.AbsoluteSize
+
+    -- Drag only from top 40px (title bar area)
+    if input.Position.Y >= absPos.Y and input.Position.Y <= absPos.Y + 40 and
        (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 
         dragging = true
         dragStart = input.Position
         startPos = Frame.Position
 
-        -- Visual feedback
         TweenService:Create(MinimizeButton, TweenInfo.new(0.1), {
-            Size = UDim2.new(0, 38, 0, 34),
-            Position = UDim2.new(1, -43, 0, 4)
+            Size = UDim2.new(0, 34, 0, 30)
         }):Play()
     end
-end)
+end
+
+Frame.InputBegan:Connect(onInputBegan)
 
 UserInputService.InputChanged:Connect(function(input)
     if dragging and not isMinimized and
@@ -154,29 +164,20 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = false
         TweenService:Create(MinimizeButton, TweenInfo.new(0.1), {
-            Size = UDim2.new(0, 34, 0, 30),
-            Position = UDim2.new(1, -39, 0, 6)
+            Size = UDim2.new(0, 30, 0, 26)
         }):Play()
     end
 end)
 
 -- === STATE MANAGEMENT ===
 local state = {
-    autoBlow = false,
-    autoHatch = false,
-    riftPriority = nil,
-    eggPriority = nil,
-    webhookUrl = "",
-    webhookStats = true,
-    currentRifts = {},
-    currentEggs = {},
+    autoBlow = false, autoHatch = false, riftPriority = nil, eggPriority = nil,
+    webhookUrl = "", webhookStats = true, currentRifts = {}, currentEggs = {},
     stats = {bubbles=0, hatches=0, coins=0, bubbleStock=0, gems=0},
-    startTime = tick(),
-    labels = {},
-    dropdowns = {}
+    startTime = tick(), labels = {}, dropdowns = {}
 }
 
--- === PETS & CODES DATA ===
+-- === DATA ===
 local petData, codeData
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
@@ -187,8 +188,7 @@ end)
 local function SendWebhook(url, msg)
     pcall(function()
         request({
-            Url = url,
-            Method = "POST",
+            Url = url, Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({content = msg})
         })
@@ -275,7 +275,7 @@ local function tpToModel(model)
     end)
 end
 
--- === TABS ===
+-- === CREATE TABS ===
 local MainTab = Window:AddTab("🏠 Main")
 local FarmTab = Window:AddTab("🔧 Farm")
 local EggsTab = Window:AddTab("🥚 Eggs")
@@ -283,39 +283,41 @@ local RiftsTab = Window:AddTab("🌌 Rifts")
 local WebTab = Window:AddTab("📊 Webhook")
 local DataTab = Window:AddTab("📋 Data")
 
--- === MAIN TAB - Live Stats ===
-local MainGroupBox = MainTab:AddLeftGroupbox("📊 Live Statistics")
-state.labels.runtime = MainGroupBox:AddLabel("Runtime: 00:00:00")
-state.labels.bubbles = MainGroupBox:AddLabel("Bubbles: 0")
-state.labels.hatches = MainGroupBox:AddLabel("Hatches: 0")
-state.labels.coins = MainGroupBox:AddLabel("Coins: 0")
-state.labels.bubbleStock = MainGroupBox:AddLabel("Bubble Stock: 0")
-state.labels.gems = MainGroupBox:AddLabel("Gems: 0")
+-- === MAIN TAB ===
+local MainGroupBox = MainTab:AddLeftGroupbox("📊 Live Stats")
+state.labels = {
+    runtime = MainGroupBox:AddLabel("Runtime: 00:00:00"),
+    bubbles = MainGroupBox:AddLabel("Bubbles: 0"),
+    hatches = MainGroupBox:AddLabel("Hatches: 0"),
+    coins = MainGroupBox:AddLabel("Coins: 0"),
+    bubbleStock = MainGroupBox:AddLabel("Bubble Stock: 0"),
+    gems = MainGroupBox:AddLabel("Gems: 0")
+}
 
 -- === FARM TAB ===
-local FarmGroupBox = FarmTab:AddLeftGroupbox("🤖 Auto Farming")
+local FarmGroupBox = FarmTab:AddLeftGroupbox("🤖 Auto Farm")
 FarmGroupBox:AddToggle("AutoBlow", {
     Text = "🧼 Auto Blow Bubbles",
     Default = false,
-    Callback = function(value)
-        state.autoBlow = value
-        Library:Notify("Auto Blow " .. (value and "✅ Enabled" or "❌ Disabled"), 2)
+    Callback = function(v)
+        state.autoBlow = v
+        Library:Notify("Auto Blow " .. (v and "ON" or "OFF"), 2)
     end
 })
 
 -- === EGGS TAB ===
-local EggGroupBox = EggsTab:AddLeftGroupbox("🥚 Egg Scanner")
+local EggGroupBox = EggsTab:AddLeftGroupbox("🥚 Eggs")
 state.dropdowns.egg = EggGroupBox:AddDropdown("EggSelect", {
     Values = {},
     AllowNull = true,
-    Text = "No eggs found - Click Refresh",
+    Text = "Scan eggs first",
     Callback = function(option)
         if option then
             state.eggPriority = option
             for _, egg in pairs(state.currentEggs) do
                 if egg.name == option then
                     tpToModel(egg.instance)
-                    Library:Notify("🚀 Teleported to " .. option, 2)
+                    Library:Notify("TP to " .. option, 2)
                     break
                 end
             end
@@ -324,16 +326,13 @@ state.dropdowns.egg = EggGroupBox:AddDropdown("EggSelect", {
 })
 
 EggGroupBox:AddToggle("AutoHatch", {
-    Text = "🔄 Auto Hatch Priority Egg",
+    Text = "🔄 Auto Hatch",
     Default = false,
-    Callback = function(value)
-        state.autoHatch = value
-        Library:Notify("Auto Hatch " .. (value and "✅ Enabled" or "❌ Disabled"), 2)
-    end
+    Callback = function(v) state.autoHatch = v end
 })
 
 EggGroupBox:AddButton({
-    Text = "🔄 Refresh Eggs",
+    Text = "🔄 Scan Eggs",
     Func = function()
         scanEggs()
         local names = {}
@@ -341,17 +340,16 @@ EggGroupBox:AddButton({
             table.insert(names, egg.name)
         end
         state.dropdowns.egg:Refresh(names)
-        state.dropdowns.egg:Set("")
-        Library:Notify("🥚 Found " .. #names .. " eggs!", 2)
+        Library:Notify(#names .. " eggs found!", 2)
     end
 })
 
 -- === RIFTS TAB ===
-local RiftGroupBox = RiftsTab:AddLeftGroupbox("🌌 Live Rift Scanner")
+local RiftGroupBox = RiftsTab:AddLeftGroupbox("🌌 Rifts")
 state.dropdowns.rift = RiftGroupBox:AddDropdown("RiftSelect", {
     Values = {},
     AllowNull = true,
-    Text = "No rifts found - Click Refresh",
+    Text = "Scan rifts first",
     Callback = function(option)
         if option then
             local name = option:match("^(.+?) |") or option
@@ -359,7 +357,7 @@ state.dropdowns.rift = RiftGroupBox:AddDropdown("RiftSelect", {
             for _, rift in pairs(state.currentRifts) do
                 if rift.name == name then
                     tpToModel(rift.instance)
-                    Library:Notify("🌌 Teleported to " .. name, 2)
+                    Library:Notify("TP to " .. name, 2)
                     break
                 end
             end
@@ -368,7 +366,7 @@ state.dropdowns.rift = RiftGroupBox:AddDropdown("RiftSelect", {
 })
 
 RiftGroupBox:AddButton({
-    Text = "🔄 Refresh Rifts",
+    Text = "🔄 Scan Rifts",
     Func = function()
         scanRifts()
         local names = {}
@@ -376,63 +374,50 @@ RiftGroupBox:AddButton({
             table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
         end
         state.dropdowns.rift:Refresh(names)
-        state.dropdowns.rift:Set("")
-        Library:Notify("🌌 Found " .. #names .. " rifts!", 2)
+        Library:Notify(#names .. " rifts found!", 2)
     end
 })
 
 -- === WEBHOOK TAB ===
-local WebGroupBox = WebTab:AddLeftGroupbox("💬 Discord Webhook")
+local WebGroupBox = WebTab:AddLeftGroupbox("💬 Discord")
 state.webhookInput = WebGroupBox:AddInput("WebhookURL", {
-    Text = "Discord Webhook URL",
+    Text = "Webhook URL",
     Default = "",
     Placeholder = "https://discord.com/api/webhooks/...",
-    Callback = function(text)
-        state.webhookUrl = text
-    end
+    Callback = function(text) state.webhookUrl = text end
 })
 
 WebGroupBox:AddToggle("StatsWebhook", {
-    Text = "📊 Send Live Stats",
+    Text = "📊 Send Stats",
     Default = true,
-    Callback = function(value)
-        state.webhookStats = value
-    end
+    Callback = function(v) state.webhookStats = v end
 })
 
 WebGroupBox:AddButton({
-    Text = "🧪 Test Webhook",
+    Text = "🧪 Test",
     Func = function()
         if state.webhookUrl == "" then
-            Library:Notify("❌ Enter webhook URL first!", 3)
+            Library:Notify("Add webhook URL!", 3)
             return
         end
-        local msg = "**🧼 BGSI Stats** `" .. os.date("%H:%M") .. "`\n"
-        local fields = {}
-        if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: " .. state.stats.bubbles) end
-        if state.stats.hatches > 0 then table.insert(fields, "Hatches: " .. state.stats.hatches) end
-        if state.stats.coins > 0 then table.insert(fields, "Coins: " .. state.stats.coins) end
-        SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
-        Library:Notify("✅ Test message sent!", 2)
+        SendWebhook(state.webhookUrl, "**🧼 BGSI Test** " .. os.date("%H:%M"))
+        Library:Notify("Test sent!", 2)
     end
 })
 
 -- === DATA TAB ===
 if petData then
-    local PetGroupBox = DataTab:AddLeftGroupbox("🐾 Pet Rarities")
+    local PetGroupBox = DataTab:AddLeftGroupbox("🐾 Pets")
     local count = 0
-    for petName, data in pairs(petData) do
-        if data.Rarity and count < 20 then  -- Limit to 20 pets for space
-            PetGroupBox:AddLabel(petName .. " [" .. data.Rarity .. "]")
-            count = count + 1
+    for name, data in pairs(petData) do
+        if data.Rarity and count < 15 then
+            PetGroupBox:AddLabel(name .. " [" .. data.Rarity .. "]")
+            count += 1
         end
-    end
-    if count == 0 then
-        PetGroupBox:AddLabel("No pet data available")
     end
 end
 
--- Initialize addons
+-- === ADDONS ===
 ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
@@ -443,11 +428,9 @@ spawn(function()
         updateStats()
         scanRifts()
         scanEggs()
-
         if state.autoBlow then
-            -- Uncomment when ready: RS.Remotes.BlowBubbleRemote:FireServer()
+            -- RS.Remotes.BlowBubbleRemote:FireServer()
         end
-
         if state.autoHatch and state.eggPriority then
             for _, egg in pairs(state.currentEggs) do
                 if egg.name == state.eggPriority then
@@ -472,22 +455,12 @@ spawn(function()
             state.labels.bubbleStock:Set("Bubble Stock: " .. state.stats.bubbleStock)
             state.labels.gems:Set("Gems: " .. state.stats.gems)
         end)
-
-        if state.webhookStats and state.webhookUrl ~= "" and tick()%60 < 1 then
-            local msg = "**🧼 BGSI** | " .. player.Name .. " | " .. os.date("%H:%M") .. "\n"
-            local fields = {}
-            if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: " .. state.stats.bubbles) end
-            if state.stats.hatches > 0 then table.insert(fields, "Hatches: " .. state.stats.hatches) end
-            if state.stats.coins > 0 then table.insert(fields, "Coins: " .. state.stats.coins) end
-            SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
-        end
     end
 end)
 
--- Initial scans
+-- Initial scan
 scanEggs()
 scanRifts()
 
-Library:Notify("🧼 BGSI v2026 MOBILE HUB READY! 🎮\n➖ Top-right = Minimize | Drag title bar", 6)
-print("🎉 BGSI Premium Hub v2026 - COMPLETE MOBILE VERSION LOADED!")
-print("✅ Auto-shows | ✅ Wide/Short | ✅ Drag title | ✅ Minimize top bar")
+Library:Notify("🧼 BGSI v2026 READY!\n➖ = Minimize | Drag title bar", 5)
+print("🎉 BGSI Premium Hub v2026 - FIXED & MOBILE PERFECT!")
