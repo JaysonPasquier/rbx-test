@@ -86,66 +86,69 @@ local function SendWebhook(url, msg)
     end)
 end
 
+-- ✅ IMPROVED: Get stats from leaderstats and UI
 local function updateStats()
+    -- Get from leaderstats
     local leaderstats = player:FindFirstChild("leaderstats")
     if leaderstats then
-        state.stats.bubbles = leaderstats:FindFirstChild("Bubbles") and leaderstats.Bubbles.Value or 0
-        state.stats.hatches = leaderstats:FindFirstChild("Hatches") and leaderstats.Hatches.Value or 0
+        local bubblesValue = leaderstats:FindFirstChild("Bubbles")
+        local hatchesValue = leaderstats:FindFirstChild("Hatches")
+
+        if bubblesValue then
+            state.stats.bubbles = bubblesValue.Value
+        end
+        if hatchesValue then
+            state.stats.hatches = hatchesValue.Value
+        end
     end
 
+    -- Get currency from UI
     pcall(function()
         local screenGui = playerGui:FindFirstChild("ScreenGui")
-        if screenGui and screenGui:FindFirstChild("HUD") then
-            local currencyFrame = screenGui.HUD:FindFirstChild("Left", true):FindFirstChild("Currency", true)
-            if currencyFrame then
-                for _, currency in pairs(currencyFrame:GetChildren()) do
-                    local label = currency:FindFirstChild("Frame", true):FindFirstChild("Label")
-                    if label then
-                        local value = tonumber(label.Text:match("%d+")) or 0
-                        local name = currency.Name:lower()
-                        if name == "coins" then state.stats.coins = value end
-                        if name == "bubble" then state.stats.bubbleStock = value end
-                        if name == "gems" then state.stats.gems = value end
-                    end
-                end
-            end
-        end
-    end)
-end
+        if screenGui then
+            local hud = screenGui:FindFirstChild("HUD")
+            if hud then
+                local left = hud:FindFirstChild("Left")
+                if left then
+                    local currency = left:FindFirstChild("Currency")
+                    if currency then
+                        -- Coins
+                        local coinsFrame = currency:FindFirstChild("Coins")
+                        if coinsFrame then
+                            local frame = coinsFrame:FindFirstChild("Frame")
+                            if frame then
+                                local label = frame:FindFirstChild("Label")
+                                if label and label:IsA("TextLabel") then
+                                    local value = tonumber(label.Text:match("%d+")) or 0
+                                    state.stats.coins = value
+                                end
+                            end
+                        end
 
-local function scanRifts()
-    state.currentRifts = {}
-    pcall(function()
-        local rendered = Workspace:FindFirstChild("Rendered")
-        if rendered and rendered:FindFirstChild("Rifts") then
-            for _, rift in pairs(rendered.Rifts:GetChildren()) do
-                local display = rift:FindFirstChild("Display")
-                if display then
-                    local timer = display:FindFirstChild("Timer")
-                    local icon = display:FindFirstChild("Icon")
-                    local luck = icon and icon:FindFirstChild("Luck")
-                    table.insert(state.currentRifts, {
-                        name = rift.Name,
-                        timer = timer and timer.Text or "00:00",
-                        luck = luck and luck.Text or "x1",
-                        instance = rift
-                    })
-                end
-            end
-        end
-    end)
-end
+                        -- Bubble Stock
+                        local bubbleFrame = currency:FindFirstChild("Bubble")
+                        if bubbleFrame then
+                            local frame = bubbleFrame:FindFirstChild("Frame")
+                            if frame then
+                                local label = frame:FindFirstChild("Label")
+                                if label and label:IsA("TextLabel") then
+                                    local value = tonumber(label.Text:match("%d+")) or 0
+                                    state.stats.bubbleStock = value
+                                end
+                            end
+                        end
 
-local function scanEggs()
-    state.currentEggs = {}
-    pcall(function()
-        local rendered = Workspace:FindFirstChild("Rendered")
-        if rendered then
-            for _, folder in pairs(rendered:GetChildren()) do
-                if folder.Name:lower():find("chuncker") then
-                    for _, egg in pairs(folder:GetChildren()) do
-                        if egg.Name ~= "Coming Soon" then
-                            table.insert(state.currentEggs, {name = egg.Name, instance = egg})
+                        -- Gems
+                        local gemsFrame = currency:FindFirstChild("gems")
+                        if gemsFrame then
+                            local frame = gemsFrame:FindFirstChild("Frame")
+                            if frame then
+                                local label = frame:FindFirstChild("Label")
+                                if label and label:IsA("TextLabel") then
+                                    local value = tonumber(label.Text:match("%d+")) or 0
+                                    state.stats.gems = value
+                                end
+                            end
                         end
                     end
                 end
@@ -154,14 +157,96 @@ local function scanEggs()
     end)
 end
 
+-- ✅ IMPROVED: Real-time rift scanner with timer & luck
+local function scanRifts()
+    local newRifts = {}
+    pcall(function()
+        local rendered = Workspace:FindFirstChild("Rendered")
+        if rendered and rendered:FindFirstChild("Rifts") then
+            for _, rift in pairs(rendered.Rifts:GetChildren()) do
+                if rift:IsA("Model") then
+                    local display = rift:FindFirstChild("Display")
+                    if display then
+                        local timerLabel = display:FindFirstChild("Timer")
+                        local icon = display:FindFirstChild("Icon")
+                        local luckLabel = icon and icon:FindFirstChild("Luck")
+
+                        local timerText = "00:00"
+                        local luckText = "x1"
+
+                        if timerLabel and timerLabel:IsA("TextLabel") then
+                            timerText = timerLabel.Text
+                        end
+
+                        if luckLabel and luckLabel:IsA("TextLabel") then
+                            luckText = luckLabel.Text
+                        end
+
+                        table.insert(newRifts, {
+                            name = rift.Name,
+                            timer = timerText,
+                            luck = luckText,
+                            instance = rift,
+                            displayText = rift.Name .. " | " .. timerText .. " | " .. luckText
+                        })
+                    end
+                end
+            end
+        end
+    end)
+
+    state.currentRifts = newRifts
+    return newRifts
+end
+
+-- ✅ IMPROVED: Real-time egg scanner (Chuncker folders)
+local function scanEggs()
+    local newEggs = {}
+    local seenEggs = {}  -- Prevent duplicates
+
+    pcall(function()
+        local rendered = Workspace:FindFirstChild("Rendered")
+        if rendered then
+            -- Search through ALL children for "Chuncker" folders (note the typo in game)
+            for _, folder in pairs(rendered:GetChildren()) do
+                if folder.Name:find("Chuncker") then
+                    for _, egg in pairs(folder:GetChildren()) do
+                        -- Skip "Coming Soon" and duplicates
+                        if egg.Name ~= "Coming Soon" and not seenEggs[egg.Name] then
+                            seenEggs[egg.Name] = true
+                            table.insert(newEggs, {
+                                name = egg.Name,
+                                instance = egg
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    state.currentEggs = newEggs
+    return newEggs
+end
+
+-- ✅ FIXED: Proper teleport function
 local function tpToModel(model)
     pcall(function()
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = player.Character.HumanoidRootPart
-            local cf = model:FindFirstChild("EggPlatformSpawn")
-                and model.EggPlatformSpawn:GetModelCFrame()
-                or model:GetModelCFrame()
+        if not player.Character then return end
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        -- Check if it's a rift (has EggPlatformSpawn)
+        local platform = model:FindFirstChild("EggPlatformSpawn")
+
+        if platform then
+            -- Rift teleport - get center of platform
+            local cf = platform:GetPivot()
             hrp.CFrame = cf + Vector3.new(0, 5, 0)
+        else
+            -- Regular egg teleport - get model center
+            local cf = model:GetPivot()
+            hrp.CFrame = cf + Vector3.new(0, 3, 0)
         end
     end)
 end
@@ -205,19 +290,22 @@ local EggsSection = EggsTab:CreateSection("🥚 Eggs Management")
 
 local EggDropdown = EggsTab:CreateDropdown({
    Name = "Select Egg",
-   Options = {},
-   CurrentOption = {"Scan eggs first"},
+   Options = {"Scanning..."},
+   CurrentOption = {"Scanning..."},
    MultipleOptions = false,
    Flag = "EggSelect",
    Callback = function(Option)
-      if Option and Option[1] and Option[1] ~= "Scan eggs first" then
-         state.eggPriority = Option[1]
+      if Option and Option[1] then
+         local selectedEgg = Option[1]
+
+         -- Find and teleport to selected egg
          for _, egg in pairs(state.currentEggs) do
-            if egg.name == Option[1] then
+            if egg.name == selectedEgg then
+               state.eggPriority = selectedEgg
                tpToModel(egg.instance)
                Rayfield:Notify({
                   Title = "Teleported",
-                  Content = "TP to " .. Option[1],
+                  Content = "Teleported to " .. selectedEgg,
                   Duration = 2,
                   Image = 4483362458,
                })
@@ -229,31 +317,23 @@ local EggDropdown = EggsTab:CreateDropdown({
 })
 
 local AutoHatchToggle = EggsTab:CreateToggle({
-   Name = "🔄 Auto Hatch",
+   Name = "🔄 Auto Hatch (Priority Egg)",
    CurrentValue = false,
    Flag = "AutoHatch",
    Callback = function(Value)
       state.autoHatch = Value
+      if Value then
+         Rayfield:Notify({
+            Title = "Auto Hatch",
+            Content = "Will keep teleporting to: " .. (state.eggPriority or "None"),
+            Duration = 3,
+            Image = 4483362458,
+         })
+      end
    end,
 })
 
-local ScanEggsButton = EggsTab:CreateButton({
-   Name = "🔄 Scan Eggs",
-   Callback = function()
-      scanEggs()
-      local names = {}
-      for _, egg in pairs(state.currentEggs) do
-         table.insert(names, egg.name)
-      end
-      EggDropdown:Refresh(names, true)
-      Rayfield:Notify({
-         Title = "Eggs Scanned",
-         Content = #names .. " eggs found!",
-         Duration = 2,
-         Image = 4483362458,
-      })
-   end,
-})
+EggsTab:CreateLabel("Auto-scans eggs every 2 seconds")
 
 -- === RIFTS TAB ===
 local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
@@ -261,21 +341,26 @@ local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
 local RiftsSection = RiftsTab:CreateSection("🌌 Rifts Management")
 
 local RiftDropdown = RiftsTab:CreateDropdown({
-   Name = "Select Rift",
-   Options = {},
-   CurrentOption = {"Scan rifts first"},
+   Name = "Select Rift (Priority)",
+   Options = {"Scanning..."},
+   CurrentOption = {"Scanning..."},
    MultipleOptions = false,
    Flag = "RiftSelect",
    Callback = function(Option)
-      if Option and Option[1] and Option[1] ~= "Scan rifts first" then
-         local name = Option[1]:match("^(.+?) |") or Option[1]
-         state.riftPriority = name
+      if Option and Option[1] then
+         local selectedRift = Option[1]
+
+         -- Extract rift name (before the " | ")
+         local riftName = selectedRift:match("^(.+) |") or selectedRift
+
+         -- Find and teleport to selected rift
          for _, rift in pairs(state.currentRifts) do
-            if rift.name == name then
+            if rift.name == riftName or rift.displayText == selectedRift then
+               state.riftPriority = rift.name
                tpToModel(rift.instance)
                Rayfield:Notify({
                   Title = "Teleported",
-                  Content = "TP to " .. name,
+                  Content = "Teleported to " .. rift.name,
                   Duration = 2,
                   Image = 4483362458,
                })
@@ -286,23 +371,8 @@ local RiftDropdown = RiftsTab:CreateDropdown({
    end,
 })
 
-local ScanRiftsButton = RiftsTab:CreateButton({
-   Name = "🔄 Scan Rifts",
-   Callback = function()
-      scanRifts()
-      local names = {}
-      for _, rift in pairs(state.currentRifts) do
-         table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
-      end
-      RiftDropdown:Refresh(names, true)
-      Rayfield:Notify({
-         Title = "Rifts Scanned",
-         Content = #names .. " rifts found!",
-         Duration = 2,
-         Image = 4483362458,
-      })
-   end,
-})
+RiftsTab:CreateLabel("Auto-scans rifts every 2 seconds")
+RiftsTab:CreateLabel("Shows: Name | Timer | Luck")
 
 -- === WEBHOOK TAB ===
 local WebTab = Window:CreateTab("📊 Webhook", 4483362458)
@@ -366,48 +436,210 @@ else
    DataTab:CreateLabel("Pet data not available in this game")
 end
 
--- === MAIN LOOPS ===
-task.spawn(function()
-    while task.wait(0.1) do
-        updateStats()
-        scanRifts()
-        scanEggs()
-        
-        if state.autoBlow then
-            -- Uncomment when ready:
-            -- RS.Remotes.BlowBubbleRemote:FireServer()
-        end
-        
-        if state.autoHatch and state.eggPriority then
-            for _, egg in pairs(state.currentEggs) do
-                if egg.name == state.eggPriority then
-                    tpToModel(egg.instance)
-                    break
-                end
+-- 🔍 Remote Discovery Section
+local RemoteSection = DataTab:CreateSection("🔍 Remote Discovery (For Devs)")
+DataTab:CreateLabel("Use this to find game remotes:")
+
+DataTab:CreateButton({
+   Name = "📡 Scan RS Remotes",
+   Callback = function()
+      local RS = game:GetService("ReplicatedStorage")
+      print("\n🔍 === REPLICATEDSTORAGE REMOTES ===")
+      for _, obj in pairs(RS:GetDescendants()) do
+         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
+            print("   📡 " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
+         end
+      end
+      print("=== END SCAN ===\n")
+      Rayfield:Notify({
+         Title = "Remote Scan Complete",
+         Content = "Check console (F9) for results",
+         Duration = 3
+      })
+   end
+})
+
+DataTab:CreateButton({
+   Name = "🎯 Find Bubble Remotes",
+   Callback = function()
+      local RS = game:GetService("ReplicatedStorage")
+      print("\n🧼 === SEARCHING FOR BUBBLE REMOTES ===")
+      for _, obj in pairs(RS:GetDescendants()) do
+         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = obj.Name:lower()
+            if name:find("bubble") or name:find("blow") or name:find("click") or name:find("tap") then
+               print("   💡 POSSIBLE: " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
             end
+         end
+      end
+      print("=== END SEARCH ===\n")
+      Rayfield:Notify({
+         Title = "Bubble Remote Search Complete",
+         Content = "Check console (F9) for results",
+         Duration = 3
+      })
+   end
+})
+
+DataTab:CreateButton({
+   Name = "🥚 Find Egg/Hatch Remotes",
+   Callback = function()
+      local RS = game:GetService("ReplicatedStorage")
+      print("\n🥚 === SEARCHING FOR EGG/HATCH REMOTES ===")
+      for _, obj in pairs(RS:GetDescendants()) do
+         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = obj.Name:lower()
+            if name:find("egg") or name:find("hatch") or name:find("open") or name:find("purchase") then
+               print("   💡 POSSIBLE: " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
+            end
+         end
+      end
+      print("=== END SEARCH ===\n")
+      Rayfield:Notify({
+         Title = "Egg/Hatch Remote Search Complete",
+         Content = "Check console (F9) for results",
+         Duration = 3
+      })
+   end
+})
+
+-- === MAIN LOOPS ===
+
+-- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds)
+task.spawn(function()
+    while task.wait(2) do
+        -- Scan rifts
+        local rifts = scanRifts()
+        local riftNames = {}
+        for _, rift in pairs(rifts) do
+            table.insert(riftNames, rift.displayText)
+        end
+
+        if #riftNames > 0 then
+            pcall(function()
+                RiftDropdown:Refresh(riftNames, true)
+            end)
+        end
+
+        -- Scan eggs
+        local eggs = scanEggs()
+        local eggNames = {}
+        for _, egg in pairs(eggs) do
+            table.insert(eggNames, egg.name)
+        end
+
+        if #eggNames > 0 then
+            pcall(function()
+                EggDropdown:Refresh(eggNames, true)
+            end)
         end
     end
 end)
 
+-- ✅ STATS UPDATE: Every second
 task.spawn(function()
     while task.wait(1) do
         local runtime = tick() - state.startTime
         local h,m,s = math.floor(runtime/3600), math.floor((runtime%3600)/60), math.floor(runtime%60)
 
         pcall(function()
-            state.labels.runtime:Set("Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
-            state.labels.bubbles:Set("Bubbles: " .. state.stats.bubbles)
-            state.labels.hatches:Set("Hatches: " .. state.stats.hatches)
-            state.labels.coins:Set("Coins: " .. state.stats.coins)
-            state.labels.bubbleStock:Set("Bubble Stock: " .. state.stats.bubbleStock)
-            state.labels.gems:Set("Gems: " .. state.stats.gems)
+            state.labels.runtime:Set("⏱️ Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
+            state.labels.bubbles:Set("🧼 Bubbles: " .. tostring(state.stats.bubbles))
+            state.labels.hatches:Set("🥚 Hatches: " .. tostring(state.stats.hatches))
+            state.labels.coins:Set("💰 Coins: " .. tostring(state.stats.coins))
+            state.labels.bubbleStock:Set("🫧 Bubble Stock: " .. tostring(state.stats.bubbleStock))
+            state.labels.gems:Set("💎 Gems: " .. tostring(state.stats.gems))
         end)
+
+        updateStats()
     end
 end)
 
--- Initial scans
-scanEggs()
-scanRifts()
+-- ✅ AUTO FEATURES: Fast loop (100ms)
+task.spawn(function()
+    while task.wait(0.1) do
+        -- Auto Blow Bubbles
+        if state.autoBlow then
+            pcall(function()
+                -- 🔍 NEED TO FIND: The bubble blowing remote
+                -- Possible locations: RS.Remotes, RS.Network, RS.Events
+                -- Look for: BlowBubble, Bubble, Click, Tap events
+                -- Try: game:GetService("ReplicatedStorage"):GetDescendants() to find remotes
+                local RS = game:GetService("ReplicatedStorage")
+
+                -- Common patterns:
+                -- RS.Remotes.BlowBubble:FireServer()
+                -- RS.Network.BlowBubble:InvokeServer()
+                -- RS.Events.Bubble:Fire()
+
+                -- Placeholder for now:
+                warn("⚠️ Auto Blow: Remote not yet implemented!")
+            end)
+        end
+
+        -- Auto Hatch (teleport to priority egg)
+        if state.autoHatch and state.eggPriority then
+            pcall(function()
+                for _, egg in pairs(state.currentEggs) do
+                    if egg.name == state.eggPriority then
+                        tpToModel(egg.instance)
+
+                        -- 🔍 NEED TO FIND: The egg opening/hatching remote
+                        -- Possible approach:
+                        -- 1. Find ProximityPrompt on egg model
+                        -- 2. Trigger it: fireclickdetector or fireproximityprompt
+                        -- 3. OR find RemoteEvent/RemoteFunction like:
+                        --    RS.Remotes.OpenEgg:InvokeServer(eggName)
+                        --    RS.Network.HatchEgg:FireServer(eggModel)
+
+                        break
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- === INITIAL SETUP ===
+print("✅ Performing initial scans...")
+
+-- Initial egg scan
+task.spawn(function()
+    task.wait(1)  -- Wait for game to load
+    local eggs = scanEggs()
+    local eggNames = {}
+    for _, egg in pairs(eggs) do
+        table.insert(eggNames, egg.name)
+    end
+
+    if #eggNames > 0 then
+        pcall(function()
+            EggDropdown:Refresh(eggNames, true)
+        end)
+        print("✅ Found " .. #eggNames .. " eggs")
+    else
+        print("⚠️ No eggs found yet")
+    end
+end)
+
+-- Initial rift scan
+task.spawn(function()
+    task.wait(1)  -- Wait for game to load
+    local rifts = scanRifts()
+    local riftNames = {}
+    for _, rift in pairs(rifts) do
+        table.insert(riftNames, rift.displayText)
+    end
+
+    if #riftNames > 0 then
+        pcall(function()
+            RiftDropdown:Refresh(riftNames, true)
+        end)
+        print("✅ Found " .. #riftNames .. " rifts")
+    else
+        print("⚠️ No rifts spawned yet")
+    end
+end)
 
 -- Load saved configuration
 Rayfield:LoadConfiguration()
@@ -420,20 +652,26 @@ print("   • Single column layout")
 print("   • Auto-resizes to your screen")
 print("   • Touch-friendly buttons")
 print("✅ ==========================================")
+print("🔄 AUTO-SCANNING:")
+print("   • Rifts: Every 2 seconds")
+print("   • Eggs: Every 2 seconds")
+print("   • Stats: Every 1 second")
+print("✅ ==========================================")
 print("📋 Tabs:")
 print("   🏠 Main - Live stats")
 print("   🔧 Farm - Auto blow bubbles")
-print("   🥚 Eggs - Scanner & auto hatch")
-print("   🌌 Rifts - Scanner & teleport")
+print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
+print("   🌌 Rifts - Auto-scanned rifts with timers")
 print("   📊 Webhook - Discord integration")
 print("   📋 Data - Pet information")
 print("✅ ==========================================")
 
 Rayfield:Notify({
    Title = "🧼 BGSI Hub Ready!",
-   Content = "Mobile-optimized by Rayfield",
+   Content = "Mobile-optimized | Auto-scanning enabled",
    Duration = 5,
    Image = 4483362458,
 })
 
 print("🎉 BGSI Hub loaded successfully!")
+print("💡 Rifts and eggs will auto-refresh every 2 seconds")
