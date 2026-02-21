@@ -1,5 +1,5 @@
--- Rift Scanner & Teleporter - TAB MENU Version
--- Minimizable + Tabs: Info | Eggs | Quests | Rifts
+-- Rift Scanner & Teleporter - TAB MENU Version (FIXED)
+-- Fixed ScrollFrame error + emoji-only mini button
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,10 +13,10 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local SCRIPT_START = tick()
 
 -- Wait for modules
-local Rifts = require(ReplicatedStorage.Shared.Data.Rifts)
-local WorldUtil = require(ReplicatedStorage.Shared.Utils.WorldUtil)
+local success, Rifts = pcall(function() return require(ReplicatedStorage.Shared.Data.Rifts) end)
+local success2, WorldUtil = pcall(function() return require(ReplicatedStorage.Shared.Utils.WorldUtil) end)
 
-local RIFT_DATA = Rifts
+local RIFT_DATA = success and Rifts or {}
 
 -- Main ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
@@ -24,25 +24,25 @@ ScreenGui.Name = "RiftMenu"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 
--- Mini button (always visible)
+-- Mini button (emoji only)
 local MiniBtn = Instance.new("TextButton")
-MiniBtn.Size = UDim2.new(0, 120, 0, 35)
-MiniBtn.Position = UDim2.new(1, -130, 0, 20)
+MiniBtn.Size = UDim2.new(0, 50, 0, 50)
+MiniBtn.Position = UDim2.new(1, -60, 0, 20)
 MiniBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
-MiniBtn.Text = "🌀 RIFT MENU"
+MiniBtn.Text = "🌀"
 MiniBtn.TextColor3 = Color3.new(1,1,1)
 MiniBtn.TextScaled = true
 MiniBtn.Font = Enum.Font.GothamBold
 MiniBtn.Parent = ScreenGui
 
 local MiniCorner = Instance.new("UICorner")
-MiniCorner.CornerRadius = UDim.new(0, 8)
+MiniCorner.CornerRadius = UDim.new(0, 12)
 MiniCorner.Parent = MiniBtn
 
 -- Main menu frame (hidden initially)
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 600, 0, 500)
-MainFrame.Position = UDim2.new(1, -620, 0, 60)
+MainFrame.Size = UDim2.new(0, 650, 0, 550)
+MainFrame.Position = UDim2.new(1, -670, 0, 80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
@@ -54,7 +54,7 @@ MainCorner.Parent = MainFrame
 
 -- Header with tabs & controls
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 50)
+Header.Size = UDim2.new(1, 0, 0, 55)
 Header.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
 Header.Parent = MainFrame
 
@@ -69,8 +69,8 @@ local CurrentTab = "INFO"
 
 for i, tabName in ipairs(Tabs) do
     local TabBtn = Instance.new("TextButton")
-    TabBtn.Size = UDim2.new(0, 120, 1, 0)
-    TabBtn.Position = UDim2.new(0, (i-1)*125, 0, 0)
+    TabBtn.Size = UDim2.new(0, 130, 1, 0)
+    TabBtn.Position = UDim2.new(0, (i-1)*135 + 10, 0, 0)
     TabBtn.BackgroundColor3 = i == 1 and Color3.fromRGB(70, 150, 255) or Color3.fromRGB(50, 50, 70)
     TabBtn.Text = tabName
     TabBtn.TextColor3 = Color3.new(1,1,1)
@@ -79,7 +79,7 @@ for i, tabName in ipairs(Tabs) do
     TabBtn.Parent = Header
     
     local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 6)
+    TabCorner.CornerRadius = UDim.new(0, 8)
     TabCorner.Parent = TabBtn
     
     TabBtn.MouseButton1Click:Connect(function()
@@ -95,8 +95,8 @@ end
 
 -- Close button
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 35, 0, 35)
-CloseBtn.Position = UDim2.new(1, -45, 0, 8)
+CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+CloseBtn.Position = UDim2.new(1, -50, 0, 8)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.new(1,1,1)
@@ -109,12 +109,12 @@ CloseCorner.Parent = CloseBtn
 
 -- Content area
 local ContentFrame = Instance.new("Frame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -70)
-ContentFrame.Position = UDim2.new(0, 10, 0, 60)
+ContentFrame.Size = UDim2.new(1, -20, 1, -75)
+ContentFrame.Position = UDim2.new(0, 10, 0, 65)
 ContentFrame.BackgroundTransparency = 1
 ContentFrame.Parent = MainFrame
 
--- Tab content containers
+-- Tab content containers WITH ScrollFrames properly created
 local TabContents = {}
 for _, tab in ipairs(Tabs) do
     local Container = Instance.new("Frame")
@@ -124,42 +124,57 @@ for _, tab in ipairs(Tabs) do
     Container.Parent = ContentFrame
     TabContents[tab] = Container
     
+    -- Create ScrollFrame INSIDE container
     local Scroll = Instance.new("ScrollingFrame")
-    Scroll.Size = UDim2.new(1, 0, 1, 0)
-    Scroll.BackgroundTransparency = 1
-    Scroll.ScrollBarThickness = 10
+    Scroll.Size = UDim2.new(1, -20, 1, -20)
+    Scroll.Position = UDim2.new(0, 10, 0, 10)
+    Scroll.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    Scroll.BorderSizePixel = 0
+    Scroll.ScrollBarThickness = 8
     Scroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 150)
+    Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     Scroll.Parent = Container
-    TabContents[tab].Scroll = Scroll
+    
+    local ScrollCorner = Instance.new("UICorner")
+    ScrollCorner.CornerRadius = UDim.new(0, 8)
+    ScrollCorner.Parent = Scroll
+    
+    -- Store scroll reference properly
+    TabContents[tab].ScrollFrame = Scroll
 end
 
--- INFO Tab content
-local InfoScroll = TabContents.INFO.Scroll
+-- INFO Tab - Create actual named labels for updating
+local InfoScroll = TabContents.INFO.ScrollFrame
 local InfoLayout = Instance.new("UIListLayout")
 InfoLayout.Padding = UDim.new(0, 8)
+InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
 InfoLayout.Parent = InfoScroll
 
-local function createInfoLabel(text, color)
+local VersionLabel = createInfoLabel("🌀 Rift Scanner v2.1", Color3.fromRGB(100, 255, 100))
+local UptimeLabel = createInfoLabel("Uptime: 00:00", Color3.fromRGB(200, 200, 255))
+local ActiveLabel = createInfoLabel("Active Rifts: 0", Color3.fromRGB(255, 200, 100))
+local WorldLabel = createInfoLabel("Current World: Loading...", Color3.fromRGB(150, 255, 150))
+
+function createInfoLabel(text, color)
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -20, 0, 35)
+    Label.Name = text:gsub("[: ]", "")  -- Make valid name
+    Label.Size = UDim2.new(1, 0, 0, 40)
     Label.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
     Label.Text = text
     Label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
     Label.TextScaled = true
     Label.Font = Enum.Font.Gotham
     Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.TextYAlignment = Enum.TextYAlignment.Center
     Label.Parent = InfoScroll
     
     local LCorner = Instance.new("UICorner")
     LCorner.CornerRadius = UDim.new(0, 8)
     LCorner.Parent = Label
+    
     return Label
 end
-
-createInfoLabel("🌀 Rift Scanner v2.0", Color3.fromRGB(100, 255, 100))
-createInfoLabel("Uptime: 00:00", Color3.fromRGB(200, 200, 255))
-createInfoLabel("Active Rifts: 0", Color3.fromRGB(255, 200, 100))
-createInfoLabel("Current World: Loading...", Color3.fromRGB(150, 255, 150))
 
 -- Rift scanning vars
 local ActiveRifts = {}
@@ -173,8 +188,8 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
 end)
 
--- Rift scan functions (same as before)
-local function parseRiftStats(riftModel) -- unchanged
+-- Rift scan functions
+local function parseRiftStats(riftModel)
     local stats = {Luck = "?", Timer = "?"}
     local display = riftModel:FindFirstChild("Display")
     if display and display:FindFirstChild("SurfaceGui") then
@@ -190,7 +205,7 @@ local function parseRiftStats(riftModel) -- unchanged
     return stats
 end
 
-local function getEggPlatformSpawn(riftModel) -- unchanged
+local function getEggPlatformSpawn(riftModel)
     local platform = riftModel:FindFirstChild("EggPlatformSpawn")
     if platform then
         local children = platform:GetChildren()
@@ -230,35 +245,44 @@ end
 local function teleportToRift(riftData)
     if riftData.Platform and HumanoidRootPart then
         HumanoidRootPart.CFrame = CFrame.new(riftData.Position + Vector3.new(0, 5, 0))
+        print("✨ Teleported to " .. riftData.Name .. " (x" .. riftData.Stats.Luck .. ")")
     end
 end
 
--- Tab content updater
+-- Tab content updater (FIXED)
 function updateTabContent()
-    -- Clear current tab scroll
-    local scroll = TabContents[CurrentTab].Scroll
+    local container = TabContents[CurrentTab]
+    if not container or not container.ScrollFrame then return end
+    
+    local scroll = container.ScrollFrame
+    
+    -- Clear existing content
     for _, child in pairs(scroll:GetChildren()) do
-        if child:IsA("GuiObject") then child:Destroy() end
+        if child:IsA("GuiObject") and child ~= InfoLayout then
+            child:Destroy()
+        end
     end
     
     if CurrentTab == "INFO" then
-        -- Update info labels
+        -- Update existing info labels
         local uptime = math.floor(SCRIPT_UPTIME)
         local minutes = math.floor(uptime / 60)
         local seconds = uptime % 60
-        InfoScroll:FindFirstChild("UptimeLabel", true).Text = "Uptime: " .. string.format("%02d:%02d", minutes, seconds)
-        InfoScroll:FindFirstChild("ActiveLabel", true).Text = "Active Rifts: " .. #ActiveRifts
-        InfoScroll:FindFirstChild("WorldLabel", true).Text = "Current World: " .. (WorldUtil:GetPlayerWorld(LocalPlayer) or "Loading...")
+        if UptimeLabel then UptimeLabel.Text = "Uptime: " .. string.format("%02d:%02d", minutes, seconds) end
+        if ActiveLabel then ActiveLabel.Text = "Active Rifts: " .. #ActiveRifts end
+        local world = success2 and WorldUtil:GetPlayerWorld(LocalPlayer) or "Unknown"
+        if WorldLabel then WorldLabel.Text = "Current World: " .. world end
         
     elseif CurrentTab == "RIFTS" then
         local layout = Instance.new("UIListLayout")
-        layout.Padding = UDim.new(0, 5)
+        layout.Padding = UDim.new(0, 6)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
         layout.Parent = scroll
         
         for riftKey, riftData in pairs(RIFT_DATA) do
             if not riftData.Ignore then
                 local btn = Instance.new("TextButton")
-                btn.Size = UDim2.new(1, 0, 0, 50)
+                btn.Size = UDim2.new(1, 0, 0, 55)
                 btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
                 btn.Text = ""
                 btn.Parent = scroll
@@ -267,11 +291,11 @@ function updateTabContent()
                 bCorner.CornerRadius = UDim.new(0, 8)
                 bCorner.Parent = btn
                 
-                -- Content (simplified rift list)
                 local nameLabel = Instance.new("TextLabel")
-                nameLabel.Size = UDim2.new(1, -120, 1, 0)
+                nameLabel.Size = UDim2.new(1, -130, 0.6, 0)
+                nameLabel.Position = UDim2.new(0, 10, 0, 2)
                 nameLabel.BackgroundTransparency = 1
-                nameLabel.Text = riftData.DisplayName or riftKey .. " (" .. riftData.Type .. ")"
+                nameLabel.Text = (riftData.DisplayName or riftKey) .. " (" .. riftData.Type .. ")"
                 nameLabel.TextColor3 = Color3.new(1,1,1)
                 nameLabel.TextScaled = true
                 nameLabel.Font = Enum.Font.GothamBold
@@ -279,18 +303,19 @@ function updateTabContent()
                 nameLabel.Parent = btn
                 
                 local statusLabel = Instance.new("TextLabel")
-                statusLabel.Size = UDim2.new(0, 110, 1, 0)
-                statusLabel.Position = UDim2.new(1, -115, 0, 0)
+                statusLabel.Size = UDim2.new(0, 120, 1, 0)
+                statusLabel.Position = UDim2.new(1, -125, 0, 0)
                 statusLabel.BackgroundTransparency = 1
                 statusLabel.TextScaled = true
                 statusLabel.Font = Enum.Font.GothamBold
                 statusLabel.TextXAlignment = Enum.TextXAlignment.Right
                 statusLabel.Parent = btn
                 
-                -- Match active rifts
                 local matching = {}
                 for _, r in ipairs(ActiveRifts) do
-                    if r.RiftKey == riftKey then table.insert(matching, r) end
+                    if r.RiftKey == riftKey or r.Name == riftKey then 
+                        table.insert(matching, r) 
+                    end
                 end
                 
                 if #matching > 0 then
@@ -304,47 +329,54 @@ function updateTabContent()
                 end
                 
                 btn.MouseButton1Click:Connect(function()
-                    if #matching > 0 then teleportToRift(matching[1]) end
+                    if #matching > 0 then 
+                        teleportToRift(matching[1]) 
+                    end
                 end)
             end
         end
         
-    -- EGGS & QUESTS tabs (placeholders - expand as needed)
     elseif CurrentTab == "EGGS" then
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "🥚 Egg Hatching Stats & Boosters\n(Coming soon...)"
-        label.TextColor3 = Color3.fromRGB(255, 255, 200)
-        label.TextScaled = true
-        label.Font = Enum.Font.Gotham
-        label.Parent = scroll
-        
+        createTabLabel(scroll, "🥚 Egg Hatching Stats & Boosters", "Coming soon...")
     elseif CurrentTab == "QUESTS" then
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "📜 Active Quests & Progress\n(Coming soon...)"
-        label.TextColor3 = Color3.fromRGB(200, 255, 200)
-        label.TextScaled = true
-        label.Font = Enum.Font.Gotham
-        label.Parent = scroll
+        createTabLabel(scroll, "📜 Active Quests & Progress", "Coming soon...")
     end
+end
+
+function createTabLabel(scroll, title, subtitle)
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 10)
+    layout.Parent = scroll
     
-    scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 60)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 200)
+    titleLabel.TextScaled = true
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Parent = scroll
+    
+    local subLabel = Instance.new("TextLabel")
+    subLabel.Size = UDim2.new(1, 0, 0, 40)
+    subLabel.BackgroundTransparency = 1
+    subLabel.Text = subtitle
+    subLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    subLabel.TextScaled = true
+    subLabel.Font = Enum.Font.Gotham
+    subLabel.Parent = scroll
 end
 
 -- Toggle menu
 MiniBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
-    MiniBtn.Text = MainFrame.Visible and "📋 CLOSE" or "🌀 RIFT MENU"
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- Drag main frame
+-- Drag functionality
 local dragging, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -355,7 +387,7 @@ MainFrame.InputBegan:Connect(function(input)
 end)
 
 MainFrame.InputChanged:Connect(function(input)
-    if dragging then
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
         MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, 
                                       startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -363,17 +395,20 @@ MainFrame.InputChanged:Connect(function(input)
 end)
 
 MainFrame.InputEnded:Connect(function(input)
-    dragging = false
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
 end)
 
--- Update loop
+-- Main update loop
 local ScanConnection
 ScanConnection = RunService.Heartbeat:Connect(function()
     SCRIPT_UPTIME = tick() - SCRIPT_START
-    scanActiveRifts()
-    updateTabContent()
+    pcall(scanActiveRifts)
+    pcall(updateTabContent)
 end)
 
-WorldUtil:OnPlayerWorldChanged(LocalPlayer, updateTabContent)
+WorldUtil and WorldUtil.OnPlayerWorldChanged and WorldUtil:OnPlayerWorldChanged(LocalPlayer, updateTabContent)
 
-print("🌀 Rift Menu loaded! Click mini button top-right to toggle")
+print("🌀 Rift Menu v2.1 loaded! Click 🌀 button top-right to toggle")
+updateTabContent()
