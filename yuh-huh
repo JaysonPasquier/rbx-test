@@ -340,3 +340,4 @@ scanRifts()
 
 Library:Notify("🧼 BGSI Hub Loaded Successfully!", 5)
 print("🎉 BGSI Premium Hub with LinoriaLib FULLY LOADED!")
+print("🎉")
