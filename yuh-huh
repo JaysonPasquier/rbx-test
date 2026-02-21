@@ -1,6 +1,6 @@
--- BGSI Premium Hub v2026 - MOBILE FRIENDLY with DRAGGABLE BUTTON
+-- BGSI Premium Hub v2026 - AUTO SHOW + MINIMIZE TOP BAR
 -- Key: uIeCsXNDMliclXkKGlfNwXHZHFblrJZl
--- ✅ MOBILE PERFECT: Draggable 🧼 button + tap to open menu
+-- ✅ AUTO-SHOWS + MOBILE PERFECT + MINIMIZE TO TOP BAR
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -15,87 +15,131 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Premium Hub Loading with MOBILE BUTTON...")
+print("🧼 BGSI Premium Hub Loading with AUTO-SHOW + MINIMIZE...")
 
 -- Load Linoria Library (2026 Compatible)
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
 
--- === MOBILE MENU BUTTON (Draggable) ===
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BGSIMobileMenu"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 999999
-ScreenGui.Parent = playerGui
+-- === CREATE WINDOW - AUTO SHOWS ON LOAD ===
+local Window = Library:CreateWindow({
+    Name = "🧼 BGSI Premium Hub v2026",
+    HidePremium = false,
+    Center = true,
+    AutoShow = true,  -- ✅ AUTO-SHOWS ON LOAD (mobile perfect)
+})
 
-local MenuButton = Instance.new("TextButton")
-MenuButton.Name = "MenuToggle"
-MenuButton.Size = UDim2.new(0, 80, 0, 80)
-MenuButton.Position = UDim2.new(0, 20, 0.5, -40)
-MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-MenuButton.Text = "🧼"
-MenuButton.TextColor3 = Color3.new(1,1,1)
-MenuButton.TextSize = 32
-MenuButton.Font = Enum.Font.GothamBold
-MenuButton.Parent = ScreenGui
+-- === MINIMIZE/MAXIMIZE STATE ===
+local isMinimized = false
+local originalSize = nil
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(1, 12)
-UICorner.Parent = MenuButton
+-- === MINIMIZE TOP-RIGHT BUTTON ===
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeBtn"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 25)
+MinimizeButton.Position = UDim2.new(1, -35, 0, 5)  -- Top-right corner
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+MinimizeButton.Text = "➖"  -- Minimize icon
+MinimizeButton.TextColor3 = Color3.new(1,1,1)
+MinimizeButton.TextSize = 16
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Parent = Window.Frame  -- Parent to Linoria's main frame
+MinimizeButton.ZIndex = 999
 
-local UIGradient = Instance.new("UIGradient")
-UIGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 162, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 120, 200))
-}
-UIGradient.Rotation = 45
-UIGradient.Parent = MenuButton
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 4)
+MinCorner.Parent = MinimizeButton
 
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Color = Color3.new(1,1,1)
-UIStroke.Thickness = 2
-UIStroke.Parent = MenuButton
+local MinStroke = Instance.new("UIStroke")
+MinStroke.Color = Color3.new(1,1,1)
+MinStroke.Thickness = 1.5
+MinStroke.Parent = MinimizeButton
 
--- Make button DRAGGABLE (Mobile + PC perfect)
+-- Store original window size
+task.wait(0.1)  -- Wait for window to fully render
+originalSize = Window.Frame.Size
+
+-- Minimize/Maximize toggle function
+local function toggleMinimize()
+    isMinimized = not isMinimized
+
+    if isMinimized then
+        -- MINIMIZE: Shrink to just top bar (Title bar only)
+        TweenService:Create(Window.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, 250, 0, 35),  -- Just the title bar height
+            Position = UDim2.new(0.5, -125, 0, 0)  -- Snap to top center
+        }):Play()
+
+        -- Hide all tabs/content
+        for _, tab in pairs(Window.Tabs) do
+            tab.Content.Visible = false
+        end
+
+        -- Change button to expand icon
+        MinimizeButton.Text = "📱"
+        MinimizeButton.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
+
+        Library:Notify("Menu minimized to top bar!", 2)
+
+    else
+        -- MAXIMIZE: Restore full size
+        TweenService:Create(Window.Frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Size = originalSize,
+            Position = UDim2.new(0.5, 0, 0.5, 0)  -- Center position
+        }):Play()
+
+        -- Show tabs/content again
+        for _, tab in pairs(Window.Tabs) do
+            tab.Content.Visible = true
+        end
+
+        -- Change button back to minimize
+        MinimizeButton.Text = "➖"
+        MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+
+        Library:Notify("Menu restored!", 2)
+    end
+end
+
+MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
+MinimizeButton.TouchTap:Connect(toggleMinimize)  -- Mobile support
+
+-- === MOBILE-FRIENDLY DRAG (Only when NOT minimized) ===
 local dragging = false
 local dragStart = nil
 local startPos = nil
 
-MenuButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+Window.Frame.InputBegan:Connect(function(input)
+    if not isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
         dragging = true
         dragStart = input.Position
-        startPos = MenuButton.Position
+        startPos = Window.Frame.Position
 
-        -- Visual feedback
-        MenuButton.Size = UDim2.new(0, 85, 0, 85)
-        TweenService:Create(MenuButton, TweenInfo.new(0.1), {Size = UDim2.new(0, 80, 0, 80)}):Play()
+        -- Visual feedback on title bar only
+        TweenService:Create(MinimizeButton, TweenInfo.new(0.1), {
+            Size = UDim2.new(0, 35, 0, 28)
+        }):Play()
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+    if dragging and not isMinimized and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
-        MenuButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        Window.Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = false
+        TweenService:Create(MinimizeButton, TweenInfo.new(0.1), {
+            Size = UDim2.new(0, 30, 0, 25)
+        }):Play()
     end
 end)
 
--- Create window (Hidden initially for mobile)
-local Window = Library:CreateWindow({
-    Name = "🧼 BGSI Premium Hub v2026",
-    HidePremium = false,
-    Center = true,
-    AutoShow = false,  -- Hidden until button pressed (MOBILE FRIENDLY)
-})
-
--- State management
+-- === STATE MANAGEMENT (same as before) ===
 local state = {
     autoBlow = false,
     autoHatch = false,
@@ -111,14 +155,14 @@ local state = {
     dropdowns = {}
 }
 
--- PETS & CODES DATA
+-- PETS & CODES DATA (same as before)
 local petData, codeData
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
     codeData = require(RS.Shared.Data.Codes)
 end)
 
--- === UTILITY FUNCTIONS ===
+-- === ALL YOUR UTILITY FUNCTIONS (unchanged) ===
 local function SendWebhook(url, msg)
     pcall(function()
         request({
@@ -209,7 +253,7 @@ local function tpToModel(model)
     end)
 end
 
--- === TABS ===
+-- === TABS (same as before) ===
 local MainTab = Window:AddTab("🏠 Main")
 local FarmTab = Window:AddTab("🔧 Farm")
 local EggsTab = Window:AddTab("🥚 Eggs")
@@ -217,7 +261,7 @@ local RiftsTab = Window:AddTab("🌌 Rifts")
 local WebTab = Window:AddTab("📊 Webhook")
 local DataTab = Window:AddTab("📋 Data")
 
--- === MAIN TAB - Live Stats ===
+-- === ALL YOUR TAB CONTENT (exactly the same) ===
 local MainGroupBox = MainTab:AddLeftGroupbox("Live Statistics")
 state.labels.runtime = MainGroupBox:AddLabel("Runtime: 00:00:00")
 state.labels.bubbles = MainGroupBox:AddLabel("Bubbles: 0")
@@ -226,7 +270,6 @@ state.labels.coins = MainGroupBox:AddLabel("Coins: 0")
 state.labels.bubbleStock = MainGroupBox:AddLabel("Bubble Stock: 0")
 state.labels.gems = MainGroupBox:AddLabel("Gems: 0")
 
--- === FARM TAB ===
 local FarmGroupBox = FarmTab:AddLeftGroupbox("Auto Farming")
 FarmGroupBox:AddToggle("AutoBlow", {
     Text = "🧼 Auto Blow (Dex Remote)",
@@ -237,7 +280,6 @@ FarmGroupBox:AddToggle("AutoBlow", {
     end
 })
 
--- === EGGS TAB - FIXED DROPDOWN ===
 local EggGroupBox = EggsTab:AddLeftGroupbox("Egg Scanner")
 state.dropdowns.egg = EggGroupBox:AddDropdown("EggSelect", {
     Values = {},
@@ -279,7 +321,6 @@ EggGroupBox:AddButton({
     end
 })
 
--- === RIFTS TAB - FIXED DROPDOWN ===
 local RiftGroupBox = RiftsTab:AddLeftGroupbox("Live Rift Scanner")
 state.dropdowns.rift = RiftGroupBox:AddDropdown("RiftSelect", {
     Values = {},
@@ -314,7 +355,6 @@ RiftGroupBox:AddButton({
     end
 })
 
--- === WEBHOOK TAB ===
 local WebGroupBox = WebTab:AddLeftGroupbox("Discord Integration")
 state.webhookInput = WebGroupBox:AddInput("WebhookURL", {
     Text = "Discord Webhook URL",
@@ -350,7 +390,6 @@ WebGroupBox:AddButton({
     end
 })
 
--- === DATA TAB ===
 if petData then
     local PetGroupBox = DataTab:AddLeftGroupbox("Pet Rarities")
     for petName, data in pairs(petData) do
@@ -365,34 +404,7 @@ ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
 
--- === FIXED MOBILE BUTTON TOGGLE (Replace your current one) ===
--- Get Linoria's actual ScreenGui and toggle it directly
-local linoriaGui = playerGui:WaitForChild("LinoriaLib", 5)
-
-MenuButton.MouseButton1Click:Connect(function()
-    if linoriaGui then
-        linoriaGui.Enabled = not linoriaGui.Enabled
-        if linoriaGui.Enabled then
-            MenuButton.Text = "❌"
-            MenuButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-            TweenService:Create(MenuButton, TweenInfo.new(0.2), {
-                Size = UDim2.new(0, 90, 0, 90),
-                BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-            }):Play()
-        else
-            MenuButton.Text = "🧼"
-            MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-            TweenService:Create(MenuButton, TweenInfo.new(0.2), {
-                Size = UDim2.new(0, 80, 0, 80),
-                BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-            }):Play()
-        end
-    else
-        Library:Notify("Linoria GUI not found!", 3)
-    end
-end)
-
--- === MAIN LOOPS ===
+-- === MAIN LOOPS (unchanged) ===
 spawn(function()
     while wait(0.1) do
         updateStats()
@@ -442,6 +454,6 @@ end)
 scanEggs()
 scanRifts()
 
-Library:Notify("🧼 MOBILE HUB READY! Drag blue 🧼 button anywhere!", 5)
-print("🎉 BGSI Premium Hub with MOBILE BUTTON FULLY LOADED!")
-print("🎉 Drag the blue 🧼 button & tap to open menu!")
+Library:Notify("🧼 AUTO-HUB LOADED! Click ➖ top-right to minimize!", 5)
+print("🎉 BGSI Premium Hub v2026 - AUTO SHOW + MINIMIZE READY!")
+print("🎉 Drag title bar & click ➖ to shrink to top bar!")
