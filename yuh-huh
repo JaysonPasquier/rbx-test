@@ -366,11 +366,12 @@ ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
 
 -- === MOBILE BUTTON TOGGLE ===
+-- With this FIXED version:
 local menuVisible = false
 MenuButton.MouseButton1Click:Connect(function()
     menuVisible = not menuVisible
+    Library.Toggle()  -- ✅ CORRECT Linoria method
     if menuVisible then
-        Library:SetVisible(true)
         MenuButton.Text = "❌"
         MenuButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
         TweenService:Create(MenuButton, TweenInfo.new(0.2), {
@@ -378,11 +379,10 @@ MenuButton.MouseButton1Click:Connect(function()
             BackgroundColor3 = Color3.fromRGB(255, 50, 50)
         }):Play()
     else
-        Library:SetVisible(false)
         MenuButton.Text = "🧼"
         MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
         TweenService:Create(MenuButton, TweenInfo.new(0.2), {
-            Size = UDim2.new(0, 80, 0, 80),
+            Size = UDim2.new(0, 40, 0, 40),
             BackgroundColor3 = Color3.fromRGB(0, 162, 255)
         }):Play()
     end
