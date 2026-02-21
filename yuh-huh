@@ -22,14 +22,94 @@ print("✅ LinoriaLib loaded successfully")
 
 -- === CREATE WINDOW ===
 local Window = Library:CreateWindow({
-    Title = "🧼 BGSI Premium Hub v2026",
+    Title = "🧼 BGSI Hub",
     Center = true,
     AutoShow = true,
     TabPadding = 8,
     MenuFadeTime = 0.2
 })
 
-print("✅ Window created - LinoriaLib handles all UI automatically")
+print("✅ Window created - applying mobile optimization...")
+
+-- 📱 MOBILE OPTIMIZATION - Resize LinoriaLib window to fit phone screens
+task.wait(0.5)  -- Wait for LinoriaLib to fully create UI
+
+local function optimizeForMobile()
+    local screenGui = nil
+    local mainFrame = nil
+
+    -- Find LinoriaLib's ScreenGui
+    for _, gui in pairs(playerGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui.Name:find("Library") then
+            screenGui = gui
+            -- Find the main window container
+            for _, desc in pairs(gui:GetDescendants()) do
+                if desc:IsA("Frame") and (desc.Name == "Window" or desc.Name == "Holder") then
+                    mainFrame = desc
+                    break
+                end
+            end
+            if mainFrame then break end
+        end
+    end
+
+    if not mainFrame then
+        warn("⚠️ Could not find LinoriaLib frame for mobile optimization")
+        return
+    end
+
+    print("✅ Found UI frame: " .. mainFrame.Name)
+
+    -- 📱 MOBILE-FRIENDLY SIZING
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    local isMobile = screenSize.X < 600 or screenSize.Y < 400
+
+    if isMobile then
+        print("📱 Mobile device detected - optimizing UI...")
+
+        -- Resize to fit mobile screen (smaller for phones)
+        local targetWidth = math.min(screenSize.X * 0.85, 350)
+        local targetHeight = math.min(screenSize.Y * 0.75, 420)
+
+        mainFrame.Size = UDim2.new(0, targetWidth, 0, targetHeight)
+        mainFrame.Position = UDim2.new(0.5, -targetWidth/2, 0.5, -targetHeight/2)
+
+        -- Add UIScale to make text/buttons smaller
+        local uiScale = mainFrame:FindFirstChildOfClass("UIScale")
+        if not uiScale then
+            uiScale = Instance.new("UIScale")
+            uiScale.Scale = 0.9  -- 90% size for mobile (readable but compact)
+            uiScale.Parent = mainFrame
+        else
+            uiScale.Scale = 0.9
+        end
+
+        print("✅ Mobile optimization applied:")
+        print("   📏 Window: " .. math.floor(targetWidth) .. "x" .. math.floor(targetHeight))
+        print("   📱 Screen: " .. math.floor(screenSize.X) .. "x" .. math.floor(screenSize.Y))
+        print("   🔍 Scale: " .. uiScale.Scale)
+    else
+        print("💻 Desktop detected - using standard size")
+        -- Standard desktop size
+        mainFrame.Size = UDim2.new(0, 550, 0, 500)
+        mainFrame.Position = UDim2.new(0.5, -275, 0.5, -250)
+    end
+
+    -- Make sure it's on screen and visible
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    mainFrame.Visible = true
+
+    print("✅ UI optimization complete!")
+end
+
+-- Apply optimization
+local success, err = pcall(optimizeForMobile)
+if not success then
+    warn("⚠️ Mobile optimization failed: " .. tostring(err))
+end
+
+print("✅ Window ready")
 
 -- === STATE MANAGEMENT ===
 local state = {
@@ -155,6 +235,86 @@ state.labels = {
     bubbleStock = MainGroupBox:AddLabel("Bubble Stock: 0"),
     gems = MainGroupBox:AddLabel("Gems: 0")
 }
+
+-- 📱 MOBILE CONTROLS
+local MobileGroupBox = MainTab:AddRightGroupbox("📱 Mobile Settings")
+
+MobileGroupBox:AddButton({
+    Text = "🔍 Compact Mode (Small)",
+    Tooltip = "Shrink UI to 350x400",
+    Func = function()
+        pcall(function()
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name:find("Library") then
+                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
+                    if frame then
+                        frame.Size = UDim2.new(0, 350, 0, 400)
+                        frame.Position = UDim2.new(0.5, -175, 0.5, -200)
+                        Library:Notify("📱 Compact mode enabled", 2)
+                    end
+                end
+            end
+        end)
+    end
+})
+
+MobileGroupBox:AddButton({
+    Text = "📏 Standard Mode (Medium)",
+    Tooltip = "Resize to 450x500",
+    Func = function()
+        pcall(function()
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name:find("Library") then
+                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
+                    if frame then
+                        frame.Size = UDim2.new(0, 450, 0, 500)
+                        frame.Position = UDim2.new(0.5, -225, 0.5, -250)
+                        Library:Notify("📏 Standard mode enabled", 2)
+                    end
+                end
+            end
+        end)
+    end
+})
+
+MobileGroupBox:AddButton({
+    Text = "🖥️ Desktop Mode (Large)",
+    Tooltip = "Resize to 600x600",
+    Func = function()
+        pcall(function()
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name:find("Library") then
+                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
+                    if frame then
+                        frame.Size = UDim2.new(0, 600, 0, 600)
+                        frame.Position = UDim2.new(0.5, -300, 0.5, -300)
+                        Library:Notify("🖥️ Desktop mode enabled", 2)
+                    end
+                end
+            end
+        end)
+    end
+})
+
+MobileGroupBox:AddButton({
+    Text = "📍 Reset Position",
+    Tooltip = "Center window on screen",
+    Func = function()
+        pcall(function()
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name:find("Library") then
+                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
+                    if frame then
+                        local w = frame.Size.X.Offset
+                        local h = frame.Size.Y.Offset
+                        frame.Position = UDim2.new(0.5, -w/2, 0.5, -h/2)
+                        Library:Notify("📍 Position reset", 2)
+                    end
+                end
+            end
+        end)
+    end
+})
 
 -- === FARM TAB ===
 local FarmGroupBox = FarmTab:AddLeftGroupbox("🤖 Auto Farm")
@@ -333,19 +493,23 @@ scanEggs()
 scanRifts()
 
 print("✅ ==========================================")
-print("✅ BGSI Premium Hub v2026 - READY!")
+print("✅ BGSI Premium Hub - READY!")
 print("✅ ==========================================")
-print("📋 Tabs Available:")
-print("   🏠 Main - Live stats")
-print("   🔧 Farm - Auto features")
+print("📋 Tabs:")
+print("   🏠 Main - Stats + Mobile resize buttons")
+print("   🔧 Farm - Auto blow bubbles")
 print("   🥚 Eggs - Scanner & auto hatch")
 print("   🌌 Rifts - Scanner & teleport")
-print("   📊 Webhook - Discord integration")
-print("   📋 Data - Pet info & settings")
+print("   📊 Webhook - Discord webhooks")
+print("   📋 Data - Pet info & theme")
 print("✅ ==========================================")
-print("💡 Right-click title bar to minimize")
-print("💡 Drag title bar to move window")
-print("💡 Use 'UI Settings' groupbox for themes")
+print("📱 MOBILE USERS:")
+print("   • Go to Main tab > Mobile Settings")
+print("   • Click 'Compact Mode' button")
+print("   • UI will resize to fit your screen!")
+print("✅ ==========================================")
+print("💡 Right-click title bar = minimize")
+print("💡 Drag title bar = move window")
 print("✅ ==========================================")
 
-Library:Notify("🧼 BGSI Hub Ready!", 3)
+Library:Notify("🧼 BGSI Hub Ready!\n📱 Check Main tab for mobile controls", 5)
