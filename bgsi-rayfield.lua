@@ -102,7 +102,7 @@ local function updateStats()
         end
     end
 
-    -- Get currency from UI
+    -- Get currency from UI (preserve formatted text like "23.5b")
     pcall(function()
         local screenGui = playerGui:FindFirstChild("ScreenGui")
         if screenGui then
@@ -119,8 +119,7 @@ local function updateStats()
                             if frame then
                                 local label = frame:FindFirstChild("Label")
                                 if label and label:IsA("TextLabel") then
-                                    local value = tonumber(label.Text:match("%d+")) or 0
-                                    state.stats.coins = value
+                                    state.stats.coins = label.Text  -- Full text with formatting
                                 end
                             end
                         end
@@ -132,8 +131,7 @@ local function updateStats()
                             if frame then
                                 local label = frame:FindFirstChild("Label")
                                 if label and label:IsA("TextLabel") then
-                                    local value = tonumber(label.Text:match("%d+")) or 0
-                                    state.stats.bubbleStock = value
+                                    state.stats.bubbleStock = label.Text  -- Full text with formatting
                                 end
                             end
                         end
@@ -145,8 +143,7 @@ local function updateStats()
                             if frame then
                                 local label = frame:FindFirstChild("Label")
                                 if label and label:IsA("TextLabel") then
-                                    local value = tonumber(label.Text:match("%d+")) or 0
-                                    state.stats.gems = value
+                                    state.stats.gems = label.Text  -- Full text with formatting
                                 end
                             end
                         end
@@ -207,10 +204,15 @@ local function scanEggs()
     pcall(function()
         local rendered = Workspace:FindFirstChild("Rendered")
         if rendered then
-            -- Search through ALL children for "Chuncker" folders (note the typo in game)
+            -- 🔍 DEBUG: Print all folder names to help find eggs
+            local foundChuncker = false
             for _, folder in pairs(rendered:GetChildren()) do
-                if folder.Name:find("Chuncker") then
+                if folder.Name:find("Chuncker") or folder.Name:find("Chunk") then
+                    foundChuncker = true
+                    print("🥚 Found egg folder: " .. folder.Name .. " with " .. #folder:GetChildren() .. " children")
+
                     for _, egg in pairs(folder:GetChildren()) do
+                        print("   - " .. egg.Name .. " [" .. egg.ClassName .. "]")
                         -- Skip "Coming Soon" and duplicates
                         if egg.Name ~= "Coming Soon" and not seenEggs[egg.Name] then
                             seenEggs[egg.Name] = true
@@ -222,6 +224,15 @@ local function scanEggs()
                     end
                 end
             end
+
+            if not foundChuncker then
+                print("⚠️ No Chuncker folders found. Rendered children:")
+                for _, child in pairs(rendered:GetChildren()) do
+                    print("   - " .. child.Name)
+                end
+            end
+        else
+            print("❌ Workspace.Rendered not found!")
         end
     end)
 
@@ -505,7 +516,10 @@ DataTab:CreateButton({
 
 -- === MAIN LOOPS ===
 
--- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds)
+-- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds) - Only refresh if data changed
+local lastRiftData = ""
+local lastEggData = ""
+
 task.spawn(function()
     while task.wait(2) do
         -- Scan rifts
@@ -515,10 +529,15 @@ task.spawn(function()
             table.insert(riftNames, rift.displayText)
         end
 
-        if #riftNames > 0 then
-            pcall(function()
-                RiftDropdown:Refresh(riftNames, true)
-            end)
+        -- Only refresh if data changed (prevents list clearing during scroll)
+        local newRiftData = table.concat(riftNames, "|")
+        if newRiftData ~= lastRiftData then
+            lastRiftData = newRiftData
+            if #riftNames > 0 then
+                pcall(function()
+                    RiftDropdown:Refresh(riftNames, true)
+                end)
+            end
         end
 
         -- Scan eggs
@@ -528,10 +547,15 @@ task.spawn(function()
             table.insert(eggNames, egg.name)
         end
 
-        if #eggNames > 0 then
-            pcall(function()
-                EggDropdown:Refresh(eggNames, true)
-            end)
+        -- Only refresh if data changed (prevents list clearing during scroll)
+        local newEggData = table.concat(eggNames, "|")
+        if newEggData ~= lastEggData then
+            lastEggData = newEggData
+            if #eggNames > 0 then
+                pcall(function()
+                    EggDropdown:Refresh(eggNames, true)
+                end)
+            end
         end
     end
 end)
