@@ -67,9 +67,9 @@ local function optimizeForMobile()
     if isMobile then
         print("📱 Mobile device detected - optimizing UI...")
 
-        -- Resize to fit mobile screen (smaller for phones)
-        local targetWidth = math.min(screenSize.X * 0.85, 350)
-        local targetHeight = math.min(screenSize.Y * 0.75, 420)
+        -- Resize to fit mobile screen (MUCH smaller for phones)
+        local targetWidth = math.min(screenSize.X * 0.85, 340)
+        local targetHeight = math.min(screenSize.Y * 0.65, 320)  -- SHORTER! Max 320px height
 
         mainFrame.Size = UDim2.new(0, targetWidth, 0, targetHeight)
         mainFrame.Position = UDim2.new(0.5, -targetWidth/2, 0.5, -targetHeight/2)
@@ -240,17 +240,20 @@ state.labels = {
 local MobileGroupBox = MainTab:AddRightGroupbox("📱 Mobile Settings")
 
 MobileGroupBox:AddButton({
-    Text = "🔍 Compact Mode (Small)",
-    Tooltip = "Shrink UI to 350x400",
+    Text = "🔍 Tiny Mode (Phone)",
+    Tooltip = "Ultra compact: 320x280",
     Func = function()
         pcall(function()
             for _, gui in pairs(playerGui:GetChildren()) do
                 if gui:IsA("ScreenGui") and gui.Name:find("Library") then
-                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
-                    if frame then
-                        frame.Size = UDim2.new(0, 350, 0, 400)
-                        frame.Position = UDim2.new(0.5, -175, 0.5, -200)
-                        Library:Notify("📱 Compact mode enabled", 2)
+                    -- Find the actual main frame (not nested)
+                    for _, child in pairs(gui:GetDescendants()) do
+                        if child:IsA("Frame") and (child.Name == "Window" or child.Name == "Holder") then
+                            child.Size = UDim2.new(0, 320, 0, 280)
+                            child.Position = UDim2.new(0.5, -160, 0.5, -140)
+                            Library:Notify("📱 Tiny mode (320x280)", 2)
+                            break
+                        end
                     end
                 end
             end
@@ -259,17 +262,19 @@ MobileGroupBox:AddButton({
 })
 
 MobileGroupBox:AddButton({
-    Text = "📏 Standard Mode (Medium)",
-    Tooltip = "Resize to 450x500",
+    Text = "📏 Compact (Small)",
+    Tooltip = "Small size: 360x350",
     Func = function()
         pcall(function()
             for _, gui in pairs(playerGui:GetChildren()) do
                 if gui:IsA("ScreenGui") and gui.Name:find("Library") then
-                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
-                    if frame then
-                        frame.Size = UDim2.new(0, 450, 0, 500)
-                        frame.Position = UDim2.new(0.5, -225, 0.5, -250)
-                        Library:Notify("📏 Standard mode enabled", 2)
+                    for _, child in pairs(gui:GetDescendants()) do
+                        if child:IsA("Frame") and (child.Name == "Window" or child.Name == "Holder") then
+                            child.Size = UDim2.new(0, 360, 0, 350)
+                            child.Position = UDim2.new(0.5, -180, 0.5, -175)
+                            Library:Notify("📏 Compact mode (360x350)", 2)
+                            break
+                        end
                     end
                 end
             end
@@ -278,17 +283,19 @@ MobileGroupBox:AddButton({
 })
 
 MobileGroupBox:AddButton({
-    Text = "🖥️ Desktop Mode (Large)",
-    Tooltip = "Resize to 600x600",
+    Text = "� Medium (Tablet)",
+    Tooltip = "Medium size: 420x420",
     Func = function()
         pcall(function()
             for _, gui in pairs(playerGui:GetChildren()) do
                 if gui:IsA("ScreenGui") and gui.Name:find("Library") then
-                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
-                    if frame then
-                        frame.Size = UDim2.new(0, 600, 0, 600)
-                        frame.Position = UDim2.new(0.5, -300, 0.5, -300)
-                        Library:Notify("🖥️ Desktop mode enabled", 2)
+                    for _, child in pairs(gui:GetDescendants()) do
+                        if child:IsA("Frame") and (child.Name == "Window" or child.Name == "Holder") then
+                            child.Size = UDim2.new(0, 420, 0, 420)
+                            child.Position = UDim2.new(0.5, -210, 0.5, -210)
+                            Library:Notify("📱 Medium mode (420x420)", 2)
+                            break
+                        end
                     end
                 end
             end
@@ -297,18 +304,20 @@ MobileGroupBox:AddButton({
 })
 
 MobileGroupBox:AddButton({
-    Text = "📍 Reset Position",
-    Tooltip = "Center window on screen",
+    Text = "📍 Center Window",
+    Tooltip = "Recenter on screen",
     Func = function()
         pcall(function()
             for _, gui in pairs(playerGui:GetChildren()) do
                 if gui:IsA("ScreenGui") and gui.Name:find("Library") then
-                    local frame = gui:FindFirstChildWhichIsA("Frame", true)
-                    if frame then
-                        local w = frame.Size.X.Offset
-                        local h = frame.Size.Y.Offset
-                        frame.Position = UDim2.new(0.5, -w/2, 0.5, -h/2)
-                        Library:Notify("📍 Position reset", 2)
+                    for _, child in pairs(gui:GetDescendants()) do
+                        if child:IsA("Frame") and (child.Name == "Window" or child.Name == "Holder") then
+                            local w = child.Size.X.Offset
+                            local h = child.Size.Y.Offset
+                            child.Position = UDim2.new(0.5, -w/2, 0.5, -h/2)
+                            Library:Notify("📍 Window centered", 2)
+                            break
+                        end
                     end
                 end
             end
