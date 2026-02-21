@@ -1,6 +1,6 @@
--- BGSI Premium Hub v2026 - LinoriaLib FIXED (No Dropdown Errors)
+-- BGSI Premium Hub v2026 - MOBILE FRIENDLY with DRAGGABLE BUTTON
 -- Key: uIeCsXNDMliclXkKGlfNwXHZHFblrJZl
--- ✅ FIXED: Added AllowNull = true to ALL dropdowns
+-- ✅ MOBILE PERFECT: Draggable 🧼 button + tap to open menu
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -10,22 +10,89 @@ local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Premium Hub Loading with LinoriaLib...")
+print("🧼 BGSI Premium Hub Loading with MOBILE BUTTON...")
 
 -- Load Linoria Library (2026 Compatible)
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
 
--- Create main window
+-- === MOBILE MENU BUTTON (Draggable) ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BGSIMobileMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999999
+ScreenGui.Parent = playerGui
+
+local MenuButton = Instance.new("TextButton")
+MenuButton.Name = "MenuToggle"
+MenuButton.Size = UDim2.new(0, 80, 0, 80)
+MenuButton.Position = UDim2.new(0, 20, 0.5, -40)
+MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+MenuButton.Text = "🧼"
+MenuButton.TextColor3 = Color3.new(1,1,1)
+MenuButton.TextSize = 32
+MenuButton.Font = Enum.Font.GothamBold
+MenuButton.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 12)
+UICorner.Parent = MenuButton
+
+local UIGradient = Instance.new("UIGradient")
+UIGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 162, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 120, 200))
+}
+UIGradient.Rotation = 45
+UIGradient.Parent = MenuButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.new(1,1,1)
+UIStroke.Thickness = 2
+UIStroke.Parent = MenuButton
+
+-- Make button DRAGGABLE (Mobile + PC perfect)
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+MenuButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MenuButton.Position
+
+        -- Visual feedback
+        MenuButton.Size = UDim2.new(0, 85, 0, 85)
+        TweenService:Create(MenuButton, TweenInfo.new(0.1), {Size = UDim2.new(0, 80, 0, 80)}):Play()
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MenuButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Create window (Hidden initially for mobile)
 local Window = Library:CreateWindow({
     Name = "🧼 BGSI Premium Hub v2026",
     HidePremium = false,
-    LoadingScreen = true,
+    Center = true,
+    AutoShow = false,  -- Hidden until button pressed (MOBILE FRIENDLY)
 })
 
 -- State management
@@ -173,8 +240,8 @@ FarmGroupBox:AddToggle("AutoBlow", {
 -- === EGGS TAB - FIXED DROPDOWN ===
 local EggGroupBox = EggsTab:AddLeftGroupbox("Egg Scanner")
 state.dropdowns.egg = EggGroupBox:AddDropdown("EggSelect", {
-    Values = {}, -- Empty initially
-    AllowNull = true, -- ✅ FIXED: This prevents the error
+    Values = {},
+    AllowNull = true,
     Text = "No eggs found - Click Refresh",
     Callback = function(option)
         if option then
@@ -207,7 +274,7 @@ EggGroupBox:AddButton({
             table.insert(names, egg.name)
         end
         state.dropdowns.egg:Refresh(names)
-        state.dropdowns.egg:Set("") -- Reset to null
+        state.dropdowns.egg:Set("")
         Library:Notify(#names .. " eggs found!", 2)
     end
 })
@@ -216,7 +283,7 @@ EggGroupBox:AddButton({
 local RiftGroupBox = RiftsTab:AddLeftGroupbox("Live Rift Scanner")
 state.dropdowns.rift = RiftGroupBox:AddDropdown("RiftSelect", {
     Values = {},
-    AllowNull = true, -- ✅ FIXED: This prevents the error
+    AllowNull = true,
     Text = "No rifts found - Click Refresh",
     Callback = function(option)
         if option then
@@ -242,7 +309,7 @@ RiftGroupBox:AddButton({
             table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
         end
         state.dropdowns.rift:Refresh(names)
-        state.dropdowns.rift:Set("") -- Reset to null
+        state.dropdowns.rift:Set("")
         Library:Notify(#names .. " rifts found!", 2)
     end
 })
@@ -298,6 +365,29 @@ ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(MainTab)
 SaveManager:SetLibrary(Library)
 
+-- === MOBILE BUTTON TOGGLE ===
+local menuVisible = false
+MenuButton.MouseButton1Click:Connect(function()
+    menuVisible = not menuVisible
+    if menuVisible then
+        Library:SetVisible(true)
+        MenuButton.Text = "❌"
+        MenuButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        TweenService:Create(MenuButton, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 90, 0, 90),
+            BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+        }):Play()
+    else
+        Library:SetVisible(false)
+        MenuButton.Text = "🧼"
+        MenuButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+        TweenService:Create(MenuButton, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 80, 0, 80),
+            BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+        }):Play()
+    end
+end)
+
 -- === MAIN LOOPS ===
 spawn(function()
     while wait(0.1) do
@@ -348,6 +438,6 @@ end)
 scanEggs()
 scanRifts()
 
-Library:Notify("🧼 BGSI Hub Loaded Successfully! No more errors.", 5)
-print("🎉 BGSI Premium Hub with LinoriaLib FULLY LOADED - FIXED!")
-print("🎉")
+Library:Notify("🧼 MOBILE HUB READY! Drag blue 🧼 button anywhere!", 5)
+print("🎉 BGSI Premium Hub with MOBILE BUTTON FULLY LOADED!")
+print("🎉 Drag the blue 🧼 button & tap to open menu!")
