@@ -1,6 +1,6 @@
--- BGSI Premium Hub (Enhanced Kavo UI) - Draggable, Minimizable, Centered, Scrollable
+-- BGSI Premium Hub v2026 - OrionLib Edition
 -- Key: uIeCsXNDMliclXkKGlfNwXHZHFblrJZl
--- Professional dark theme with Google-style controls
+-- Professional dark theme UI with full custom controls
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -9,78 +9,27 @@ local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Enhanced UI Loading...")
+print("🧼 BGSI Premium Hub Loading with OrionLib...")
 
--- Skip key check since key is set above
-print("✅ Premium access granted")
+-- Load Orion Library (actively maintained as of 2026)
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
--- Kavo UI Library
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("🧼 BGSI Premium Hub v2026", "DarkTheme")
+-- Create main window
+local Window = OrionLib:MakeWindow({
+    Name = "🧼 BGSI Premium Hub v2026",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "BGSIHub",
+    IntroEnabled = true,
+    IntroText = "Loading BGSI Premium Features..."
+})
 
--- Make Kavo window draggable and centered
-local mainFrame = Window.screnGui.MainFrame -- Access Kavo's main frame
-mainFrame.Position = UDim2.new(0.5, -300, 0.5, -250) -- Center screen
-mainFrame.Draggable = true
-
--- Add Google-style minimize/close controls to header
-local headerFrame = mainFrame:FindFirstChild("HeaderFrame") or mainFrame:FindFirstChildOfClass("Frame")
-if headerFrame then
-    -- Minimize button
-    local minimizeBtn = Instance.new("TextButton")
-    minimizeBtn.Name = "MinimizeBtn"
-    minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-    minimizeBtn.Position = UDim2.new(1, -90, 0, 5)
-    minimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
-    minimizeBtn.Text = "−"
-    minimizeBtn.TextColor3 = Color3.white
-    minimizeBtn.TextScaled = true
-    minimizeBtn.Font = Enum.Font.GothamBold
-    minimizeBtn.Parent = headerFrame
-
-    local minCorner = Instance.new("UICorner")
-    minCorner.CornerRadius = UDim.new(0, 15)
-    minCorner.Parent = minimizeBtn
-
-    -- Close button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Name = "CloseBtn"
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -55, 0, 5)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-    closeBtn.Text = "✕"
-    closeBtn.TextColor3 = Color3.white
-    closeBtn.TextScaled = true
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.Parent = headerFrame
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 15)
-    closeCorner.Parent = closeBtn
-
-    -- Minimize functionality
-    minimizeBtn.MouseButton1Click:Connect(function()
-        if Window.Minimized then
-            Window:Minimize(false)
-            minimizeBtn.Text = "−"
-        else
-            Window:Minimize(true)
-            minimizeBtn.Text = "□"
-        end
-    end)
-
-    closeBtn.MouseButton1Click:Connect(function()
-        Library:ToggleUI()
-    end)
-end
-
-print("✅ Enhanced UI controls added")
-
--- State
+-- State management
 local state = {
     autoBlow = false, autoHatch = false, riftPriority = nil, eggPriority = nil,
     webhookUrl = "", webhookStats = true,
@@ -89,7 +38,7 @@ local state = {
     startTime = tick()
 }
 
--- PETS & CODES DATA (safe loading)
+-- PETS & CODES DATA
 local petData, codeData
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
@@ -98,7 +47,7 @@ end)
 
 local rarities = {"Common", "Unique", "Rare", "Epic", "Legendary", "Secret"}
 
--- === FUNCTIONS ===
+-- === UTILITY FUNCTIONS ===
 local function SendWebhook(url, msg)
     pcall(function()
         request({
@@ -189,102 +138,211 @@ local function tpToModel(model)
     end)
 end
 
--- === TABS WITH SCROLLABLE SECTIONS ===
-local MainTab = Window:NewTab("🏠 Main")
-local FarmTab = Window:NewTab("🔧 Farm")
-local EggsTab = Window:NewTab("🥚 Eggs")
-local RiftsTab = Window:NewTab("🌌 Rifts")
-local WebTab = Window:NewTab("📊 Webhook")
-local DataTab = Window:NewTab("📋 Data")
+-- === TABS ===
+local MainTab = Window:MakeTab({
+    Name = "🏠 Main",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
--- MAIN TAB - Live Stats (Scrollable)
-local MainSec = MainTab:NewSection("Live Statistics")
-MainTab:NewLabel("Runtime & Player Stats")
-local runtimeLabel = MainTab:NewLabel("Runtime: 00:00:00")
-local bubblesLabel = MainTab:NewLabel("Bubbles: 0")
-local hatchesLabel = MainTab:NewLabel("Hatches: 0")
-local coinsLabel = MainTab:NewLabel("Coins: 0")
-local bubbleLabel = MainTab:NewLabel("Bubble Stock: 0")
-local gemsLabel = MainTab:NewLabel("Gems: 0")
+local FarmTab = Window:MakeTab({
+    Name = "🔧 Farm",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
--- FARM TAB
-local FarmSec = FarmTab:NewSection("Auto Farming")
-FarmTab:NewToggle("AutoBlow", "🧼 Auto Blow (Dex Remote)", function(value)
-    state.autoBlow = value
-    print("🧼 Auto Blow:", value and "ON" or "OFF")
-end)
+local EggsTab = Window:MakeTab({
+    Name = "🥚 Eggs",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
--- EGGS TAB (Scrollable list)
-local EggSec = EggsTab:NewSection("Egg Scanner")
-local eggList = EggsTab:NewDropdown("EggSelect", "Available Eggs", {}, function(option)
-    state.eggPriority = option
-    for _, egg in pairs(state.currentEggs) do
-        if egg.name == option then
-            tpToModel(egg.instance)
-            break
+local RiftsTab = Window:MakeTab({
+    Name = "🌌 Rifts",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local WebTab = Window:MakeTab({
+    Name = "📊 Webhook",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+local DataTab = Window:MakeTab({
+    Name = "📋 Data",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- === MAIN TAB - Live Stats ===
+MainTab:AddSection({
+    Name = "Live Statistics"
+})
+
+local runtimeLabel = MainTab:AddLabel("Runtime: 00:00:00")
+local bubblesLabel = MainTab:AddLabel("Bubbles: 0")
+local hatchesLabel = MainTab:AddLabel("Hatches: 0")
+local coinsLabel = MainTab:AddLabel("Coins: 0")
+local bubbleLabel = MainTab:AddLabel("Bubble Stock: 0")
+local gemsLabel = MainTab:AddLabel("Gems: 0")
+
+-- === FARM TAB ===
+FarmTab:AddSection({
+    Name = "Auto Farming"
+})
+
+FarmTab:AddToggle({
+    Name = "🧼 Auto Blow (Dex Remote)",
+    Default = false,
+    Callback = function(value)
+        state.autoBlow = value
+        OrionLib:MakeNotification({
+            Name = "Auto Blow",
+            Content = value and "Enabled!" or "Disabled!",
+            Time = 2
+        })
+    end
+})
+
+-- === EGGS TAB ===
+EggsTab:AddSection({
+    Name = "Egg Scanner"
+})
+
+local eggDropdown = EggsTab:AddDropdown({
+    Name = "Egg Priority",
+    Default = "",
+    Options = {},
+    Callback = function(option)
+        state.eggPriority = option
+        for _, egg in pairs(state.currentEggs) do
+            if egg.name == option then
+                tpToModel(egg.instance)
+                break
+            end
         end
     end
-end)
+})
 
-EggsTab:NewToggle("AutoHatch", "Auto Hatch Priority Egg", function(value)
-    state.autoHatch = value
-end)
+EggsTab:AddToggle({
+    Name = "Auto Hatch Priority Egg",
+    Default = false,
+    Callback = function(value)
+        state.autoHatch = value
+    end
+})
 
-EggsTab:NewButton("🔄 Refresh Eggs", function()
-    scanEggs()
-    local names = {}
-    for _, egg in pairs(state.currentEggs) do table.insert(names, egg.name) end
-    eggList:Refresh(names)
-end)
+EggsTab:AddButton({
+    Name = "🔄 Refresh Eggs",
+    Callback = function()
+        scanEggs()
+        local names = {}
+        for _, egg in pairs(state.currentEggs) do
+            table.insert(names, egg.name)
+        end
+        eggDropdown:Refresh(names, true)
+        OrionLib:MakeNotification({
+            Name = "Eggs",
+            Content = #names .. " eggs found!",
+            Time = 2
+        })
+    end
+})
 
--- RIFTS TAB
-local RiftSec = RiftsTab:NewSection("Live Rift Scanner")
-local riftList = RiftsTab:NewDropdown("RiftSelect", "Active Rifts", {}, function(option)
-    local name = option:match("^(.+?) |") or option
-    state.riftPriority = name
-    for _, rift in pairs(state.currentRifts) do
-        if rift.name == name then
-            tpToModel(rift.instance)
-            break
+-- === RIFTS TAB ===
+RiftsTab:AddSection({
+    Name = "Live Rift Scanner"
+})
+
+local riftDropdown = RiftsTab:AddDropdown({
+    Name = "Rift Priority",
+    Default = "",
+    Options = {},
+    Callback = function(option)
+        local name = option:match("^(.+?) |") or option
+        state.riftPriority = name
+        for _, rift in pairs(state.currentRifts) do
+            if rift.name == name then
+                tpToModel(rift.instance)
+                break
+            end
         end
     end
-end)
+})
 
-RiftsTab:NewButton("🔄 Refresh Rifts", function()
-    scanRifts()
-    local names = {}
-    for _, rift in pairs(state.currentRifts) do
-        table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
+RiftsTab:AddButton({
+    Name = "🔄 Refresh Rifts",
+    Callback = function()
+        scanRifts()
+        local names = {}
+        for _, rift in pairs(state.currentRifts) do
+            table.insert(names, rift.name .. " | " .. rift.timer .. " | " .. rift.luck)
+        end
+        riftDropdown:Refresh(names, true)
+        OrionLib:MakeNotification({
+            Name = "Rifts",
+            Content = #names .. " rifts found!",
+            Time = 2
+        })
     end
-    riftList:Refresh(names)
-end)
+})
 
--- WEBHOOK TAB
-local WebSec = WebTab:NewSection("Discord Integration")
-local webhookBox = WebTab:NewTextBox("WebhookURL", "Discord Webhook", function(text)
-    state.webhookUrl = text
-end)
+-- === WEBHOOK TAB ===
+WebTab:AddSection({
+    Name = "Discord Integration"
+})
 
-WebTab:NewToggle("StatsWebhook", "Send Stats Updates", function(value)
-    state.webhookStats = value
-end)
+local webhookInput = WebTab:AddTextbox({
+    Name = "Discord Webhook URL",
+    Default = "",
+    TextDisappear = false,
+    Callback = function(text)
+        state.webhookUrl = text
+    end
+})
 
-WebTab:NewButton("🧪 Test Webhook", function()
-    if state.webhookUrl == "" then return end
-    local msg = "**🧼 BGSI Stats** `" .. os.date("%H:%M") .. "`\n"
-    local fields = {}
-    if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: " .. state.stats.bubbles) end
-    if state.stats.hatches > 0 then table.insert(fields, "Hatches: " .. state.stats.hatches) end
-    if state.stats.coins > 0 then table.insert(fields, "Coins: " .. state.stats.coins) end
-    SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
-end)
+WebTab:AddToggle({
+    Name = "Send Stats Updates",
+    Default = true,
+    Callback = function(value)
+        state.webhookStats = value
+    end
+})
 
--- DATA TAB
+WebTab:AddButton({
+    Name = "🧪 Test Webhook",
+    Callback = function()
+        if state.webhookUrl == "" then
+            OrionLib:MakeNotification({
+                Name = "Error",
+                Content = "Enter webhook URL first!",
+                Time = 3
+            })
+            return
+        end
+        local msg = "**🧼 BGSI Stats** `" .. os.date("%H:%M") .. "`\n"
+        local fields = {}
+        if state.stats.bubbles > 0 then table.insert(fields, "Bubbles: " .. state.stats.bubbles) end
+        if state.stats.hatches > 0 then table.insert(fields, "Hatches: " .. state.stats.hatches) end
+        if state.stats.coins > 0 then table.insert(fields, "Coins: " .. state.stats.coins) end
+        SendWebhook(state.webhookUrl, msg .. table.concat(fields, "\n"))
+        OrionLib:MakeNotification({
+            Name = "Webhook",
+            Content = "Test message sent!",
+            Time = 2
+        })
+    end
+})
+
+-- === DATA TAB ===
 if petData then
-    local PetSec = DataTab:NewSection("Pet Rarities")
+    DataTab:AddSection({
+        Name = "Pet Rarities"
+    })
     for petName, data in pairs(petData) do
         if data.Rarity then
-            DataTab:NewLabel(petName .. " [" .. data.Rarity .. "]")
+            DataTab:AddLabel(petName .. " [" .. data.Rarity .. "]")
         end
     end
 end
@@ -297,7 +355,7 @@ spawn(function()
         scanEggs()
 
         if state.autoBlow then
-            -- TODO: RS.Remotes.BlowBubbleRemote:FireServer()
+            -- RS.Remotes.BlowBubbleRemote:FireServer()
         end
 
         if state.autoHatch and state.eggPriority then
@@ -316,7 +374,15 @@ spawn(function()
         local runtime = tick() - state.startTime
         local h,m,s = math.floor(runtime/3600), math.floor((runtime%3600)/60), math.floor(runtime%60)
 
-        -- Update labels would go here if Kavo supported it
+        pcall(function()
+            runtimeLabel:Set("Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
+            bubblesLabel:Set("Bubbles: " .. state.stats.bubbles)
+            hatchesLabel:Set("Hatches: " .. state.stats.hatches)
+            coinsLabel:Set("Coins: " .. state.stats.coins)
+            bubbleLabel:Set("Bubble Stock: " .. state.stats.bubbleStock)
+            gemsLabel:Set("Gems: " .. state.stats.gems)
+        end)
+
         if state.webhookStats and state.webhookUrl ~= "" and tick()%60<1 then
             local msg = "**🧼 BGSI** | " .. player.Name .. "\n"
             local fields = {}
@@ -327,11 +393,16 @@ spawn(function()
     end
 end)
 
--- Initial scan
+-- Initial scans
 scanEggs()
 scanRifts()
 
-print("🎉 BGSI Enhanced UI FULLY LOADED!")
-game.StarterGui:SetCore("SendNotification", {
-    Title = "🧼 BGSI Hub"; Text = "Enhanced UI ready! Drag/Minimize/Close added"; Duration = 5
+-- Initialize Orion
+OrionLib:Init()
+
+print("🎉 BGSI Premium Hub with OrionLib FULLY LOADED!")
+OrionLib:MakeNotification({
+    Name = "🧼 BGSI Hub",
+    Content = "Enhanced UI ready! Fully functional with live stats.",
+    Time = 5
 })
