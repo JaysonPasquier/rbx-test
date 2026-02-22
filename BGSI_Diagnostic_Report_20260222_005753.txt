@@ -1,0 +1,592 @@
+========================================
+🔍 BGSI GAME DIAGNOSTIC REPORT
+Generated: 2026-02-22 00:57:52
+========================================
+
+
+📦 === REPLICATEDSTORAGE STRUCTURE ===
+├─ Assets [Folder]
+│  ├─ Fishing [Folder]
+│  ├─ Super [ImageLabel]
+│  ├─ Eggs [Folder]
+│  ├─ XLBorder [Frame]
+│  ├─ Gradients [Folder]
+│  ├─ Particles [Folder]
+│  ├─ Sounds [Folder]
+│  ├─ Books [Folder]
+│  ├─ PetTag [BillboardGui]
+│  ├─ Effects [Folder]
+│  ├─ Animations [Folder]
+│  ├─ GiftGui [BillboardGui]
+│  ├─ ItemFrame [Frame]
+│  ├─ PlayerTag [BillboardGui]
+│  ├─ Pets [Folder]
+│  ├─ Powerups [Folder]
+│  ├─ ProximityPrompt [BillboardGui]
+│  ├─ EggLock [BillboardGui]
+│  ├─ ChestRespawn [Model]
+│  ├─ VisualPortalLock [Model]
+│  ├─ VisualEggLock [Model]
+│  ├─ Rifts [Folder]
+│  ├─ RiftChest [BillboardGui]
+│  ├─ Chests [Folder]
+│  ├─ LevelUp [BillboardGui]
+│  ├─ Trampoline [Model]
+│  ├─ Pickups [Folder]
+│  ├─ Minigames [Folder]
+│  ├─ Rejoining [ScreenGui]
+│  ├─ EasterEggs [Folder]
+│  ├─ Bobbers [Folder]
+│  ├─ Intro_ [ScreenGui]
+│  ├─ FishingRods [Folder]
+│  ├─ Boats [Folder]
+│  ├─ Fish [Folder]
+│  ├─ Intro [ScreenGui]
+│  ├─ Bundles [Folder]
+│  ├─ Bubble [MeshPart]
+│  ├─ VisualItem [Part]
+│  ├─ Tutorial [MeshPart]
+│  ├─ GoldenEgg [Part]
+├─ Client [Folder]
+│  ├─ PetRender [ModuleScript]
+│  ├─ Activation [ModuleScript]
+│  ├─ PlayerRender [ModuleScript]
+│  ├─ Moonlite [ModuleScript]
+│  ├─ LowDetail [ModuleScript]
+│  ├─ PlayerControls [ModuleScript]
+│  ├─ Music [ModuleScript]
+│  ├─ IsTrading [ModuleScript]
+│  ├─ Tutorial [ModuleScript]
+│  ├─ AFKReport [ModuleScript]
+│  ├─ Gui [Folder]
+│  ├─ Framework [Folder]
+│  ├─ Effects [Folder]
+├─ Shared [Folder]
+│  ├─ Types [ModuleScript]
+│  ├─ Constants [ModuleScript]
+│  ├─ T [ModuleScript]
+│  ├─ Palette [ModuleScript]
+│  ├─ GlobalEvent [ModuleScript]
+│  ├─ HeavenHellShared [ModuleScript]
+│  ├─ ValentinesShared [ModuleScript]
+│  ├─ Framework [Folder]
+│  ├─ Utils [Folder]
+│  ├─ Data [Folder]
+├─ Remotes [Folder]
+│  ├─ PlayerDataLoaded [RemoteEvent]
+│  ├─ PlayerDataChanged [RemoteEvent]
+│  ├─ PlayerDataFailed [RemoteEvent]
+│  ├─ Pickups [Folder]
+├─ FastFlags [Folder]
+
+
+📡 === ALL REMOTEEVENTS & REMOTEFUNCTIONS ===
+[1] RemoteEvent → ReplicatedStorage.Shared.Framework.Network.Remote.RemoteEvent
+[2] RemoteFunction → ReplicatedStorage.Shared.Framework.Network.Remote.RemoteFunction
+[3] RemoteEvent → ReplicatedStorage.Shared.Framework.Utilities.SendSystemMessage.RemoteEvent
+[4] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataLoaded
+[5] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataChanged
+[6] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataFailed
+[7] RemoteEvent → ReplicatedStorage.Remotes.Pickups.SpawnPickups
+[8] RemoteEvent → ReplicatedStorage.Remotes.Pickups.CollectPickup
+
+Total Remotes Found: 8
+
+
+🧼 === BUBBLE/BLOW RELATED REMOTES ===
+
+
+🥚 === EGG/HATCH RELATED REMOTES ===
+
+
+🗺️ === WORKSPACE STRUCTURE ===
+├─ Camera [Camera]
+├─ Sound [Sound]
+├─ Rendered [Folder]
+│  📂 RENDERED FOLDER (Important!):
+│  ├─ Bubbles [Folder] (0 children)
+│  ├─ Generic [Folder] (132 children)
+│  ├─ Pets [Folder] (2 children)
+│  ├─ Chests [Folder] (4 children)
+│  ├─ Gifts [Folder] (0 children)
+│  ├─ Pickups [Folder] (0 children)
+│  ├─ Teleport [Folder] (0 children)
+│  ├─ Rifts [Folder] (4 children)
+│  ├─ Boats [Folder] (0 children)
+│  ├─ PresentRain [Folder] (0 children)
+│  ├─ Info [Model] (2 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Chunker [Folder] (24 children)
+│  ├─ Chunker [Folder] (22 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Active [Model] (7 children)
+├─ Eggs [Folder]
+├─ Stages [Folder]
+├─ Markers [Folder]
+├─ Worlds [Folder]
+├─ Scene [Folder]
+├─ Lantern [Part]
+├─ EventShop [Model]
+├─ TravelingMerchant [Model]
+├─ DailyPerks [Model]
+├─ ShardActivation [Model]
+├─ ImageLabel [ImageLabel]
+├─ RebirthMachine [Model]
+├─ Obbys [Folder]
+├─ Decal [Decal]
+├─ Potion of Currency [Model]
+├─ Model [Model]
+├─ Decore [Model]
+├─ ref [Model]
+├─ XLSign [Model]
+├─ GlobalIncentive [Model]
+├─ Everlasting Moonglow [Model]
+├─ LunarWheelSpin [Model]
+├─ Lantern [Part]
+├─ Model [Model]
+├─ Model [Model]
+├─ Incentive [Model]
+├─ TopIncentive [Model]
+├─ Rotates [Model]
+├─ Board [Model]
+├─ Model [Model]
+├─ World Bubble [Model]
+├─ Giant Crescent Empress [Model]
+├─ All-Seeing Overseer [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Wealthy Trio [Model]
+├─ Decal [Decal]
+├─ Egg Trophy [Model]
+├─ WorldEmitters [Folder]
+├─ Lantern [Part]
+├─ Terrain [Terrain]
+├─ Part [Part]
+├─ Part [Part]
+├─ scorpio74890 [Model]
+├─ MysteryVoice [Part]
+├─ floorbox [Part]
+├─ CircusSpawn [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ HeavenIslandReturn [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+
+
+🌀 === RIFT STRUCTURE ===
+✅ Found Rifts folder at: Workspace.Rendered.Rifts
+Rifts detected: 4
+
+[Rift 1] gift-rift
+   Full structure:
+   Workspace.Rendered.Rifts.gift-rift.Decoration [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Meshes/floatingisland1_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Meshes/floatingisland1_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Decoration.Meshes/floatingisland1_Circle.003.Texture [Texture]
+   Workspace.Rendered.Rifts.gift-rift.Gift [Model]
+   Workspace.Rendered.Rifts.gift-rift.Gift.Prompt [Part]
+   Workspace.Rendered.Rifts.gift-rift.Gift.Visual [Part]
+   Workspace.Rendered.Rifts.gift-rift.Gift.Visual.Mesh [SpecialMesh]
+   Workspace.Rendered.Rifts.gift-rift.Sign [Model]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.gift-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.gift-rift.Output [Part]
+   Workspace.Rendered.Rifts.gift-rift.Display [Part]
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "7 minutes"
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui.UIPadding [UIPadding]
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui.Title [TextLabel]
+      └─ Text: "Time Left"
+   Workspace.Rendered.Rifts.gift-rift.Display.SurfaceGui.Title.UIStroke [UIStroke]
+
+[Rift 2] golden-chest
+   Full structure:
+   Workspace.Rendered.Rifts.golden-chest.Decoration [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Meshes/floatingisland1_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Meshes/floatingisland1_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Decoration.Meshes/floatingisland1_Circle.003.Texture [Texture]
+   Workspace.Rendered.Rifts.golden-chest.Sign [Model]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.golden-chest.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.golden-chest.Chest [Model]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration [Model]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Top [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins.PointLight [PointLight]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins.Sparkle [ParticleEmitter]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins.Glow [ParticleEmitter]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins.Attachment [Attachment]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Coins.Attachment.Rays [ParticleEmitter]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Decoration.Bottom [MeshPart]
+   Workspace.Rendered.Rifts.golden-chest.Chest.golden-chest [Part]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner [Part]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.Shine [ParticleEmitter]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.Stars [ParticleEmitter]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest [BillboardGui]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame [Frame]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Tip [ImageLabel]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.UIGradient [UIGradient]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Background [ImageLabel]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Background.UICorner [UICorner]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Background.UIGradient [UIGradient]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.UICorner [UICorner]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Icon [Frame]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Icon.Label [ImageLabel]
+   Workspace.Rendered.Rifts.golden-chest.Chest.Inner.RiftChest.Frame.Icon.UIAspectRatioConstraint [UIAspectRatioConstraint]
+   Workspace.Rendered.Rifts.golden-chest.Output [Part]
+   Workspace.Rendered.Rifts.golden-chest.Display [Part]
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "7 minutes"
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui.UIPadding [UIPadding]
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui.Title [TextLabel]
+      └─ Text: "Time Left"
+   Workspace.Rendered.Rifts.golden-chest.Display.SurfaceGui.Title.UIStroke [UIStroke]
+
+[Rift 3] spikey-egg
+   Full structure:
+   Workspace.Rendered.Rifts.spikey-egg.Decoration [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Meshes/floatingisland1_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Meshes/floatingisland1_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Decoration.Meshes/floatingisland1_Circle.003.Texture [Texture]
+   Workspace.Rendered.Rifts.spikey-egg.Sign [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.spikey-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn [Model]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.spikey-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.spikey-egg.Output [Part]
+   Workspace.Rendered.Rifts.spikey-egg.Display [Part]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Icon [Frame]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Icon.Label [ImageLabel]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Icon.Luck [TextLabel]
+      └─ Text: "x5"
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Icon.Luck.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "7 minutes"
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.spikey-egg.Display.SurfaceGui.UIPadding [UIPadding]
+
+
+🥚 === EGG STRUCTURE (Chuncker folders) ===
+✅ Rendered folder exists
+All children in Rendered:
+   ├─ Bubbles (0 children)
+   ├─ Generic (132 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Book [Model]
+         • Top [Model]
+         • Floating Island [Model]
+         • Outer Space [Model]
+         • Twilight [Model]
+         • The Void [Model]
+         • Zen [Model]
+         • Beam [Part]
+         • Top [MeshPart]
+         • Giant Chest [Model]
+   ├─ Pets (2 children)
+   ├─ Chests (4 children)
+   ├─ Gifts (0 children)
+   ├─ Pickups (0 children)
+   ├─ Teleport (0 children)
+   ├─ Rifts (4 children)
+   ├─ Boats (0 children)
+   ├─ PresentRain (0 children)
+   ├─ Info (2 children)
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Chunker (24 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Infinity Egg [Model]
+         • Mining Egg [Model]
+         • Iceshard Egg [Model]
+         • Coming Soon [Model]
+         • Spotted Egg [Model]
+         • Coming Soon [Model]
+         • Coming Soon [Model]
+         • Neon Egg [Model]
+         • Coming Soon [Model]
+         • Coming Soon [Model]
+   ├─ Chunker (22 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • 6fdbcf55-96b2-48ff-bad2-3013ab7f4833 [Model]
+         • 5a6a52d5-3fd1-40e5-907c-2dbbcc79bde9 [Model]
+         • 8ab94a40-f32c-46a0-ab9c-9ce0b9c4e90c [Model]
+         • 96e05e28-85a8-4c41-8bb4-2351594899e2 [Model]
+         • 82f60462-31c1-4792-9b08-38ec1fd4383c [Model]
+         • 8db49fb8-40c0-4a25-b548-e4761c1fc10a [Model]
+         • 1cfa20b0-7bf5-43da-83a4-7002409b6099 [Model]
+         • c0af7d7c-7e3c-4a6a-bc51-9c0e21c1139c [Model]
+         • af98faa9-0abe-4024-95e6-7a01c391daec [Model]
+         • 5de98e6d-9f69-4fc8-a6af-6fa7349c10a9 [Model]
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Active (7 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Model [Model]
+         • Captain [Model]
+         • Meshes/balloon landing1_Plane [MeshPart]
+         • Meshes/balloon landing2 [MeshPart]
+         • Meshes/balloon landing2 [MeshPart]
+         • Meshes/balloon landing2 [MeshPart]
+         • Meshes/balloon landing2 [MeshPart]
+
+
+🐾 === PET DATA ===
+✅ Pet data found! Sample pets:
+   • Retro Doggy - Rarity: Common
+   • Dice - Rarity: Epic
+   • Everblaze - Rarity: Secret
+   • Hellshard - Rarity: Secret
+   • Avernus Tophat - Rarity: Secret
+   • Christmas Trophy - Rarity: Secret
+   • Easter Egg - Rarity: Unique
+   • Space Mouse - Rarity: Common
+   • BGS Box - Rarity: Secret
+   • Atlantis Guardian - Rarity: Legendary
+
+Total pets in data: 10
+
+
+🎁 === CODES DATA ===
+✅ Code data found! Available codes:
+   • maidnert
+   • bugfix
+   • update6
+   • secretsanta
+   • hell
+   • halloween
+   • adminabuse
+   • fishfix
+   • update5
+   • cornmaze
+   • miniupdate
+   • plasma
+   • update2
+   • christmas
+   • 2xinfinity
+   • obby
+   • onemorebonus
+   • valentine
+   • superpuff
+   • heaven
+   • tophats
+   • circus
+   • lucky
+   • galentine
+   • update7
+   • sorryshutdown
+   • jolly
+   • elf
+   • world3
+   • christmasday2025
+   • update8
+   • throwback
+   • ogbgs
+   • shutdown
+   • update3
+   • ripsoulofplant
+   • autumn
+   • update11
+   • easter
+   • milestones
+   • update10
+   • season7
+   • season6
+   • update4
+   • update13
+   • sylentlyssorry
+   • update16
+   • update15
+   • fishe
+   • release
+   • update12
+   • retroslop
+   • update9
+
+Total codes: 53
+
+
+🖥️ === PLAYERGUI STRUCTURE (Currency Labels) ===
+✅ ScreenGui found
+   ✅ HUD found
+      ✅ Left panel found
+         ✅ Currency frame found
+
+         Currency Labels:
+         ├─ UIListLayout
+         ├─ UIPadding
+         ├─ Coins
+         │  └─ Current Value: "410.1B"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Frame.Label
+         ├─ Gems
+         │  └─ Current Value: "1,263,943,628"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Gems.Frame.Label
+         ├─ Bubble
+         │  └─ Current Value: "<stroke color="#00295E" joins="round" thickness="2">30,292,950,870 / <font size="58">∞</font></stroke>"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Bubble.Frame.Label
+         ├─ Tokens
+         │  └─ Current Value: "0"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tokens.Frame.Label
+         ├─ Tickets
+         │  └─ Current Value: "4.8T"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Frame.Label
+         ├─ Seashells
+         │  └─ Current Value: "1.2T"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Frame.Label
+         ├─ FestivalCoins
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Frame.Label
+         ├─ Pearls
+         │  └─ Current Value: "890"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Frame.Label
+         ├─ Leaves
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Frame.Label
+         ├─ Candycorn
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Frame.Label
+         ├─ OGPoints
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.OGPoints.Frame.Label
+         ├─ ThanksgivingShards
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Frame.Label
+         ├─ WinterShards
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Frame.Label
+         ├─ Snowflakes
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Frame.Label
+         ├─ NewYearsShard
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Frame.Label
+         ├─ Horns
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Horns.Frame.Label
+         ├─ Halos
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Halos.Frame.Label
+         ├─ MoonShards
+         │  └─ Current Value: "363,591"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.MoonShards.Frame.Label
+
+
+📊 === LEADERSTATS ===
+✅ Leaderstats found:
+   • 🥚 Hatches: 8768126
+   • 🟣 Bubbles: 57071806114
+
+
+========================================
+✅ DIAGNOSTIC SCAN COMPLETE
+========================================

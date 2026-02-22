@@ -124,14 +124,18 @@ local function updateStats()
                             end
                         end
 
-                        -- Bubble Stock
+                        -- Bubble Stock (remove rich text tags)
                         local bubbleFrame = currency:FindFirstChild("Bubble")
                         if bubbleFrame then
                             local frame = bubbleFrame:FindFirstChild("Frame")
                             if frame then
                                 local label = frame:FindFirstChild("Label")
                                 if label and label:IsA("TextLabel") then
-                                    state.stats.bubbleStock = label.Text  -- Full text with formatting
+                                    local rawText = label.Text
+                                    -- Remove rich text: <stroke>value / ∞</stroke>
+                                    local cleaned = rawText:gsub("<.->" , "")  -- Remove all tags
+                                    cleaned = cleaned:match("([%d%.,]+[KMBT]?)")
+                                    state.stats.bubbleStock = cleaned or rawText
                                 end
                             end
                         end
@@ -154,7 +158,7 @@ local function updateStats()
     end)
 end
 
--- ✅ IMPROVED: Real-time rift scanner with timer & luck
+-- ✅ FIXED: Real-time rift scanner with correct paths (Display.SurfaceGui)
 local function scanRifts()
     local newRifts = {}
     pcall(function()
@@ -164,28 +168,31 @@ local function scanRifts()
                 if rift:IsA("Model") then
                     local display = rift:FindFirstChild("Display")
                     if display then
-                        local timerLabel = display:FindFirstChild("Timer")
-                        local icon = display:FindFirstChild("Icon")
-                        local luckLabel = icon and icon:FindFirstChild("Luck")
+                        local surfaceGui = display:FindFirstChild("SurfaceGui")
+                        if surfaceGui then
+                            local timerLabel = surfaceGui:FindFirstChild("Timer")
+                            local iconFrame = surfaceGui:FindFirstChild("Icon")
+                            local luckLabel = iconFrame and iconFrame:FindFirstChild("Luck")
 
-                        local timerText = "00:00"
-                        local luckText = "x1"
+                            local timerText = "N/A"
+                            local luckText = "x1"
 
-                        if timerLabel and timerLabel:IsA("TextLabel") then
-                            timerText = timerLabel.Text
+                            if timerLabel and timerLabel:IsA("TextLabel") then
+                                timerText = timerLabel.Text
+                            end
+
+                            if luckLabel and luckLabel:IsA("TextLabel") then
+                                luckText = luckLabel.Text
+                            end
+
+                            table.insert(newRifts, {
+                                name = rift.Name,
+                                timer = timerText,
+                                luck = luckText,
+                                instance = rift,
+                                displayText = rift.Name .. " | " .. timerText .. " | " .. luckText
+                            })
                         end
-
-                        if luckLabel and luckLabel:IsA("TextLabel") then
-                            luckText = luckLabel.Text
-                        end
-
-                        table.insert(newRifts, {
-                            name = rift.Name,
-                            timer = timerText,
-                            luck = luckText,
-                            instance = rift,
-                            displayText = rift.Name .. " | " .. timerText .. " | " .. luckText
-                        })
                     end
                 end
             end
@@ -196,7 +203,7 @@ local function scanRifts()
     return newRifts
 end
 
--- ✅ IMPROVED: Real-time egg scanner (Chuncker folders)
+-- ✅ FIXED: Real-time egg scanner (Chunker folders with proper filtering)
 local function scanEggs()
     local newEggs = {}
     local seenEggs = {}  -- Prevent duplicates
@@ -204,35 +211,33 @@ local function scanEggs()
     pcall(function()
         local rendered = Workspace:FindFirstChild("Rendered")
         if rendered then
-            -- 🔍 DEBUG: Print all folder names to help find eggs
-            local foundChuncker = false
+            local foundEggs = 0
             for _, folder in pairs(rendered:GetChildren()) do
-                if folder.Name:find("Chuncker") or folder.Name:find("Chunk") then
-                    foundChuncker = true
-                    print("🥚 Found egg folder: " .. folder.Name .. " with " .. #folder:GetChildren() .. " children")
-
+                -- Fixed: It's "Chunker" not "Chuncker"
+                if folder.Name == "Chunker" then
                     for _, egg in pairs(folder:GetChildren()) do
-                        print("   - " .. egg.Name .. " [" .. egg.ClassName .. "]")
-                        -- Skip "Coming Soon" and duplicates
-                        if egg.Name ~= "Coming Soon" and not seenEggs[egg.Name] then
-                            seenEggs[egg.Name] = true
-                            table.insert(newEggs, {
-                                name = egg.Name,
-                                instance = egg
-                            })
+                        if egg:IsA("Model") then
+                            local eggName = egg.Name
+                            -- Filter: Skip "Coming Soon", UUIDs, and duplicates
+                            local isUUID = eggName:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-")
+                            local isComingSoon = eggName == "Coming Soon"
+
+                            if not isUUID and not isComingSoon and not seenEggs[eggName] then
+                                seenEggs[eggName] = true
+                                foundEggs = foundEggs + 1
+                                table.insert(newEggs, {
+                                    name = eggName,
+                                    instance = egg
+                                })
+                            end
                         end
                     end
                 end
             end
 
-            if not foundChuncker then
-                print("⚠️ No Chuncker folders found. Rendered children:")
-                for _, child in pairs(rendered:GetChildren()) do
-                    print("   - " .. child.Name)
-                end
+            if foundEggs > 0 then
+                print("✅ Found " .. foundEggs .. " eggs in Chunker folders")
             end
-        else
-            print("❌ Workspace.Rendered not found!")
         end
     end)
 
@@ -511,6 +516,77 @@ DataTab:CreateButton({
          Content = "Check console (F9) for results",
          Duration = 3
       })
+   end
+})
+
+DataTab:CreateButton({
+   Name = "🔍 Network Framework Test",
+   Callback = function()
+      local RS = game:GetService("ReplicatedStorage")
+      print("\n🌐 === NETWORK FRAMEWORK ANALYSIS ===")
+
+      -- Find the main network remote
+      pcall(function()
+         local networkRemote = RS.Shared.Framework.Network.Remote:FindFirstChild("RemoteFunction")
+         if networkRemote then
+            print("✅ Found Network RemoteFunction: " .. networkRemote:GetFullName())
+            print("\n💡 This game uses a centralized network system!")
+            print("   All actions go through this one RemoteFunction")
+            print("   Usage: networkRemote:InvokeServer('ActionName', args...)")
+            print("\n📝 To find actions:")
+            print("   1. Click things in-game (blow bubble, open egg, etc.)")
+            print("   2. Monitor RemoteFunction calls with a debugger")
+            print("   3. Check Client scripts for :InvokeServer() calls")
+            print("\n🔧 Try these common action names:")
+            print("   • 'BlowBubble' or 'Bubble'")
+            print("   • 'OpenEgg' or 'PurchaseEgg'")
+            print("   • 'Collect' or 'Claim'")
+         end
+      end)
+
+      print("\n=== END ANALYSIS ===\n")
+      Rayfield:Notify({
+         Title = "Network Framework Found",
+         Content = "Check console for details",
+         Duration = 3
+      })
+   end
+})
+
+DataTab:CreateButton({
+   Name = "🎯 Hook Network Calls (SPY)",
+   Callback = function()
+      local RS = game:GetService("ReplicatedStorage")
+      print("\n🕵️ === HOOKING NETWORK CALLS ===")
+
+      pcall(function()
+         local networkRemote = RS.Shared.Framework.Network.Remote:FindFirstChild("RemoteFunction")
+         if networkRemote then
+            local oldInvoke = networkRemote.InvokeServer
+            networkRemote.InvokeServer = function(self, ...)
+               local args = {...}
+               print("\n📡 NETWORK CALL DETECTED:")
+               print("   Action: " .. tostring(args[1]))
+               for i = 2, #args do
+                  print("   Arg[" .. (i-1) .. "]: " .. tostring(args[i]))
+               end
+               return oldInvoke(self, ...)
+            end
+
+            print("✅ Network hook installed!")
+            print("   Now click things in-game to see network calls")
+            print("   Try: Blow bubble, open egg, collect items, etc.")
+            print("   All calls will print here\n")
+
+            Rayfield:Notify({
+               Title = "Network Spy Active",
+               Content = "Check console when you interact with game",
+               Duration = 5
+            })
+         else
+            print("❌ Could not find RemoteFunction")
+         end
+      end)
    end
 })
 
