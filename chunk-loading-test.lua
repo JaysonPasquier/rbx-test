@@ -3,21 +3,42 @@
 -- Tests multiple methods to force all game chunks to load
 -- ===================================
 
+-- Check if we're in a valid Roblox environment
+if not game then
+    error("❌ Not running in Roblox environment!")
+end
+
 print("🧪 === CHUNK LOADING TEST STARTING ===")
 print("Testing multiple methods to load all game areas...\n")
 
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local RS = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
+-- Safe service loading
+local success, Players = pcall(function() return game:GetService("Players") end)
+if not success then error("❌ Failed to get Players service") end
+
+local success2, Workspace = pcall(function() return game:GetService("Workspace") end)
+if not success2 then Workspace = workspace end -- Fallback to global
+
+local success3, RS = pcall(function() return game:GetService("ReplicatedStorage") end)
+if not success3 then error("❌ Failed to get ReplicatedStorage") end
+
+local success4, RunService = pcall(function() return game:GetService("RunService") end)
+if not success4 then error("❌ Failed to get RunService") end
 
 local player = Players.LocalPlayer
+if not player then
+    error("❌ LocalPlayer not found!")
+end
+
+print("✅ Services loaded successfully")
+print("Player:", player.Name)
+print("")
+
 local results = {}
 
 -- Helper function to count loaded chunks
 local function countLoadedChunks()
     local rendered = Workspace:FindFirstChild("Rendered")
-    if not rendered then return 0 end
+    if not rendered then return 0, {} end  -- FIX: Return both values
 
     local count = 0
     local eggs = {}
@@ -53,8 +74,12 @@ print("📊 === INITIAL STATE ===")
 local initialChunks, initialEggs = countLoadedChunks()
 print("Loaded chunks:", initialChunks)
 print("Eggs found:", #initialEggs)
-for _, eggName in pairs(initialEggs) do
-    print("  - " .. eggName)
+if #initialEggs > 0 then
+    for _, eggName in pairs(initialEggs) do
+        print("  - " .. eggName)
+    end
+else
+    print("  (No eggs currently loaded)")
 end
 print("")
 
@@ -258,8 +283,12 @@ print("Current state:")
 print("  Chunks loaded: " .. finalChunks .. " (was " .. initialChunks .. ")")
 print("  Eggs found: " .. #finalEggs .. " (was " .. #initialEggs .. ")")
 print("\nEggs currently loaded:")
-for _, eggName in pairs(finalEggs) do
-    print("  ✅ " .. eggName)
+if #finalEggs > 0 then
+    for _, eggName in pairs(finalEggs) do
+        print("  ✅ " .. eggName)
+    end
+else
+    print("  (No eggs loaded)")
 end
 print("")
 
