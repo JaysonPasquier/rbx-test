@@ -137,9 +137,23 @@ pcall(function()
                 foundEggFolder = true
                 addLine("      ⭐ POSSIBLE EGG FOLDER! Contents:")
                 for i, egg in pairs(child:GetChildren()) do
-                    if i <= 10 then  -- Show first 10 eggs
-                        addLine("         • " .. egg.Name .. " [" .. egg.ClassName .. "]")
+                    if i <= 25 then  -- Show first 25 eggs (increased from 10)
+                        local hasPlate = egg:FindFirstChild("Plate") and "✅ HAS PLATE" or "❌ NO PLATE"
+                        addLine("         • " .. egg.Name .. " [" .. egg.ClassName .. "] " .. hasPlate)
+
+                        -- Show first 3 children of each egg
+                        if i <= 5 then
+                            for j, part in pairs(egg:GetChildren()) do
+                                if j <= 3 then
+                                    addLine("            └─ " .. part.Name .. " [" .. part.ClassName .. "]")
+                                end
+                            end
+                        end
                     end
+                end
+
+                if childCount > 25 then
+                    addLine("         (...and " .. (childCount - 25) .. " more)")
                 end
             end
         end
@@ -229,6 +243,550 @@ pcall(function()
         end
     else
         addLine("❌ No leaderstats found")
+    end
+end)
+
+-- === 12. CHEST SCANNING ===
+addLine("\n\n📦 === CHEST STRUCTURE ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered and rendered:FindFirstChild("Chests") then
+        addLine("✅ Found Chests folder")
+        local chests = rendered.Chests
+        addLine("Total chests: " .. #chests:GetChildren())
+
+        for i, chest in pairs(chests:GetChildren()) do
+            addLine("\n[Chest " .. i .. "] " .. chest.Name .. " [" .. chest.ClassName .. "]")
+            addLine("   Children:")
+            for _, child in pairs(chest:GetChildren()) do
+                addLine("      • " .. child.Name .. " [" .. child.ClassName .. "]")
+                if child:IsA("ProximityPrompt") then
+                    addLine("         └─ ⭐ HAS PROXIMITYPROMPT!")
+                end
+            end
+        end
+    else
+        addLine("❌ No Chests folder found")
+    end
+end)
+
+-- === 13. PICKUP SCANNING ===
+addLine("\n\n💰 === PICKUP/DROP STRUCTURE ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered and rendered:FindFirstChild("Pickups") then
+        addLine("✅ Found Pickups folder")
+        local pickups = rendered.Pickups
+        addLine("Current pickups in folder: " .. #pickups:GetChildren())
+
+        if #pickups:GetChildren() > 0 then
+            for i, pickup in pairs(pickups:GetChildren()) do
+                if i <= 5 then
+                    addLine("   [" .. i .. "] " .. pickup.Name .. " [" .. pickup.ClassName .. "]")
+                end
+            end
+        else
+            addLine("   ⚠️ No pickups currently spawned")
+            addLine("   Try: Blow bubbles or break objects to spawn pickups")
+        end
+    else
+        addLine("❌ No Pickups folder found")
+    end
+end)
+
+-- === 14. ADMIN ABUSE EVENT DETECTION ===
+addLine("\n\n👑 === ADMIN ABUSE EVENT DETECTION ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    local foundAdminEvent = false
+
+    if rendered then
+        -- Check for Super Egg
+        for _, folder in pairs(rendered:GetChildren()) do
+            for _, child in pairs(folder:GetChildren()) do
+                local name = child.Name:lower()
+                if name:find("super") or name:find("admin") then
+                    foundAdminEvent = true
+                    addLine("🎯 FOUND ADMIN EVENT ITEM: " .. child.Name .. " in " .. folder.Name)
+                    addLine("   Full path: " .. child:GetFullName())
+                end
+            end
+        end
+
+        -- Check workspace for Admin-related models
+        for _, child in pairs(Workspace:GetChildren()) do
+            local name = child.Name:lower()
+            if name:find("admin") or name:find("super") then
+                foundAdminEvent = true
+                addLine("🎯 FOUND: " .. child.Name .. " [" .. child.ClassName .. "]")
+                addLine("   Location: " .. child:GetFullName())
+            end
+        end
+    end
+
+    if foundAdminEvent then
+        addLine("\n✅ Admin Abuse event MAY be active!")
+    else
+        addLine("\n❌ Admin Abuse event NOT detected (or not started yet)")
+    end
+end)
+
+-- === 15. TELEPORTER DETECTION ===
+addLine("\n\n🌀 === TELEPORTER/PORTAL DETECTION ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered and rendered:FindFirstChild("Teleport") then
+        addLine("✅ Found Teleport folder")
+        local teleports = rendered.Teleport
+        addLine("Active teleporters: " .. #teleports:GetChildren())
+
+        for i, teleporter in pairs(teleports:GetChildren()) do
+            addLine("   [" .. i .. "] " .. teleporter.Name)
+            for _, part in pairs(teleporter:GetDescendants()) do
+                if part:IsA("Part") or part:IsA("MeshPart") then
+                    addLine("      • " .. part.Name .. " at " .. tostring(part.Position))
+                end
+            end
+        end
+    else
+        addLine("⚠️ No active teleporters found")
+    end
+end)
+
+-- === 16. COMPLETE PET RARITY BREAKDOWN ===
+addLine("\n\n🐾 === COMPLETE PET RARITY BREAKDOWN ===")
+pcall(function()
+    local petData = require(RS.Shared.Data.Pets)
+    local rarityCount = {Common=0, Unique=0, Rare=0, Epic=0, Legendary=0, Secret=0, Unknown=0}
+    local totalPets = 0
+
+    for name, data in pairs(petData) do
+        totalPets = totalPets + 1
+        local rarity = data.Rarity or "Unknown"
+        rarityCount[rarity] = (rarityCount[rarity] or 0) + 1
+    end
+
+    addLine("✅ Total pets in game: " .. totalPets)
+    addLine("\nBreakdown by rarity:")
+    addLine("   • Common: " .. rarityCount.Common)
+    addLine("   • Unique: " .. rarityCount.Unique)
+    addLine("   • Rare: " .. rarityCount.Rare)
+    addLine("   • Epic: " .. rarityCount.Epic)
+    addLine("   • Legendary: " .. rarityCount.Legendary)
+    addLine("   • Secret: " .. rarityCount.Secret)
+    if rarityCount.Unknown > 0 then
+        addLine("   • Unknown: " .. rarityCount.Unknown)
+    end
+
+    -- List all Secret pets
+    addLine("\n🌟 All SECRET pets:")
+    for name, data in pairs(petData) do
+        if data.Rarity == "Secret" then
+            addLine("   • " .. name)
+        end
+    end
+end)
+
+-- === 17. CODE REWARDS BREAKDOWN ===
+addLine("\n\n🎁 === CODE REWARDS BREAKDOWN ===")
+pcall(function()
+    local codeData = require(RS.Shared.Data.Codes)
+    local rewardTypes = {}
+
+    addLine("✅ Analyzing " .. tostring(#codeData) .. " codes...")
+
+    for code, rewards in pairs(codeData) do
+        for _, reward in pairs(rewards) do
+            local rewardType = reward.Type
+            rewardTypes[rewardType] = (rewardTypes[rewardType] or 0) + 1
+        end
+    end
+
+    addLine("\nReward types given by codes:")
+    for rewardType, count in pairs(rewardTypes) do
+        addLine("   • " .. rewardType .. ": " .. count .. " rewards")
+    end
+
+    -- Show best codes
+    addLine("\n💎 Best codes (most rewards):")
+    local codeList = {}
+    for code, rewards in pairs(codeData) do
+        table.insert(codeList, {code = code, count = #rewards})
+    end
+    table.sort(codeList, function(a, b) return a.count > b.count end)
+
+    for i = 1, math.min(5, #codeList) do
+        addLine("   " .. i .. ". \"" .. codeList[i].code .. "\" - " .. codeList[i].count .. " rewards")
+    end
+end)
+
+-- === 18. PLAYER POSITION & LOCATION ===
+addLine("\n\n📍 === PLAYER LOCATION ===")
+pcall(function()
+    local character = Players.LocalPlayer.Character
+    if character then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            addLine("✅ Current position: " .. tostring(hrp.Position))
+            addLine("   CFrame: " .. tostring(hrp.CFrame))
+        end
+    end
+end)
+
+-- === 19. WORLD/STAGE INFORMATION ===
+addLine("\n\n🌍 === WORLDS & STAGES ===")
+pcall(function()
+    local worlds = Workspace:FindFirstChild("Worlds")
+    if worlds then
+        addLine("✅ Found Worlds folder")
+        addLine("Available worlds: " .. #worlds:GetChildren())
+        for i, world in pairs(worlds:GetChildren()) do
+            addLine("   [" .. i .. "] " .. world.Name)
+        end
+    end
+
+    local stages = Workspace:FindFirstChild("Stages")
+    if stages then
+        addLine("\n✅ Found Stages folder")
+        addLine("Available stages: " .. #stages:GetChildren())
+        for i, stage in pairs(stages:GetChildren()) do
+            if i <= 10 then
+                addLine("   [" .. i .. "] " .. stage.Name)
+            end
+        end
+        if #stages:GetChildren() > 10 then
+            addLine("   (...and " .. (#stages:GetChildren() - 10) .. " more)")
+        end
+    end
+end)
+
+-- === 20. NPC/SHOP LOCATIONS ===
+addLine("\n\n🏪 === NPC & SHOP LOCATIONS ===")
+pcall(function()
+    local npcs = {
+        "EventShop", "TravelingMerchant", "DailyPerks", "RebirthMachine",
+        "LunarWheelSpin", "GlobalIncentive", "Incentive", "TopIncentive"
+    }
+
+    addLine("Scanning for NPCs and shops...")
+    for _, npcName in pairs(npcs) do
+        local npc = Workspace:FindFirstChild(npcName)
+        if npc then
+            local pos = npc:IsA("Model") and npc:GetPivot().Position or (npc:IsA("BasePart") and npc.Position or Vector3.new())
+            addLine("   ✅ " .. npcName .. " at " .. tostring(pos))
+        end
+    end
+end)
+
+-- === 21. PROXIMITYP ROMPTS ===
+addLine("\n\n👆 === ALL PROXIMITYP ROMPTS ===")
+pcall(function()
+    local prompts = Workspace:GetDescendants()
+    local promptCount = 0
+
+    for _, obj in pairs(prompts) do
+        if obj:IsA("ProximityPrompt") then
+            promptCount = promptCount + 1
+            if promptCount <= 20 then
+                addLine("   [" .. promptCount .. "] " .. obj:GetFullName())
+            end
+        end
+    end
+
+    if promptCount > 20 then
+        addLine("   (...and " .. (promptCount - 20) .. " more)")
+    end
+    addLine("\nTotal ProximityPrompts: " .. promptCount)
+end)
+
+-- === 22. ACTIVE FOLDER ANALYSIS ===
+addLine("\n\n⚡ === ACTIVE FOLDER (Dynamic Content) ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered then
+        local active = rendered:FindFirstChild("Active")
+        if active then
+            addLine("✅ Found Active folder: " .. #active:GetChildren() .. " items")
+            for i, item in pairs(active:GetChildren()) do
+                addLine("   [" .. i .. "] " .. item.Name .. " [" .. item.ClassName .. "]")
+                if item:IsA("Model") then
+                    addLine("      Children: " .. #item:GetChildren())
+                    for j, child in pairs(item:GetChildren()) do
+                        if j <= 3 then
+                            addLine("         • " .. child.Name)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- === 23. COMPLETE ALL RIFTS LIST ===
+addLine("\n\n🌌 === COMPLETE RIFT LIST ===")
+pcall(function()
+    local rendered = Workspace:FindFirstChild("Rendered")
+    if rendered then
+        local rifts = rendered:FindFirstChild("Rifts")
+        if rifts then
+            addLine("✅ All rifts currently spawned:")
+            for i, rift in pairs(rifts:GetChildren()) do
+                addLine("   [" .. i .. "] " .. rift.Name)
+
+                -- Check for egg type
+                local hasEggPlatform = rift:FindFirstChild("EggPlatformSpawn")
+                local hasChest = rift:FindFirstChild("Chest")
+                local hasGift = rift:FindFirstChild("Gift")
+
+                if hasEggPlatform then addLine("      └─ Type: EGG RIFT") end
+                if hasChest then addLine("      └─ Type: CHEST RIFT") end
+                if hasGift then addLine("      └─ Type: GIFT RIFT") end
+            end
+        end
+    end
+end)
+
+-- === 24. MEMORY & PERFORMANCE ===
+addLine("\n\n⚙️ === PERFORMANCE INFO ===")
+pcall(function()
+    local stats = game:GetService("Stats")
+    addLine("Memory usage: " .. math.floor(stats:GetTotalMemoryUsageMb()) .. " MB")
+    addLine("Ping: " .. math.floor(Players.LocalPlayer:GetNetworkPing() * 1000) .. " ms")
+    addLine("FPS: " .. math.floor(1 / game:GetService("RunService").RenderStepped:Wait()))
+end)
+
+-- === 25. POWERUP/POTION DATA ===
+addLine("\n\n⚡ === POWERUP & POTION DATA ===")
+pcall(function()
+    -- Check for Powerups
+    local powerupSuccess, powerupData = pcall(function()
+        return require(RS.Shared.Data.Powerups)
+    end)
+
+    if powerupSuccess and powerupData then
+        addLine("✅ Found Powerups data module")
+        local powerupCount = 0
+        for name, data in pairs(powerupData) do
+            powerupCount = powerupCount + 1
+            if powerupCount <= 15 then
+                local duration = data.Duration or "N/A"
+                local effect = data.Effect or data.Multiplier or "Unknown"
+                addLine("   • " .. name .. " - Effect: " .. tostring(effect) .. " | Duration: " .. tostring(duration))
+            end
+        end
+        if powerupCount > 15 then
+            addLine("   (...and " .. (powerupCount - 15) .. " more)")
+        end
+        addLine("\nTotal powerups: " .. powerupCount)
+    else
+        addLine("⚠️ No Powerups data module found")
+    end
+
+    -- Check for Potions
+    local potionSuccess, potionData = pcall(function()
+        return require(RS.Shared.Data.Potions)
+    end)
+
+    if potionSuccess and potionData then
+        addLine("\n✅ Found Potions data module")
+        local potionCount = 0
+        for name, data in pairs(potionData) do
+            potionCount = potionCount + 1
+            if potionCount <= 10 then
+                addLine("   • " .. name)
+            end
+        end
+        if potionCount > 10 then
+            addLine("   (...and " .. (potionCount - 10) .. " more)")
+        end
+        addLine("\nTotal potions: " .. potionCount)
+    end
+end)
+
+-- === 26. PLAYER INVENTORY & EQUIPPED PETS ===
+addLine("\n\n🎒 === PLAYER INVENTORY & EQUIPPED PETS ===")
+pcall(function()
+    -- Check backpack
+    local backpack = Players.LocalPlayer:FindFirstChild("Backpack")
+    if backpack and #backpack:GetChildren() > 0 then
+        addLine("✅ Backpack items: " .. #backpack:GetChildren())
+        for i, tool in pairs(backpack:GetChildren()) do
+            addLine("   • " .. tool.Name)
+        end
+    else
+        addLine("⚠️ No items in backpack")
+    end
+
+    -- Check character for equipped tools
+    local character = Players.LocalPlayer.Character
+    if character then
+        local equippedTool = character:FindFirstChildOfClass("Tool")
+        if equippedTool then
+            addLine("\n✅ Currently equipped: " .. equippedTool.Name)
+        end
+    end
+
+    -- Try to find pet data in PlayerGui or elsewhere
+    pcall(function()
+        local petUI = PlayerGui:FindFirstChild("PetEquip") or PlayerGui:FindFirstChild("Pets")
+        if petUI then
+            addLine("\n✅ Found Pet UI system: " .. petUI.Name)
+            addLine("   Scanning for equipped pets...")
+            for _, desc in pairs(petUI:GetDescendants()) do
+                if desc.Name == "PetName" or desc.Name == "EquippedPet" then
+                    if desc:IsA("TextLabel") or desc:IsA("TextBox") then
+                        addLine("   • Found: " .. desc.Text)
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- === 27. COMPLETE GUI STRUCTURE (All 18 Currencies) ===
+addLine("\n\n💰 === COMPLETE GUI STRUCTURE FOR CURRENCIES ===")
+pcall(function()
+    local hud = PlayerGui:FindFirstChild("ScreenGui")
+    if hud then
+        hud = hud:FindFirstChild("HUD")
+        if hud then
+            local left = hud:FindFirstChild("Left")
+            if left then
+                local currency = left:FindFirstChild("Currency")
+                if currency then
+                    addLine("✅ Found Currency folder at: PlayerGui.ScreenGui.HUD.Left.Currency")
+                    addLine("All currency elements:")
+
+                    for _, currencyFrame in pairs(currency:GetChildren()) do
+                        if currencyFrame:IsA("Frame") or currencyFrame:IsA("ImageLabel") then
+                            addLine("\n   [" .. currencyFrame.Name .. "]")
+
+                            -- Find the label
+                            for _, child in pairs(currencyFrame:GetDescendants()) do
+                                if child:IsA("TextLabel") and (child.Name == "Label" or child.Name == "Amount" or child.Name == "Value") then
+                                    addLine("      └─ " .. child.Name .. ": \"" .. child.Text .. "\"")
+                                    addLine("         Path: " .. child:GetFullName())
+                                end
+                            end
+                        end
+                    end
+
+                    addLine("\n✅ Total currency displays found: " .. #currency:GetChildren())
+                else
+                    addLine("❌ Currency folder not found in HUD.Left")
+                end
+            end
+        end
+    end
+end)
+
+-- === 28. BADGE SYSTEM ===
+addLine("\n\n🏆 === BADGE SYSTEM ===")
+pcall(function()
+    local BadgeService = game:GetService("BadgeService")
+
+    -- Try to find badge data in RS
+    local badgeSuccess, badgeData = pcall(function()
+        return require(RS.Shared.Data.Badges)
+    end)
+
+    if badgeSuccess and badgeData then
+        addLine("✅ Found Badges data module")
+        local badgeCount = 0
+        for badgeId, info in pairs(badgeData) do
+            badgeCount = badgeCount + 1
+            if badgeCount <= 10 then
+                addLine("   • Badge ID: " .. tostring(badgeId) .. " - " .. tostring(info.Name or "Unknown"))
+            end
+        end
+        if badgeCount > 10 then
+            addLine("   (...and " .. (badgeCount - 10) .. " more badges)")
+        end
+        addLine("\nTotal badges: " .. badgeCount)
+    else
+        addLine("⚠️ No Badges data module found")
+    end
+end)
+
+-- === 29. GAMEPASS DETECTION ===
+addLine("\n\n💎 === GAMEPASS SYSTEM ===")
+pcall(function()
+    local gamepassSuccess, gamepassData = pcall(function()
+        return require(RS.Shared.Data.Gamepasses)
+    end)
+
+    if gamepassSuccess and gamepassData then
+        addLine("✅ Found Gamepasses data module")
+        for name, id in pairs(gamepassData) do
+            addLine("   • " .. name .. " (ID: " .. tostring(id) .. ")")
+        end
+    else
+        addLine("⚠️ No Gamepasses data module found")
+    end
+end)
+
+-- === 30. LIGHTING & ATMOSPHERE (Event Detection) ===
+addLine("\n\n🌤️ === LIGHTING & ATMOSPHERE ===")
+pcall(function()
+    local Lighting = game:GetService("Lighting")
+    addLine("Time of Day: " .. Lighting.TimeOfDay)
+    addLine("Brightness: " .. tostring(Lighting.Brightness))
+    addLine("Ambient: " .. tostring(Lighting.Ambient))
+
+    local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atmosphere then
+        addLine("✅ Atmosphere detected - Density: " .. tostring(atmosphere.Density))
+    end
+
+    -- Check for special effects (might indicate events)
+    local effectCount = 0
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("ColorCorrectionEffect") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") then
+            effectCount = effectCount + 1
+            addLine("   Effect: " .. effect.Name .. " [" .. effect.ClassName .. "]")
+        end
+    end
+
+    if effectCount > 0 then
+        addLine("⚠️ Special lighting effects active (possible event)")
+    end
+end)
+
+-- === 31. PARTICLE EFFECTS (Event Indicators) ===
+addLine("\n\n✨ === ACTIVE PARTICLE EFFECTS ===")
+pcall(function()
+    local particleCount = 0
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") and obj.Enabled then
+            particleCount = particleCount + 1
+            if particleCount <= 15 then
+                addLine("   [" .. particleCount .. "] " .. obj:GetFullName())
+            end
+        end
+    end
+
+    if particleCount > 15 then
+        addLine("   (...and " .. (particleCount - 15) .. " more)")
+    end
+    addLine("\n✅ Total active particle emitters: " .. particleCount)
+end)
+
+-- === 32. TEAM SYSTEM ===
+addLine("\n\n👥 === TEAM SYSTEM ===")
+pcall(function()
+    local Teams = game:GetService("Teams")
+    if #Teams:GetChildren() > 0 then
+        addLine("✅ Game has teams:")
+        for _, team in pairs(Teams:GetChildren()) do
+            addLine("   • " .. team.Name .. " - Color: " .. tostring(team.TeamColor))
+        end
+
+        local playerTeam = Players.LocalPlayer.Team
+        if playerTeam then
+            addLine("\n✅ Current team: " .. playerTeam.Name)
+        end
+    else
+        addLine("⚠️ No team system detected")
     end
 end)
 
