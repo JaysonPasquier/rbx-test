@@ -61,9 +61,13 @@ local state = {
     autoChest = false,
     autoSellBubbles = false,  -- NEW: Auto-sell bubbles for coins
     autoClaimEventPrizes = false,  -- NEW: Auto-claim event prizes
-    riftPriorityMode = false,  -- NEW: Wait for specific rift to spawn
+    riftPriorityMode = false,  -- NEW: Wait for specific priority rifts to spawn
+    riftAutoHatch = false,  -- NEW: Auto-hatch at normal rift
     riftPriority = nil,
+    priorityRifts = {},  -- NEW: List of priority rifts to watch for
     eggPriority = nil,
+    priorityEggs = {"Super Egg"},  -- NEW: List of priority eggs to watch for
+    priorityEggMode = false,  -- NEW: Enable priority egg detection
     maxEggs = 7,
     lastEggPosition = nil,
     adminEventActive = false,  -- NEW: Track Admin Abuse event
@@ -76,6 +80,7 @@ local state = {
     webhookStatsInterval = 60,  -- NEW: Stats webhook interval (30-120 seconds)
     lastStatsSnapshot = nil,  -- NEW: Previous stats for difference calculation
     lastStatsWebhookTime = nil,  -- NEW: Last time stats webhook was sent
+    statsMessageId = nil,  -- NEW: Discord message ID for editing stats webhook
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
@@ -145,6 +150,29 @@ task.spawn(function()
 end)
 
 -- === UTILITY FUNCTIONS ===
+
+-- File path for saving stats message ID (persists across rejoins)
+local STATS_MESSAGE_FILE = "bgsi_stats_message_id.txt"
+
+-- Load stats message ID from file
+local function loadStatsMessageId()
+    if isfile and isfile(STATS_MESSAGE_FILE) then
+        local success, content = pcall(readfile, STATS_MESSAGE_FILE)
+        if success and content and content ~= "" then
+            state.statsMessageId = content
+            print("[Webhook] Loaded existing message ID: " .. content)
+        end
+    end
+end
+
+-- Save stats message ID to file
+local function saveStatsMessageId(messageId)
+    if writefile then
+        pcall(writefile, STATS_MESSAGE_FILE, messageId)
+        print("[Webhook] Saved message ID: " .. messageId)
+    end
+end
+
 -- Format numbers with commas (1234567890 -> 1,234,567,890)
 local function formatNumber(num)
     if type(num) ~= "number" then return tostring(num) end
@@ -385,12 +413,53 @@ local function SendStatsWebhook()
             inline = false
         })
 
-        request({
-            Url = state.webhookUrl,
-            Method = "POST",
+        -- Calculate time since last update for footer
+        local updateText = "Just now"
+        if state.lastStatsWebhookTime then
+            local secondsAgo = math.floor(tick() - state.lastStatsWebhookTime)
+            if secondsAgo < 60 then
+                updateText = string.format("Updated %d second%s ago", secondsAgo, secondsAgo == 1 and "" or "s")
+            elseif secondsAgo < 3600 then
+                local minutes = math.floor(secondsAgo / 60)
+                updateText = string.format("Updated %d minute%s ago", minutes, minutes == 1 and "" or "s")
+            else
+                local hours = math.floor(secondsAgo / 3600)
+                updateText = string.format("Updated %d hour%s ago", hours, hours == 1 and "" or "s")
+            end
+        end
+
+        -- Add footer with update timestamp
+        embed.footer = {
+            text = updateText
+        }
+
+        -- Determine if we should POST (new message) or PATCH (edit existing)
+        local method = "POST"
+        local url = state.webhookUrl
+
+        if state.statsMessageId then
+            -- Edit existing message
+            method = "PATCH"
+            url = state.webhookUrl .. "/messages/" .. state.statsMessageId
+        end
+
+        local response = request({
+            Url = url,
+            Method = method,
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({embeds = {embed}})
         })
+
+        -- If this was a new message (POST), save the message ID
+        if method == "POST" and response and response.Body then
+            local success, data = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+            if success and data and data.id then
+                state.statsMessageId = data.id
+                saveStatsMessageId(data.id)
+            end
+        end
 
         -- Save snapshot for next comparison
         state.lastStatsSnapshot = {
@@ -632,24 +701,25 @@ state.labels.hatches = MainTab:CreateLabel("Hatches: 0")
 
 local CurrencySection = MainTab:CreateSection("💰 All Currencies")
 
-state.labels.coins = MainTab:CreateLabel("💰 Coins: 0")
-state.labels.gems = MainTab:CreateLabel("💎 Gems: 0")
-state.labels.bubbleStock = MainTab:CreateLabel("🫧 Bubble Stock: 0")
-state.labels.tokens = MainTab:CreateLabel("🎫 Tokens: 0")
-state.labels.tickets = MainTab:CreateLabel("🎟️ Tickets: 0")
-state.labels.seashells = MainTab:CreateLabel("🐚 Seashells: 0")
-state.labels.festivalCoins = MainTab:CreateLabel("🎊 Festival Coins: 0")
-state.labels.pearls = MainTab:CreateLabel("🦪 Pearls: 0")
-state.labels.leaves = MainTab:CreateLabel("🍂 Leaves: 0")
-state.labels.candycorn = MainTab:CreateLabel("🍬 Candycorn: 0")
-state.labels.ogPoints = MainTab:CreateLabel("⭐ OG Points: 0")
-state.labels.thanksgivingShards = MainTab:CreateLabel("🦃 Thanksgiving Shards: 0")
-state.labels.winterShards = MainTab:CreateLabel("❄️ Winter Shards: 0")
-state.labels.snowflakes = MainTab:CreateLabel("⛄ Snowflakes: 0")
-state.labels.newYearsShard = MainTab:CreateLabel("🎆 New Years Shard: 0")
-state.labels.horns = MainTab:CreateLabel("👹 Horns: 0")
-state.labels.halos = MainTab:CreateLabel("😇 Halos: 0")
-state.labels.moonShards = MainTab:CreateLabel("🌙 Moon Shards: 0")
+-- Initialize labels empty (will be populated after first stats check)
+state.labels.coins = MainTab:CreateLabel("")
+state.labels.gems = MainTab:CreateLabel("")
+state.labels.bubbleStock = MainTab:CreateLabel("")
+state.labels.tokens = MainTab:CreateLabel("")
+state.labels.tickets = MainTab:CreateLabel("")
+state.labels.seashells = MainTab:CreateLabel("")
+state.labels.festivalCoins = MainTab:CreateLabel("")
+state.labels.pearls = MainTab:CreateLabel("")
+state.labels.leaves = MainTab:CreateLabel("")
+state.labels.candycorn = MainTab:CreateLabel("")
+state.labels.ogPoints = MainTab:CreateLabel("")
+state.labels.thanksgivingShards = MainTab:CreateLabel("")
+state.labels.winterShards = MainTab:CreateLabel("")
+state.labels.snowflakes = MainTab:CreateLabel("")
+state.labels.newYearsShard = MainTab:CreateLabel("")
+state.labels.horns = MainTab:CreateLabel("")
+state.labels.halos = MainTab:CreateLabel("")
+state.labels.moonShards = MainTab:CreateLabel("")
 
 -- === FARM TAB ===
 local FarmTab = Window:CreateTab("🔧 Farm", 4483362458)
@@ -776,10 +846,10 @@ FarmTab:CreateLabel("Claims playtime rewards every 60 seconds")
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
 
-local EggsSection = EggsTab:CreateSection("🥚 Eggs Management")
+local EggsSection = EggsTab:CreateSection("🥚 Egg Management")
 
 local EggDropdown = EggsTab:CreateDropdown({
-   Name = "Select Egg",
+   Name = "Egg List (choose your egg to auto hatch)",
    Options = {"Scanning..."},
    CurrentOption = {"Scanning..."},
    MultipleOptions = false,
@@ -788,14 +858,14 @@ local EggDropdown = EggsTab:CreateDropdown({
       if Option and Option[1] then
          local selectedEgg = Option[1]
 
-         -- Find and teleport to selected egg
+         -- Find and set as normal egg
          for _, egg in pairs(state.currentEggs) do
             if egg.name == selectedEgg then
                state.eggPriority = selectedEgg
                tpToModel(egg.instance)
                Rayfield:Notify({
-                  Title = "Teleported",
-                  Content = "Teleported to " .. selectedEgg,
+                  Title = "Egg Selected",
+                  Content = "Set normal egg: " .. selectedEgg,
                   Duration = 2,
                   Image = 4483362458,
                })
@@ -807,21 +877,21 @@ local EggDropdown = EggsTab:CreateDropdown({
 })
 
 local AutoHatchToggle = EggsTab:CreateToggle({
-   Name = "🔄 Auto Hatch (Priority Egg)",
+   Name = "Enable Auto Hatch",
    CurrentValue = false,
    Flag = "AutoHatch",
    Callback = function(Value)
       state.autoHatch = Value
       if Value then
-         state.lastEggPosition = nil  -- Reset position tracker
+         state.lastEggPosition = nil
          Rayfield:Notify({
             Title = "Auto Hatch Enabled",
-            Content = "Hatching max eggs from: " .. (state.eggPriority or "None"),
+            Content = "Hatching eggs from: " .. (state.eggPriority or "Select an egg first!"),
             Duration = 3,
             Image = 4483362458,
          })
       else
-         state.lastEggPosition = nil  -- Reset when disabled
+         state.lastEggPosition = nil
          Rayfield:Notify({
             Title = "Auto Hatch Disabled",
             Content = "Stopped auto-hatching",
@@ -831,24 +901,37 @@ local AutoHatchToggle = EggsTab:CreateToggle({
    end,
 })
 
-local MaxEggsSlider = EggsTab:CreateSlider({
-   Name = "🥚 Max Eggs (Manual Only)",
-   Range = {1, 100},
-   Increment = 1,
-   CurrentValue = 7,
-   Flag = "MaxEggs",
+EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
+
+local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
+
+local PriorityEggDropdown = EggsTab:CreateDropdown({
+   Name = "Eggs to prioritize over normal egg",
+   Options = {"Super Egg", "Golden Egg", "Admin Egg"},
+   CurrentOption = {"Super Egg"},
+   MultipleOptions = true,
+   Flag = "PriorityEggs",
+   Callback = function(Options)
+      -- Store priority eggs list
+      state.priorityEggs = Options
+   end,
+})
+
+local PriorityEggToggle = EggsTab:CreateToggle({
+   Name = "Enable/Disable Priority Egg Detection",
+   CurrentValue = false,
+   Flag = "PriorityEggMode",
    Callback = function(Value)
-      state.maxEggs = Value
+      state.priorityEggMode = Value
       Rayfield:Notify({
-         Title = "Manual Hatch Updated",
-         Content = "Manual button will hatch " .. Value .. " eggs",
+         Title = "Priority Egg Mode",
+         Content = Value and "Will auto-switch to priority eggs" or "Priority detection disabled",
          Duration = 2,
       })
    end,
 })
 
-EggsTab:CreateLabel("Auto-hatch always uses max (99)")
-EggsTab:CreateLabel("Auto-scans eggs every 2 seconds")
+EggsTab:CreateLabel("Priority eggs auto-hatch when detected")
 
 -- === RIFTS TAB ===
 local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
@@ -856,7 +939,7 @@ local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
 local RiftsSection = RiftsTab:CreateSection("🌌 Rifts Management")
 
 local RiftDropdown = RiftsTab:CreateDropdown({
-   Name = "Select Rift (Priority)",
+   Name = "Rifts List (choose a rift in current active rift list)",
    Options = {"Scanning..."},
    CurrentOption = {"Scanning..."},
    MultipleOptions = false,
@@ -868,14 +951,14 @@ local RiftDropdown = RiftsTab:CreateDropdown({
          -- Extract rift name (before the " | ")
          local riftName = selectedRift:match("^(.+) |") or selectedRift
 
-         -- Find and teleport to selected rift
+         -- Find and set as normal rift
          for _, rift in pairs(state.currentRifts) do
             if rift.name == riftName or rift.displayText == selectedRift then
                state.riftPriority = rift.name
                tpToModel(rift.instance)
                Rayfield:Notify({
-                  Title = "Teleported",
-                  Content = "Teleported to " .. rift.name,
+                  Title = "Rift Selected",
+                  Content = "Set rift: " .. rift.name,
                   Duration = 2,
                   Image = 4483362458,
                })
@@ -886,33 +969,61 @@ local RiftDropdown = RiftsTab:CreateDropdown({
    end,
 })
 
-local RiftPriorityToggle = RiftsTab:CreateToggle({
-   Name = "⭐ Rift Priority Mode",
+local RiftAutoHatchToggle = RiftsTab:CreateToggle({
+   Name = "Enable Auto Hatch",
    CurrentValue = false,
-   Flag = "RiftPriority",
+   Flag = "RiftAutoHatch",
+   Callback = function(Value)
+      state.riftAutoHatch = Value
+      Rayfield:Notify({
+         Title = "Rift Auto Hatch",
+         Content = Value and "Enabled" or "Disabled",
+         Duration = 2,
+      })
+   end,
+})
+
+RiftsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
+
+local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
+
+local PriorityRiftDropdown = RiftsTab:CreateDropdown({
+   Name = "Rifts to prioritize over normal rift",
+   Options = {"moon-rift", "rainbow-egg", "void-egg", "cyber-egg", "neon-egg", "magma-egg", "mining-egg"},
+   CurrentOption = {"moon-rift"},
+   MultipleOptions = true,
+   Flag = "PriorityRifts",
+   Callback = function(Options)
+      -- Store priority rifts list
+      state.priorityRifts = Options
+   end,
+})
+
+local PriorityRiftToggle = RiftsTab:CreateToggle({
+   Name = "Enable/Disable Priority Rift Detection",
+   CurrentValue = false,
+   Flag = "PriorityRiftMode",
    Callback = function(Value)
       state.riftPriorityMode = Value
       if Value then
          Rayfield:Notify({
-            Title = "Rift Priority Enabled",
-            Content = "Will wait for: " .. (state.riftPriority or "Select a rift first!"),
+            Title = "Priority Rift Enabled",
+            Content = "Will auto-switch to priority rifts when they spawn",
             Duration = 3,
             Image = 4483362458,
          })
       else
          Rayfield:Notify({
-            Title = "Rift Priority Disabled",
-            Content = "Back to normal auto-hatch",
+            Title = "Priority Rift Disabled",
+            Content = "Back to normal rift farming",
             Duration = 2,
          })
       end
    end,
 })
 
-RiftsTab:CreateLabel("⭐ When enabled: Only farms priority rift")
-RiftsTab:CreateLabel("Overrides egg auto-hatch until rift spawns")
+RiftsTab:CreateLabel("Priority rifts auto-farm when detected")
 RiftsTab:CreateLabel("Auto-scans rifts every 2 seconds")
-RiftsTab:CreateLabel("Shows: Name | Timer | Luck")
 
 -- === WEBHOOK TAB ===
 local WebTab = Window:CreateTab("📊 Webhook", 4483362458)
@@ -999,28 +1110,38 @@ WebTab:CreateLabel("💡 Legendary & Secret enabled by default")
 
 local ChanceSection = WebTab:CreateSection("🎲 Chance Filter")
 
-local ChanceThresholdSlider = WebTab:CreateSlider({
+local ChanceThresholdInput = WebTab:CreateInput({
    Name = "Minimum Rarity (1 in X)",
-   Range = {10, 1000000000},
-   Increment = 10,
-   CurrentValue = 100000000,
-   Flag = "ChanceThreshold",
-   Callback = function(Value)
-      state.webhookChanceThreshold = Value
-      local formatted = Value >= 1000000 and string.format("%.1fM", Value/1000000) or
-                       Value >= 1000 and string.format("%.1fK", Value/1000) or tostring(Value)
-      Rayfield:Notify({
-         Title = "Chance Filter Updated",
-         Content = "Only sends pets rarer than 1/" .. formatted,
-         Duration = 2,
-      })
+   PlaceholderText = "100000000",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local value = tonumber(Text)
+      if value and value > 0 then
+         state.webhookChanceThreshold = value
+         local formatted = value >= 1000000 and string.format("%.1fM", value/1000000) or
+                          value >= 1000 and string.format("%.1fK", value/1000) or tostring(value)
+         Rayfield:Notify({
+            Title = "Chance Filter Updated",
+            Content = "Only sends pets rarer than 1/" .. formatted,
+            Duration = 2,
+         })
+      else
+         Rayfield:Notify({
+            Title = "Invalid Value",
+            Content = "Please enter a positive number",
+            Duration = 2,
+         })
+      end
    end,
 })
 
 WebTab:CreateLabel("Only send pets with rarity ≥ threshold")
-WebTab:CreateLabel("Example: 100M = only 1 in 100M+ pets")
+WebTab:CreateLabel("Example: 100000000 = only 1 in 100M+ pets")
 
 local StatsSection = WebTab:CreateSection("📊 User Stats Webhook")
+
+WebTab:CreateLabel("✨ Edits the same message (no spam!)")
+WebTab:CreateLabel("Message ID saved locally, persists across rejoins")
 
 local StatsWebhookToggle = WebTab:CreateToggle({
    Name = "📊 Enable Stats Webhook",
@@ -1123,6 +1244,21 @@ WebTab:CreateButton({
    end,
 })
 
+WebTab:CreateButton({
+   Name = "🔄 Reset Stats Message (Force New)",
+   Callback = function()
+      state.statsMessageId = nil
+      if delfile and isfile and isfile(STATS_MESSAGE_FILE) then
+         pcall(delfile, STATS_MESSAGE_FILE)
+      end
+      Rayfield:Notify({
+         Title = "Message Reset",
+         Content = "Next stats webhook will create a new message",
+         Duration = 3,
+      })
+   end,
+})
+
 -- === DATA TAB ===
 local DataTab = Window:CreateTab("📋 Data", 4483362458)
 
@@ -1216,6 +1352,9 @@ DataTab:CreateButton({
 
 -- === STARTUP: LOAD ALL CHUNKS AND SCAN EGGS ===
 print("🔍 Loading all game chunks and scanning for eggs...")
+
+-- Load saved stats message ID (persists across rejoins)
+loadStatsMessageId()
 
 task.spawn(function()
     pcall(function()
