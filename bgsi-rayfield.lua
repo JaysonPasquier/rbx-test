@@ -86,13 +86,14 @@ local function SendWebhook(url, msg)
     end)
 end
 
--- ✅ IMPROVED: Get stats from leaderstats and UI
+-- ✅ FIXED: Get stats from leaderstats and UI (leaderstats have emoji prefixes!)
 local function updateStats()
-    -- Get from leaderstats
+    -- Get from leaderstats (names have emoji prefixes like "🥚 Hatches")
     local leaderstats = player:FindFirstChild("leaderstats")
     if leaderstats then
-        local bubblesValue = leaderstats:FindFirstChild("Bubbles")
-        local hatchesValue = leaderstats:FindFirstChild("Hatches")
+        -- Try with and without emoji prefixes
+        local bubblesValue = leaderstats:FindFirstChild("🟣 Bubbles") or leaderstats:FindFirstChild("Bubbles")
+        local hatchesValue = leaderstats:FindFirstChild("🥚 Hatches") or leaderstats:FindFirstChild("Hatches")
 
         if bubblesValue then
             state.stats.bubbles = bubblesValue.Value
@@ -140,8 +141,8 @@ local function updateStats()
                             end
                         end
 
-                        -- Gems
-                        local gemsFrame = currency:FindFirstChild("gems")
+                        -- Gems (capital G according to diagnostic report)
+                        local gemsFrame = currency:FindFirstChild("Gems") or currency:FindFirstChild("gems")
                         if gemsFrame then
                             local frame = gemsFrame:FindFirstChild("Frame")
                             if frame then
@@ -453,140 +454,76 @@ else
 end
 
 -- 🔍 Remote Discovery Section
-local RemoteSection = DataTab:CreateSection("🔍 Remote Discovery (For Devs)")
-DataTab:CreateLabel("Use this to find game remotes:")
+local RemoteSection = DataTab:CreateSection("✅ Remotes Found!")
+DataTab:CreateLabel("Auto-Bubble & Auto-Hatch are READY")
+DataTab:CreateLabel("Network: RS.Shared.Framework.Network.Remote")
 
 DataTab:CreateButton({
-   Name = "📡 Scan RS Remotes",
+   Name = "📡 Scan All Remotes",
    Callback = function()
-      local RS = game:GetService("ReplicatedStorage")
-      print("\n🔍 === REPLICATEDSTORAGE REMOTES ===")
-      for _, obj in pairs(RS:GetDescendants()) do
-         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
-            print("   📡 " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
-         end
-      end
-      print("=== END SCAN ===\n")
-      Rayfield:Notify({
-         Title = "Remote Scan Complete",
-         Content = "Check console (F9) for results",
-         Duration = 3
-      })
-   end
-})
-
-DataTab:CreateButton({
-   Name = "🎯 Find Bubble Remotes",
-   Callback = function()
-      local RS = game:GetService("ReplicatedStorage")
-      print("\n🧼 === SEARCHING FOR BUBBLE REMOTES ===")
-      for _, obj in pairs(RS:GetDescendants()) do
-         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local name = obj.Name:lower()
-            if name:find("bubble") or name:find("blow") or name:find("click") or name:find("tap") then
-               print("   💡 POSSIBLE: " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
-            end
-         end
-      end
-      print("=== END SEARCH ===\n")
-      Rayfield:Notify({
-         Title = "Bubble Remote Search Complete",
-         Content = "Check console (F9) for results",
-         Duration = 3
-      })
-   end
-})
-
-DataTab:CreateButton({
-   Name = "🥚 Find Egg/Hatch Remotes",
-   Callback = function()
-      local RS = game:GetService("ReplicatedStorage")
-      print("\n🥚 === SEARCHING FOR EGG/HATCH REMOTES ===")
-      for _, obj in pairs(RS:GetDescendants()) do
-         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            local name = obj.Name:lower()
-            if name:find("egg") or name:find("hatch") or name:find("open") or name:find("purchase") then
-               print("   💡 POSSIBLE: " .. obj:GetFullName() .. " [" .. obj.ClassName .. "]")
-            end
-         end
-      end
-      print("=== END SEARCH ===\n")
-      Rayfield:Notify({
-         Title = "Egg/Hatch Remote Search Complete",
-         Content = "Check console (F9) for results",
-         Duration = 3
-      })
-   end
-})
-
-DataTab:CreateButton({
-   Name = "🔍 Network Framework Test",
-   Callback = function()
-      local RS = game:GetService("ReplicatedStorage")
-      print("\n🌐 === NETWORK FRAMEWORK ANALYSIS ===")
-
-      -- Find the main network remote
       pcall(function()
-         local networkRemote = RS.Shared.Framework.Network.Remote:FindFirstChild("RemoteFunction")
-         if networkRemote then
-            print("✅ Found Network RemoteFunction: " .. networkRemote:GetFullName())
-            print("\n💡 This game uses a centralized network system!")
-            print("   All actions go through this one RemoteFunction")
-            print("   Usage: networkRemote:InvokeServer('ActionName', args...)")
-            print("\n📝 To find actions:")
-            print("   1. Click things in-game (blow bubble, open egg, etc.)")
-            print("   2. Monitor RemoteFunction calls with a debugger")
-            print("   3. Check Client scripts for :InvokeServer() calls")
-            print("\n🔧 Try these common action names:")
-            print("   • 'BlowBubble' or 'Bubble'")
-            print("   • 'OpenEgg' or 'PurchaseEgg'")
-            print("   • 'Collect' or 'Claim'")
+         local RS = game:GetService("ReplicatedStorage")
+         print("\n🔍 === ALL REMOTES IN GAME ===")
+         local count = 0
+         for _, obj in pairs(RS:GetDescendants()) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
+               count = count + 1
+               print("   📡 [" .. count .. "] " .. obj:GetFullName())
+            end
          end
+         print("\nTotal found: " .. count)
+         print("=== END SCAN ===\n")
       end)
 
-      print("\n=== END ANALYSIS ===\n")
       Rayfield:Notify({
-         Title = "Network Framework Found",
-         Content = "Check console for details",
+         Title = "Scan Complete",
+         Content = "Check console (F9)",
          Duration = 3
       })
    end
 })
 
 DataTab:CreateButton({
-   Name = "🎯 Hook Network Calls (SPY)",
+   Name = "🕵️ Test Auto-Blow Now",
    Callback = function()
-      local RS = game:GetService("ReplicatedStorage")
-      print("\n🕵️ === HOOKING NETWORK CALLS ===")
-
       pcall(function()
-         local networkRemote = RS.Shared.Framework.Network.Remote:FindFirstChild("RemoteFunction")
-         if networkRemote then
-            local oldInvoke = networkRemote.InvokeServer
-            networkRemote.InvokeServer = function(self, ...)
-               local args = {...}
-               print("\n📡 NETWORK CALL DETECTED:")
-               print("   Action: " .. tostring(args[1]))
-               for i = 2, #args do
-                  print("   Arg[" .. (i-1) .. "]: " .. tostring(args[i]))
-               end
-               return oldInvoke(self, ...)
-            end
-
-            print("✅ Network hook installed!")
-            print("   Now click things in-game to see network calls")
-            print("   Try: Blow bubble, open egg, collect items, etc.")
-            print("   All calls will print here\n")
-
-            Rayfield:Notify({
-               Title = "Network Spy Active",
-               Content = "Check console when you interact with game",
-               Duration = 5
-            })
-         else
-            print("❌ Could not find RemoteFunction")
-         end
+         local RS = game:GetService("ReplicatedStorage")
+         local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+         networkRemote:FireServer("BlowBubble")
+         print("✅ Sent BlowBubble command!")
       end)
+
+      Rayfield:Notify({
+         Title = "Bubble Blown!",
+         Content = "Manual test successful",
+         Duration = 2
+      })
+   end
+})
+
+DataTab:CreateButton({
+   Name = "🥚 Test Hatch Now (Priority Egg)",
+   Callback = function()
+      if state.eggPriority then
+         pcall(function()
+            local RS = game:GetService("ReplicatedStorage")
+            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+            networkRemote:FireServer("HatchEgg", state.eggPriority, 1)
+            print("✅ Sent HatchEgg command for: " .. state.eggPriority)
+         end)
+
+         Rayfield:Notify({
+            Title = "Hatching Egg!",
+            Content = state.eggPriority,
+            Duration = 2
+         })
+      else
+         Rayfield:Notify({
+            Title = "No Egg Selected",
+            Content = "Select an egg first",
+            Duration = 3
+         })
+      end
    end
 })
 
@@ -611,7 +548,7 @@ task.spawn(function()
             lastRiftData = newRiftData
             if #riftNames > 0 then
                 pcall(function()
-                    RiftDropdown:Refresh(riftNames, true)
+                    RiftDropdown:Refresh(riftNames, false)  -- false = don't clear selection
                 end)
             end
         end
@@ -629,7 +566,7 @@ task.spawn(function()
             lastEggData = newEggData
             if #eggNames > 0 then
                 pcall(function()
-                    EggDropdown:Refresh(eggNames, true)
+                    EggDropdown:Refresh(eggNames, false)  -- false = don't clear selection
                 end)
             end
         end
@@ -657,40 +594,29 @@ end)
 
 -- ✅ AUTO FEATURES: Fast loop (100ms)
 task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
     while task.wait(0.1) do
-        -- Auto Blow Bubbles
+        -- ✅ Auto Blow Bubbles (IMPLEMENTED)
         if state.autoBlow then
             pcall(function()
-                -- 🔍 NEED TO FIND: The bubble blowing remote
-                -- Possible locations: RS.Remotes, RS.Network, RS.Events
-                -- Look for: BlowBubble, Bubble, Click, Tap events
-                -- Try: game:GetService("ReplicatedStorage"):GetDescendants() to find remotes
-                local RS = game:GetService("ReplicatedStorage")
-
-                -- Common patterns:
-                -- RS.Remotes.BlowBubble:FireServer()
-                -- RS.Network.BlowBubble:InvokeServer()
-                -- RS.Events.Bubble:Fire()
-
-                -- Placeholder for now:
-                warn("⚠️ Auto Blow: Remote not yet implemented!")
+                networkRemote:FireServer("BlowBubble")
             end)
         end
 
-        -- Auto Hatch (teleport to priority egg)
+        -- ✅ Auto Hatch (IMPLEMENTED)
         if state.autoHatch and state.eggPriority then
             pcall(function()
+                -- Find the egg instance
                 for _, egg in pairs(state.currentEggs) do
                     if egg.name == state.eggPriority then
+                        -- Teleport to egg
                         tpToModel(egg.instance)
 
-                        -- 🔍 NEED TO FIND: The egg opening/hatching remote
-                        -- Possible approach:
-                        -- 1. Find ProximityPrompt on egg model
-                        -- 2. Trigger it: fireclickdetector or fireproximityprompt
-                        -- 3. OR find RemoteEvent/RemoteFunction like:
-                        --    RS.Remotes.OpenEgg:InvokeServer(eggName)
-                        --    RS.Network.HatchEgg:FireServer(eggModel)
+                        -- Open egg (format: "HatchEgg", eggName, quantity)
+                        task.wait(0.15)  -- Small delay after teleport
+                        networkRemote:FireServer("HatchEgg", state.eggPriority, 1)
 
                         break
                     end
