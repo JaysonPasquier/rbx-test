@@ -280,15 +280,26 @@ local function SendStatsWebhook()
 
         -- Calculate differences if we have previous snapshot
         local diffs = {}
+        local timeSinceLastCheck = state.webhookStatsInterval -- In seconds
         if state.lastStatsSnapshot then
             diffs.bubbles = state.stats.bubbles - state.lastStatsSnapshot.bubbles
             diffs.hatches = state.stats.hatches - state.lastStatsSnapshot.hatches
         end
 
-        -- Calculate per-minute rates
-        local minutesElapsed = runtime / 60
-        local bubblesPerMin = minutesElapsed > 0 and math.floor(state.stats.bubbles / minutesElapsed) or 0
-        local hatchesPerMin = minutesElapsed > 0 and math.floor(state.stats.hatches / minutesElapsed) or 0
+        -- Calculate per-minute rates based on actual interval and differences
+        -- If interval is 60s: difference = already per minute
+        -- If interval is 120s: difference/2 = per minute
+        local bubblesPerMin = 0
+        local hatchesPerMin = 0
+
+        if diffs.bubbles and timeSinceLastCheck > 0 then
+            -- Convert to per-minute: (difference / secondsElapsed) * 60
+            bubblesPerMin = math.floor((diffs.bubbles / timeSinceLastCheck) * 60)
+        end
+
+        if diffs.hatches and timeSinceLastCheck > 0 then
+            hatchesPerMin = math.floor((diffs.hatches / timeSinceLastCheck) * 60)
+        end
 
         -- Build fields for non-zero currencies
         local currencyText = ""
@@ -705,20 +716,21 @@ local AutoSellBubblesToggle = FarmTab:CreateToggle({
    end,
 })
 
-local AutoClaimEventToggle = FarmTab:CreateToggle({
-   Name = "🎁 Auto Claim Event Prizes",
-   CurrentValue = false,
-   Flag = "AutoClaimEvent",
-   Callback = function(Value)
-      state.autoClaimEventPrizes = Value
-      Rayfield:Notify({
-         Title = "Auto Claim Events",
-         Content = Value and "Enabled - Claiming event rewards" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
-   end,
-})
+-- DISABLED: Auto Claim Event Prizes (Not working correctly)
+-- local AutoClaimEventToggle = FarmTab:CreateToggle({
+--    Name = "🎁 Auto Claim Event Prizes",
+--    CurrentValue = false,
+--    Flag = "AutoClaimEvent",
+--    Callback = function(Value)
+--       state.autoClaimEventPrizes = Value
+--       Rayfield:Notify({
+--          Title = "Auto Claim Events",
+--          Content = Value and "Enabled - Claiming event rewards" or "Disabled",
+--          Duration = 2,
+--          Image = 4483362458,
+--       })
+--    end,
+-- })
 
 local EventSection = FarmTab:CreateSection("👑 Event Detection")
 
@@ -1328,24 +1340,35 @@ task.spawn(function()
             state.labels.runtime:Set("⏱️ Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
             state.labels.bubbles:Set("🧱 Bubbles: " .. formatNumber(state.stats.bubbles))
             state.labels.hatches:Set("🥚 Hatches: " .. formatNumber(state.stats.hatches))
-            state.labels.coins:Set("💰 Coins: " .. tostring(state.stats.coins))
-            state.labels.bubbleStock:Set("🫧 Bubble Stock: " .. tostring(state.stats.bubbleStock))
-            state.labels.gems:Set("💎 Gems: " .. tostring(state.stats.gems))
-            state.labels.tokens:Set("🎫 Tokens: " .. tostring(state.stats.tokens))
-            state.labels.tickets:Set("🎟️ Tickets: " .. tostring(state.stats.tickets))
-            state.labels.seashells:Set("🐚 Seashells: " .. tostring(state.stats.seashells))
-            state.labels.festivalCoins:Set("🎊 Festival Coins: " .. tostring(state.stats.festivalCoins))
-            state.labels.pearls:Set("🦪 Pearls: " .. tostring(state.stats.pearls))
-            state.labels.leaves:Set("🍂 Leaves: " .. tostring(state.stats.leaves))
-            state.labels.candycorn:Set("🍬 Candycorn: " .. tostring(state.stats.candycorn))
-            state.labels.ogPoints:Set("⭐ OG Points: " .. tostring(state.stats.ogPoints))
-            state.labels.thanksgivingShards:Set("🦃 Thanksgiving Shards: " .. tostring(state.stats.thanksgivingShards))
-            state.labels.winterShards:Set("❄️ Winter Shards: " .. tostring(state.stats.winterShards))
-            state.labels.snowflakes:Set("⛄ Snowflakes: " .. tostring(state.stats.snowflakes))
-            state.labels.newYearsShard:Set("🎆 New Years Shard: " .. tostring(state.stats.newYearsShard))
-            state.labels.horns:Set("👹 Horns: " .. tostring(state.stats.horns))
-            state.labels.halos:Set("😇 Halos: " .. tostring(state.stats.halos))
-            state.labels.moonShards:Set("🌙 Moon Shards: " .. tostring(state.stats.moonShards))
+
+            -- Update currency labels (hide if 0 or $1,000,000)
+            local function updateCurrencyLabel(label, emoji, name, value)
+                local val = tostring(value)
+                if val == "0" or val == "$1,000,000" then
+                    label:Set("")  -- Hide by setting empty
+                else
+                    label:Set(emoji .. " " .. name .. ": " .. val)
+                end
+            end
+
+            updateCurrencyLabel(state.labels.coins, "💰", "Coins", state.stats.coins)
+            updateCurrencyLabel(state.labels.gems, "💎", "Gems", state.stats.gems)
+            updateCurrencyLabel(state.labels.bubbleStock, "🫧", "Bubble Stock", state.stats.bubbleStock)
+            updateCurrencyLabel(state.labels.tokens, "🎫", "Tokens", state.stats.tokens)
+            updateCurrencyLabel(state.labels.tickets, "🎟️", "Tickets", state.stats.tickets)
+            updateCurrencyLabel(state.labels.seashells, "🐚", "Seashells", state.stats.seashells)
+            updateCurrencyLabel(state.labels.festivalCoins, "🎊", "Festival Coins", state.stats.festivalCoins)
+            updateCurrencyLabel(state.labels.pearls, "🦪", "Pearls", state.stats.pearls)
+            updateCurrencyLabel(state.labels.leaves, "🍂", "Leaves", state.stats.leaves)
+            updateCurrencyLabel(state.labels.candycorn, "🍬", "Candycorn", state.stats.candycorn)
+            updateCurrencyLabel(state.labels.ogPoints, "⭐", "OG Points", state.stats.ogPoints)
+            updateCurrencyLabel(state.labels.thanksgivingShards, "🦃", "Thanksgiving Shards", state.stats.thanksgivingShards)
+            updateCurrencyLabel(state.labels.winterShards, "❄️", "Winter Shards", state.stats.winterShards)
+            updateCurrencyLabel(state.labels.snowflakes, "⛄", "Snowflakes", state.stats.snowflakes)
+            updateCurrencyLabel(state.labels.newYearsShard, "🎆", "New Years Shard", state.stats.newYearsShard)
+            updateCurrencyLabel(state.labels.horns, "👹", "Horns", state.stats.horns)
+            updateCurrencyLabel(state.labels.halos, "😇", "Halos", state.stats.halos)
+            updateCurrencyLabel(state.labels.moonShards, "🌙", "Moon Shards", state.stats.moonShards)
         end)
 
         updateStats()
@@ -1420,7 +1443,6 @@ end)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-    local pickupRemote = RS.Remotes.Pickups:WaitForChild("CollectPickup")
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles (IMPLEMENTED)
@@ -1430,7 +1452,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Pickup (NEW - Collect all coins/gems)
+        -- ✅ Auto Pickup (Collect all coins/gems)
         if state.autoPickup then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
@@ -1438,9 +1460,11 @@ task.spawn(function()
                     local pickups = rendered:FindFirstChild("Pickups")
                     if pickups then
                         for _, pickup in pairs(pickups:GetChildren()) do
-                            pcall(function()
-                                pickupRemote:FireServer(pickup)
-                            end)
+                            if pickup:IsA("Model") or pickup:IsA("BasePart") then
+                                pcall(function()
+                                    networkRemote:FireServer("CollectPickup", pickup)
+                                end)
+                            end
                         end
                     end
                 end
@@ -1471,12 +1495,12 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Claim Event Prizes (NEW - Claim available event rewards)
-        if state.autoClaimEventPrizes then
-            pcall(function()
-                networkRemote:FireServer("ClaimEventPrize")
-            end)
-        end
+        -- DISABLED: Auto Claim Event Prizes (Not working correctly)
+        -- if state.autoClaimEventPrizes then
+        --     pcall(function()
+        --         networkRemote:FireServer("ClaimEventPrize")
+        --     end)
+        -- end
 
         -- ✅ Auto Hatch (IMPLEMENTED - Smart teleport + max quantity)
         if state.autoHatch and state.eggPriority then
