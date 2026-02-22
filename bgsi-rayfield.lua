@@ -60,6 +60,7 @@ local state = {
     riftPriority = nil,
     eggPriority = nil,
     maxEggs = 7,  -- Max eggs to hatch at once (configurable in UI)
+    lastEggPosition = nil,  -- Track last egg position to avoid constant teleporting
     webhookUrl = "",
     webhookStats = true,
     currentRifts = {},
@@ -259,7 +260,7 @@ local function scanEggs()
     return newEggs
 end
 
--- ✅ FIXED: Proper teleport function (safe distance from eggs/rifts)
+-- ✅ FIXED: Teleport to Plate part for eggs, platform for rifts
 local function tpToModel(model)
     pcall(function()
         if not player.Character then return end
@@ -274,9 +275,16 @@ local function tpToModel(model)
             local cf = platform:GetPivot()
             hrp.CFrame = cf + Vector3.new(0, 10, 0)  -- 10 studs above platform
         else
-            -- Regular egg teleport - in front and above the egg
-            local cf = model:GetPivot()
-            hrp.CFrame = cf + Vector3.new(0, 15, 8)  -- 15 studs up, 8 studs forward
+            -- Regular egg teleport - use Plate part
+            local plate = model:FindFirstChild("Plate")
+            if plate then
+                -- Teleport on top of the Plate
+                hrp.CFrame = plate.CFrame + Vector3.new(0, 5, 0)  -- 5 studs above plate
+            else
+                -- Fallback if no Plate part found
+                local cf = model:GetPivot()
+                hrp.CFrame = cf + Vector3.new(0, 15, 8)  -- 15 studs up, 8 studs forward
+            end
         end
     end)
 end
@@ -353,18 +361,26 @@ local AutoHatchToggle = EggsTab:CreateToggle({
    Callback = function(Value)
       state.autoHatch = Value
       if Value then
+         state.lastEggPosition = nil  -- Reset position tracker
          Rayfield:Notify({
-            Title = "Auto Hatch",
-            Content = "Will hatch " .. state.maxEggs .. "x " .. (state.eggPriority or "None"),
+            Title = "Auto Hatch Enabled",
+            Content = "Hatching max eggs from: " .. (state.eggPriority or "None"),
             Duration = 3,
             Image = 4483362458,
+         })
+      else
+         state.lastEggPosition = nil  -- Reset when disabled
+         Rayfield:Notify({
+            Title = "Auto Hatch Disabled",
+            Content = "Stopped auto-hatching",
+            Duration = 2,
          })
       end
    end,
 })
 
 local MaxEggsSlider = EggsTab:CreateSlider({
-   Name = "🥚 Max Eggs Per Hatch",
+   Name = "🥚 Max Eggs (Manual Only)",
    Range = {1, 100},
    Increment = 1,
    CurrentValue = 7,
@@ -372,13 +388,14 @@ local MaxEggsSlider = EggsTab:CreateSlider({
    Callback = function(Value)
       state.maxEggs = Value
       Rayfield:Notify({
-         Title = "Max Eggs Updated",
-         Content = "Will hatch " .. Value .. " eggs at once",
+         Title = "Manual Hatch Updated",
+         Content = "Manual button will hatch " .. Value .. " eggs",
          Duration = 2,
       })
    end,
 })
 
+EggsTab:CreateLabel("Auto-hatch always uses max (99)")
 EggsTab:CreateLabel("Auto-scans eggs every 2 seconds")
 
 -- === RIFTS TAB ===
@@ -537,8 +554,8 @@ DataTab:CreateButton({
          pcall(function()
             local RS = game:GetService("ReplicatedStorage")
             local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            networkRemote:FireServer("HatchEgg", state.eggPriority, state.maxEggs)
-            print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x" .. state.maxEggs)
+            networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
+            print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
 
          Rayfield:Notify({
@@ -634,18 +651,38 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Hatch (IMPLEMENTED)
+        -- ✅ Auto Hatch (IMPLEMENTED - Smart teleport + max quantity)
         if state.autoHatch and state.eggPriority then
             pcall(function()
                 -- Find the egg instance
                 for _, egg in pairs(state.currentEggs) do
                     if egg.name == state.eggPriority then
-                        -- Teleport to egg
-                        tpToModel(egg.instance)
+                        local shouldTeleport = false
 
-                        -- Open egg (format: "HatchEgg", eggName, quantity)
-                        task.wait(0.15)  -- Small delay after teleport
-                        networkRemote:FireServer("HatchEgg", state.eggPriority, state.maxEggs)
+                        -- Check if player has moved away or is first time
+                        if not state.lastEggPosition then
+                            shouldTeleport = true
+                            state.lastEggPosition = egg.instance:GetPivot().Position
+                        else
+                            -- Check if player is far from egg (more than 20 studs)
+                            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                local distance = (hrp.Position - state.lastEggPosition).Magnitude
+                                if distance > 20 then
+                                    shouldTeleport = true
+                                    state.lastEggPosition = egg.instance:GetPivot().Position
+                                end
+                            end
+                        end
+
+                        -- Only teleport if needed
+                        if shouldTeleport then
+                            tpToModel(egg.instance)
+                            task.wait(0.15)  -- Small delay after teleport
+                        end
+
+                        -- Always use 99 (game will cap to player's max)
+                        networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
 
                         break
                     end
