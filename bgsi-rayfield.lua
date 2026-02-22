@@ -59,6 +59,7 @@ local state = {
     autoHatch = false,
     riftPriority = nil,
     eggPriority = nil,
+    maxEggs = 7,  -- Max eggs to hatch at once (configurable in UI)
     webhookUrl = "",
     webhookStats = true,
     currentRifts = {},
@@ -76,6 +77,18 @@ pcall(function()
 end)
 
 -- === UTILITY FUNCTIONS ===
+-- Format numbers with commas (1234567890 -> 1,234,567,890)
+local function formatNumber(num)
+    if type(num) ~= "number" then return tostring(num) end
+    local formatted = tostring(num)
+    local k
+    while true do
+        formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1,%2')
+        if k == 0 then break end
+    end
+    return formatted
+end
+
 local function SendWebhook(url, msg)
     pcall(function()
         request({
@@ -246,7 +259,7 @@ local function scanEggs()
     return newEggs
 end
 
--- ✅ FIXED: Proper teleport function
+-- ✅ FIXED: Proper teleport function (safe distance from eggs/rifts)
 local function tpToModel(model)
     pcall(function()
         if not player.Character then return end
@@ -257,13 +270,13 @@ local function tpToModel(model)
         local platform = model:FindFirstChild("EggPlatformSpawn")
 
         if platform then
-            -- Rift teleport - get center of platform
+            -- Rift teleport - get center of platform (higher up)
             local cf = platform:GetPivot()
-            hrp.CFrame = cf + Vector3.new(0, 5, 0)
+            hrp.CFrame = cf + Vector3.new(0, 10, 0)  -- 10 studs above platform
         else
-            -- Regular egg teleport - get model center
+            -- Regular egg teleport - in front and above the egg
             local cf = model:GetPivot()
-            hrp.CFrame = cf + Vector3.new(0, 3, 0)
+            hrp.CFrame = cf + Vector3.new(0, 15, 8)  -- 15 studs up, 8 studs forward
         end
     end)
 end
@@ -342,11 +355,27 @@ local AutoHatchToggle = EggsTab:CreateToggle({
       if Value then
          Rayfield:Notify({
             Title = "Auto Hatch",
-            Content = "Will keep teleporting to: " .. (state.eggPriority or "None"),
+            Content = "Will hatch " .. state.maxEggs .. "x " .. (state.eggPriority or "None"),
             Duration = 3,
             Image = 4483362458,
          })
       end
+   end,
+})
+
+local MaxEggsSlider = EggsTab:CreateSlider({
+   Name = "🥚 Max Eggs Per Hatch",
+   Range = {1, 100},
+   Increment = 1,
+   CurrentValue = 7,
+   Flag = "MaxEggs",
+   Callback = function(Value)
+      state.maxEggs = Value
+      Rayfield:Notify({
+         Title = "Max Eggs Updated",
+         Content = "Will hatch " .. Value .. " eggs at once",
+         Duration = 2,
+      })
    end,
 })
 
@@ -508,8 +537,8 @@ DataTab:CreateButton({
          pcall(function()
             local RS = game:GetService("ReplicatedStorage")
             local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            networkRemote:FireServer("HatchEgg", state.eggPriority, 1)
-            print("✅ Sent HatchEgg command for: " .. state.eggPriority)
+            networkRemote:FireServer("HatchEgg", state.eggPriority, state.maxEggs)
+            print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x" .. state.maxEggs)
          end)
 
          Rayfield:Notify({
@@ -581,8 +610,8 @@ task.spawn(function()
 
         pcall(function()
             state.labels.runtime:Set("⏱️ Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
-            state.labels.bubbles:Set("🧼 Bubbles: " .. tostring(state.stats.bubbles))
-            state.labels.hatches:Set("🥚 Hatches: " .. tostring(state.stats.hatches))
+            state.labels.bubbles:Set("🧱 Bubbles: " .. formatNumber(state.stats.bubbles))
+            state.labels.hatches:Set("🥚 Hatches: " .. formatNumber(state.stats.hatches))
             state.labels.coins:Set("💰 Coins: " .. tostring(state.stats.coins))
             state.labels.bubbleStock:Set("🫧 Bubble Stock: " .. tostring(state.stats.bubbleStock))
             state.labels.gems:Set("💎 Gems: " .. tostring(state.stats.gems))
@@ -616,7 +645,7 @@ task.spawn(function()
 
                         -- Open egg (format: "HatchEgg", eggName, quantity)
                         task.wait(0.15)  -- Small delay after teleport
-                        networkRemote:FireServer("HatchEgg", state.eggPriority, 1)
+                        networkRemote:FireServer("HatchEgg", state.eggPriority, state.maxEggs)
 
                         break
                     end
