@@ -79,6 +79,7 @@ local state = {
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
+    eggDatabase = {},  -- NEW: Database of all eggs {EggName = {world="WorldName", position=Vector3}}
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
@@ -316,17 +317,17 @@ local function SendStatsWebhook()
             local val = tostring(curr.value)
             -- Skip if 0 or placeholder
             if val ~= "0" and val ~= "$1,000,000" then
-                currencyText = currencyText .. curr.name .. ": " .. val .. "\\n"
+                currencyText = currencyText .. curr.name .. ": " .. val .. "\n"
             end
         end
 
         -- Build difference text
         local diffText = ""
         if diffs.bubbles and diffs.bubbles ~= 0 then
-            diffText = diffText .. string.format("Bubbles: %s%s\\n", diffs.bubbles > 0 and "+" or "", formatNumber(diffs.bubbles))
+            diffText = diffText .. string.format("Bubbles: %s%s\n", diffs.bubbles > 0 and "+" or "", formatNumber(diffs.bubbles))
         end
         if diffs.hatches and diffs.hatches ~= 0 then
-            diffText = diffText .. string.format("Hatches: %s%s\\n", diffs.hatches > 0 and "+" or "", formatNumber(diffs.hatches))
+            diffText = diffText .. string.format("Hatches: %s%s\n", diffs.hatches > 0 and "+" or "", formatNumber(diffs.hatches))
         end
 
         local embed = {
@@ -338,7 +339,7 @@ local function SendStatsWebhook()
             fields = {
                 {
                     name = "⏱️ Session Info",
-                    value = string.format("Playtime: %s\\n🥚 Hatches: %s\\n🫧 Bubbles: %s",
+                    value = string.format("Playtime: %s\n🥚 Hatches: %s\n🫧 Bubbles: %s",
                         runtimeStr,
                         formatNumber(state.stats.hatches),
                         formatNumber(state.stats.bubbles)
@@ -366,7 +367,7 @@ local function SendStatsWebhook()
         -- Add per-minute rates
         table.insert(embed.fields, {
             name = "⏱️ Rates Per Minute",
-            value = string.format("🫧 Bubbles: %s/min\\n🥚 Hatches: %s/min",
+            value = string.format("🫧 Bubbles: %s/min\n🥚 Hatches: %s/min",
                 formatNumber(bubblesPerMin),
                 formatNumber(hatchesPerMin)
             ),
@@ -1201,6 +1202,76 @@ DataTab:CreateButton({
    end
 })
 
+-- === STARTUP: LOAD ALL CHUNKS AND SCAN EGGS ===
+print("🔍 Loading all game chunks and scanning for eggs...")
+
+task.spawn(function()
+    pcall(function()
+        -- Use RequestStreamAroundAsync to load all worlds
+        local worlds = Workspace:FindFirstChild("Worlds")
+        if worlds and player.RequestStreamAroundAsync then
+            for _, world in pairs(worlds:GetChildren()) do
+                if world:IsA("Model") then
+                    local primary = world.PrimaryPart or world:FindFirstChildWhichIsA("BasePart")
+                    if primary then
+                        print("  Loading chunks for:", world.Name)
+                        player:RequestStreamAroundAsync(primary.Position)
+                        task.wait(0.5)
+                    end
+                end
+            end
+            print("✅ All chunks loaded!")
+        end
+
+        -- Now scan all eggs and build database
+        task.wait(1) -- Wait for everything to render
+
+        local rendered = Workspace:FindFirstChild("Rendered")
+        if rendered then
+            local eggCount = 0
+            for _, folder in pairs(rendered:GetChildren()) do
+                if folder.Name == "Chunker" then
+                    for _, egg in pairs(folder:GetChildren()) do
+                        if egg:IsA("Model") and egg:FindFirstChild("Plate") then
+                            eggCount = eggCount + 1
+                            local pos = egg:FindFirstChild("Prompt")
+                            if pos and pos:IsA("BasePart") then
+                                -- Determine which world this egg is in
+                                local worldName = "Unknown"
+                                local eggPos = pos.Position
+
+                                -- Check which world boundary the egg is in
+                                if worlds then
+                                    for _, world in pairs(worlds:GetChildren()) do
+                                        if world:IsA("Model") then
+                                            local primary = world.PrimaryPart or world:FindFirstChildWhichIsA("BasePart")
+                                            if primary then
+                                                local dist = (primary.Position - eggPos).Magnitude
+                                                if dist < 5000 then -- Within 5000 studs = same world
+                                                    worldName = world.Name
+                                                    break
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+
+                                -- Store in database
+                                state.eggDatabase[egg.Name] = {
+                                    world = worldName,
+                                    position = eggPos,
+                                    model = egg
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+            print("✅ Egg database built: " .. eggCount .. " eggs cataloged")
+        end
+    end)
+end)
+
 -- === MAIN LOOPS ===
 
 -- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds) - Only refresh if data changed
@@ -1281,88 +1352,61 @@ task.spawn(function()
     end
 end)
 
--- ✅ ADMIN EVENT MONITOR: Check for special events (every 3 seconds)
+-- ✅ ADMIN EVENT MONITOR: Watch for AdminIsland appearing
 task.spawn(function()
-    while task.wait(3) do
+    while task.wait(2) do
         if state.adminEventActive then
             pcall(function()
-                local rendered = Workspace:FindFirstChild("Rendered")
-                local foundEvent = false
-                local eventModel = nil
-                local eventName = ""
+                -- Check if AdminIsland exists in Workspace
+                local adminIsland = Workspace:FindFirstChild("AdminIsland")
 
-                -- Admin Abuse event names from game data
-                local adminEvents = {
-                    "event-super", "event-giftbox", "event-nostalgia",
-                    "event-music", "event-retro"
-                }
+                if adminIsland then
+                    -- AdminIsland found! Look for the Super Egg
+                    local rendered = Workspace:FindFirstChild("Rendered")
+                    local superEgg = nil
 
-                if rendered then
-                    -- Check all Chunker folders for admin event eggs
-                    for _, folder in pairs(rendered:GetChildren()) do
-                        if folder.Name == "Chunker" then
-                            for _, egg in pairs(folder:GetChildren()) do
-                                if egg:IsA("Model") then
-                                    local eggName = egg.Name:lower()
-
-                                    -- Check if egg name contains admin event keywords
-                                    if eggName:find("admin") or eggName:find("super egg") or
-                                       eggName:find("giftbox") or eggName:find("nostalgia") or
-                                       eggName:find("music") or eggName:find("retro") then
-                                        foundEvent = true
-                                        eventModel = egg
-                                        eventName = egg.Name
-                                        break
-                                    end
+                    if rendered then
+                        for _, folder in pairs(rendered:GetChildren()) do
+                            if folder.Name == "Chunker" then
+                                superEgg = folder:FindFirstChild("Super Egg")
+                                if superEgg and superEgg:FindFirstChild("Plate") then
+                                    break
                                 end
                             end
                         end
-                        if foundEvent then break end
                     end
 
-                    -- Also check main workspace for special models
-                    if not foundEvent then
-                        for _, child in pairs(Workspace:GetChildren()) do
-                            local name = child.Name:lower()
-                            if (name:find("admin") or name:find("super")) and
-                               not name:find("superstar") and
-                               child:IsA("Model") then
-                                foundEvent = true
-                                eventModel = child
-                                eventName = child.Name
-                                break
-                            end
-                        end
-                    end
-                end
+                    if superEgg then
+                        pcall(function()
+                            state.labels.adminEvent:Set("👑 Admin Event: Super Egg (ACTIVE!)")
+                        end)
 
-                -- Update UI and teleport if found
-                if foundEvent and eventModel then
-                    pcall(function()
-                        state.labels.adminEvent:Set("👑 Admin Event: " .. eventName .. " (ACTIVE!)")
-                    end)
-
-                    -- Auto-teleport to event
-                    if eventModel:IsA("Model") then
-                        tpToModel(eventModel)
-                        Rayfield:Notify({
-                            Title = "🎉 Admin Event Found!",
-                            Content = "Teleporting to: " .. eventName,
-                            Duration = 4,
-                            Image = 4483362458,
-                        })
-
-                        -- If it's an egg, start auto-hatching it
-                        if eventModel:FindFirstChild("Plate") then
-                            state.eggPriority = eventName
+                        -- Teleport to the egg's Plate
+                        local plate = superEgg:FindFirstChild("Plate")
+                        if plate then
+                            tpToModel(superEgg)
                             Rayfield:Notify({
-                                Title = "🥚 Admin Egg Priority Set",
-                                Content = "Now hatching: " .. eventName,
+                                Title = "🎉 Admin Event: Super Egg!",
+                                Content = "Teleporting to Super Egg now!",
+                                Duration = 4,
+                                Image = 4483362458,
+                            })
+
+                            -- Set as priority egg
+                            state.eggPriority = "Super Egg"
+                            Rayfield:Notify({
+                                Title = "🥚 Priority: Super Egg",
+                                Content = "Now auto-hatching Super Egg!",
                                 Duration = 3,
                             })
                         end
+                    else
+                        pcall(function()
+                            state.labels.adminEvent:Set("👑 Admin Event: Island Active (No Egg Yet)")
+                        end)
                     end
                 else
+                    -- No AdminIsland found
                     pcall(function()
                         state.labels.adminEvent:Set("👑 Admin Event: Not Active")
                     end)
