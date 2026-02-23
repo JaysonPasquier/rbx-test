@@ -24,8 +24,8 @@ local Window = Rayfield:CreateWindow({
    LoadingSubtitle = "Mobile-Optimized for 2026",
    Theme = "Default",
 
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false,
+   DisableRayfieldPrompts = true,
+   DisableBuildWarnings = true,
 
    ConfigurationSaving = {
       Enabled = true,
@@ -85,6 +85,10 @@ local state = {
     currentEggs = {},
     currentChests = {},
     eggDatabase = {},  -- NEW: Database of all eggs {EggName = {world="WorldName", position=Vector3}}
+    gameEggData = {},  -- NEW: Egg data from ReplicatedStorage (all eggs in game)
+    gameRiftData = {},  -- NEW: Rift data from ReplicatedStorage (all rifts in game)
+    gameEggList = {},  -- NEW: Simple list of all egg names from game data
+    gameRiftList = {},  -- NEW: Simple list of valid rift names (filtered, no Ignore=true)
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
@@ -170,6 +174,69 @@ local function saveStatsMessageId(messageId)
     if writefile then
         pcall(writefile, STATS_MESSAGE_FILE, messageId)
         print("[Webhook] Saved message ID: " .. messageId)
+    end
+end
+
+-- Fetch and parse egg data from game (auto-updates with new game versions)
+local function loadGameEggData()
+    local success, result = pcall(function()
+        local eggsModule = RS:FindFirstChild("Shared")
+        if eggsModule then
+            eggsModule = eggsModule:FindFirstChild("Data")
+            if eggsModule then
+                eggsModule = eggsModule:FindFirstChild("Eggs")
+                if eggsModule and eggsModule:IsA("ModuleScript") then
+                    local eggData = require(eggsModule)
+                    state.gameEggData = eggData
+
+                    -- Build simple list of all egg names
+                    for eggName, _ in pairs(eggData) do
+                        table.insert(state.gameEggList, eggName)
+                    end
+
+                    print("✅ Loaded " .. #state.gameEggList .. " eggs from game data")
+                    return true
+                end
+            end
+        end
+        return false
+    end)
+
+    if not success then
+        print("⚠️ Failed to load egg data: " .. tostring(result))
+    end
+end
+
+-- Fetch and parse rift data from game (auto-updates with new game versions)
+local function loadGameRiftData()
+    local success, result = pcall(function()
+        local riftsModule = RS:FindFirstChild("Shared")
+        if riftsModule then
+            riftsModule = riftsModule:FindFirstChild("Data")
+            if riftsModule then
+                riftsModule = riftsModule:FindFirstChild("Rifts")
+                if riftsModule and riftsModule:IsA("ModuleScript") then
+                    local riftData = require(riftsModule)
+                    state.gameRiftData = riftData
+
+                    -- Build list of valid rift names (filter out Ignore=true)
+                    for riftName, riftInfo in pairs(riftData) do
+                        -- Skip rifts marked with Ignore=true (event rifts, dev rifts)
+                        if not riftInfo.Ignore then
+                            table.insert(state.gameRiftList, riftName)
+                        end
+                    end
+
+                    print("✅ Loaded " .. #state.gameRiftList .. " rifts from game data (filtered)")
+                    return true
+                end
+            end
+        end
+        return false
+    end)
+
+    if not success then
+        print("⚠️ Failed to load rift data: " .. tostring(result))
     end
 end
 
@@ -437,27 +504,44 @@ local function SendStatsWebhook()
         local method = "POST"
         local url = state.webhookUrl
 
-        if state.statsMessageId then
+        if state.statsMessageId and state.statsMessageId ~= "" then
             -- Edit existing message
             method = "PATCH"
             url = state.webhookUrl .. "/messages/" .. state.statsMessageId
+            print("[Webhook] Editing existing stats message: " .. state.statsMessageId)
+        else
+            print("[Webhook] Creating new stats message")
         end
 
-        local response = request({
-            Url = url,
-            Method = method,
-            Headers = {["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode({embeds = {embed}})
-        })
+        local success, response = pcall(function()
+            return request({
+                Url = url,
+                Method = method,
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({embeds = {embed}})
+            })
+        end)
+
+        if not success then
+            print("[Webhook] Request failed: " .. tostring(response))
+            -- If editing failed, reset message ID and try creating new one next time
+            if method == "PATCH" then
+                state.statsMessageId = nil
+                saveStatsMessageId("")
+                print("[Webhook] Cleared saved message ID due to error")
+            end
+            return
+        end
 
         -- If this was a new message (POST), save the message ID
         if method == "POST" and response and response.Body then
-            local success, data = pcall(function()
+            local decodeSuccess, data = pcall(function()
                 return HttpService:JSONDecode(response.Body)
             end)
-            if success and data and data.id then
+            if decodeSuccess and data and data.id then
                 state.statsMessageId = data.id
                 saveStatsMessageId(data.id)
+                print("[Webhook] Saved new message ID: " .. data.id)
             end
         end
 
@@ -701,25 +785,8 @@ state.labels.hatches = MainTab:CreateLabel("Hatches: 0")
 
 local CurrencySection = MainTab:CreateSection("💰 All Currencies")
 
--- Initialize labels empty (will be populated after first stats check)
-state.labels.coins = MainTab:CreateLabel("")
-state.labels.gems = MainTab:CreateLabel("")
-state.labels.bubbleStock = MainTab:CreateLabel("")
-state.labels.tokens = MainTab:CreateLabel("")
-state.labels.tickets = MainTab:CreateLabel("")
-state.labels.seashells = MainTab:CreateLabel("")
-state.labels.festivalCoins = MainTab:CreateLabel("")
-state.labels.pearls = MainTab:CreateLabel("")
-state.labels.leaves = MainTab:CreateLabel("")
-state.labels.candycorn = MainTab:CreateLabel("")
-state.labels.ogPoints = MainTab:CreateLabel("")
-state.labels.thanksgivingShards = MainTab:CreateLabel("")
-state.labels.winterShards = MainTab:CreateLabel("")
-state.labels.snowflakes = MainTab:CreateLabel("")
-state.labels.newYearsShard = MainTab:CreateLabel("")
-state.labels.horns = MainTab:CreateLabel("")
-state.labels.halos = MainTab:CreateLabel("")
-state.labels.moonShards = MainTab:CreateLabel("")
+-- Single dynamic label for all currencies (no empty space!)
+state.labels.allCurrencies = MainTab:CreateLabel("Loading currencies...")
 
 -- === FARM TAB ===
 local FarmTab = Window:CreateTab("🔧 Farm", 4483362458)
@@ -905,10 +972,13 @@ EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
+EggsTab:CreateLabel("📋 Contains ALL eggs from game (auto-updates)")
+EggsTab:CreateLabel("✨ Detects eggs even before they spawn")
+
 local PriorityEggDropdown = EggsTab:CreateDropdown({
    Name = "Eggs to prioritize over normal egg",
-   Options = {"Super Egg", "Golden Egg", "Admin Egg"},
-   CurrentOption = {"Super Egg"},
+   Options = {"Loading game data..."},
+   CurrentOption = {"Loading game data..."},
    MultipleOptions = true,
    Flag = "PriorityEggs",
    Callback = function(Options)
@@ -987,10 +1057,14 @@ RiftsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
 
+RiftsTab:CreateLabel("📋 Contains ALL rifts from game (auto-updates)")
+RiftsTab:CreateLabel("✨ Detects rifts even before they spawn")
+RiftsTab:CreateLabel("🚫 Event rifts filtered out automatically")
+
 local PriorityRiftDropdown = RiftsTab:CreateDropdown({
    Name = "Rifts to prioritize over normal rift",
-   Options = {"moon-rift", "rainbow-egg", "void-egg", "cyber-egg", "neon-egg", "magma-egg", "mining-egg"},
-   CurrentOption = {"moon-rift"},
+   Options = {"Loading game data..."},
+   CurrentOption = {"Loading game data..."},
    MultipleOptions = true,
    Flag = "PriorityRifts",
    Callback = function(Options)
@@ -1356,6 +1430,11 @@ print("🔍 Loading all game chunks and scanning for eggs...")
 -- Load saved stats message ID (persists across rejoins)
 loadStatsMessageId()
 
+-- Load egg and rift data from game modules (auto-updates with game versions)
+print("📦 Fetching egg and rift data from game...")
+loadGameEggData()
+loadGameRiftData()
+
 task.spawn(function()
     pcall(function()
         -- Use RequestStreamAroundAsync to load all worlds
@@ -1431,7 +1510,7 @@ local lastEggData = ""
 
 task.spawn(function()
     while task.wait(2) do
-        -- Scan rifts
+        -- Scan rifts (only for normal rift selection - spawned rifts)
         local rifts = scanRifts()
         local riftNames = {}
         for _, rift in pairs(rifts) do
@@ -1449,7 +1528,7 @@ task.spawn(function()
             end
         end
 
-        -- Scan eggs
+        -- Scan eggs (only for normal egg selection - spawned eggs)
         local eggs = scanEggs()
         local eggNames = {}
         for _, egg in pairs(eggs) do
@@ -1480,34 +1559,42 @@ task.spawn(function()
             state.labels.bubbles:Set("🧱 Bubbles: " .. formatNumber(state.stats.bubbles))
             state.labels.hatches:Set("🥚 Hatches: " .. formatNumber(state.stats.hatches))
 
-            -- Update currency labels (hide if 0 or $1,000,000)
-            local function updateCurrencyLabel(label, emoji, name, value)
-                local val = tostring(value)
-                if val == "0" or val == "$1,000,000" then
-                    label:Set("")  -- Hide by setting empty
-                else
-                    label:Set(emoji .. " " .. name .. ": " .. val)
+            -- Build dynamic currency text (only show non-zero and non-$1M values)
+            local currencyLines = {}
+            local currencies = {
+                {emoji="💰", name="Coins", value=state.stats.coins},
+                {emoji="💎", name="Gems", value=state.stats.gems},
+                {emoji="🫧", name="Bubble Stock", value=state.stats.bubbleStock},
+                {emoji="🎫", name="Tokens", value=state.stats.tokens},
+                {emoji="🎟️", name="Tickets", value=state.stats.tickets},
+                {emoji="🐚", name="Seashells", value=state.stats.seashells},
+                {emoji="🎊", name="Festival Coins", value=state.stats.festivalCoins},
+                {emoji="🦪", name="Pearls", value=state.stats.pearls},
+                {emoji="🍂", name="Leaves", value=state.stats.leaves},
+                {emoji="🍬", name="Candycorn", value=state.stats.candycorn},
+                {emoji="⭐", name="OG Points", value=state.stats.ogPoints},
+                {emoji="🦃", name="Thanksgiving Shards", value=state.stats.thanksgivingShards},
+                {emoji="❄️", name="Winter Shards", value=state.stats.winterShards},
+                {emoji="⛄", name="Snowflakes", value=state.stats.snowflakes},
+                {emoji="🎆", name="New Years Shard", value=state.stats.newYearsShard},
+                {emoji="👹", name="Horns", value=state.stats.horns},
+                {emoji="😇", name="Halos", value=state.stats.halos},
+                {emoji="🌙", name="Moon Shards", value=state.stats.moonShards}
+            }
+
+            for _, curr in pairs(currencies) do
+                local val = tostring(curr.value)
+                if val ~= "0" and val ~= "$1,000,000" then
+                    table.insert(currencyLines, curr.emoji .. " " .. curr.name .. ": " .. val)
                 end
             end
 
-            updateCurrencyLabel(state.labels.coins, "💰", "Coins", state.stats.coins)
-            updateCurrencyLabel(state.labels.gems, "💎", "Gems", state.stats.gems)
-            updateCurrencyLabel(state.labels.bubbleStock, "🫧", "Bubble Stock", state.stats.bubbleStock)
-            updateCurrencyLabel(state.labels.tokens, "🎫", "Tokens", state.stats.tokens)
-            updateCurrencyLabel(state.labels.tickets, "🎟️", "Tickets", state.stats.tickets)
-            updateCurrencyLabel(state.labels.seashells, "🐚", "Seashells", state.stats.seashells)
-            updateCurrencyLabel(state.labels.festivalCoins, "🎊", "Festival Coins", state.stats.festivalCoins)
-            updateCurrencyLabel(state.labels.pearls, "🦪", "Pearls", state.stats.pearls)
-            updateCurrencyLabel(state.labels.leaves, "🍂", "Leaves", state.stats.leaves)
-            updateCurrencyLabel(state.labels.candycorn, "🍬", "Candycorn", state.stats.candycorn)
-            updateCurrencyLabel(state.labels.ogPoints, "⭐", "OG Points", state.stats.ogPoints)
-            updateCurrencyLabel(state.labels.thanksgivingShards, "🦃", "Thanksgiving Shards", state.stats.thanksgivingShards)
-            updateCurrencyLabel(state.labels.winterShards, "❄️", "Winter Shards", state.stats.winterShards)
-            updateCurrencyLabel(state.labels.snowflakes, "⛄", "Snowflakes", state.stats.snowflakes)
-            updateCurrencyLabel(state.labels.newYearsShard, "🎆", "New Years Shard", state.stats.newYearsShard)
-            updateCurrencyLabel(state.labels.horns, "👹", "Horns", state.stats.horns)
-            updateCurrencyLabel(state.labels.halos, "😇", "Halos", state.stats.halos)
-            updateCurrencyLabel(state.labels.moonShards, "🌙", "Moon Shards", state.stats.moonShards)
+            -- Update single currency label with all active currencies
+            if #currencyLines > 0 then
+                state.labels.allCurrencies:Set(table.concat(currencyLines, "\n"))
+            else
+                state.labels.allCurrencies:Set("No active currencies")
+            end
         end)
 
         updateStats()
@@ -1742,7 +1829,26 @@ end)
 -- === INITIAL SETUP ===
 print("✅ Performing initial scans...")
 
--- Initial egg scan
+-- Populate priority dropdowns with game data (all eggs/rifts, not just spawned ones)
+task.spawn(function()
+    task.wait(0.5)  -- Wait for game data to load
+
+    if #state.gameEggList > 0 then
+        pcall(function()
+            PriorityEggDropdown:Refresh(state.gameEggList, true)
+        end)
+        print("✅ Priority egg list populated with " .. #state.gameEggList .. " eggs from game data")
+    end
+
+    if #state.gameRiftList > 0 then
+        pcall(function()
+            PriorityRiftDropdown:Refresh(state.gameRiftList, true)
+        end)
+        print("✅ Priority rift list populated with " .. #state.gameRiftList .. " rifts from game data")
+    end
+end)
+
+-- Initial egg scan (for normal egg selection - only spawned eggs)
 task.spawn(function()
     task.wait(1)  -- Wait for game to load
     local eggs = scanEggs()
@@ -1755,13 +1861,13 @@ task.spawn(function()
         pcall(function()
             EggDropdown:Refresh(eggNames, true)
         end)
-        print("✅ Found " .. #eggNames .. " eggs")
+        print("✅ Found " .. #eggNames .. " spawned eggs")
     else
         print("⚠️ No eggs found yet")
     end
 end)
 
--- Initial rift scan
+-- Initial rift scan (for normal rift selection - only spawned rifts)
 task.spawn(function()
     task.wait(1)  -- Wait for game to load
     local rifts = scanRifts()
@@ -1774,7 +1880,7 @@ task.spawn(function()
         pcall(function()
             RiftDropdown:Refresh(riftNames, true)
         end)
-        print("✅ Found " .. #riftNames .. " rifts")
+        print("✅ Found " .. #riftNames .. " spawned rifts")
     else
         print("⚠️ No rifts spawned yet")
     end
