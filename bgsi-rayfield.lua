@@ -84,11 +84,13 @@ local state = {
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
+    chestFarmActive = false,  -- NEW: Track if chest farming is active
+    currentChestRift = nil,  -- NEW: Current chest rift name being farmed
     eggDatabase = {},  -- NEW: Database of all eggs {EggName = {world="WorldName", position=Vector3}}
     gameEggData = {},  -- NEW: Egg data from ReplicatedStorage (all eggs in game)
     gameRiftData = {},  -- NEW: Rift data from ReplicatedStorage (all rifts in game)
     gameEggList = {},  -- NEW: Simple list of all egg names from game data
-    gameRiftList = {},  -- NEW: Simple list of valid rift names (filtered, no Ignore=true)
+    gameRiftList = {},  -- NEW: Simple list of all rift names from game data (all included)
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
@@ -163,8 +165,12 @@ local function loadStatsMessageId()
     if isfile and isfile(STATS_MESSAGE_FILE) then
         local success, content = pcall(readfile, STATS_MESSAGE_FILE)
         if success and content and content ~= "" then
-            state.statsMessageId = content
-            print("[Webhook] Loaded existing message ID: " .. content)
+            -- Trim whitespace from message ID
+            content = content:match("^%s*(.-)%s*$") or content
+            if content ~= "" then
+                state.statsMessageId = content
+                print("[Webhook] Loaded existing message ID: " .. content)
+            end
         end
     end
 end
@@ -219,15 +225,12 @@ local function loadGameRiftData()
                     local riftData = require(riftsModule)
                     state.gameRiftData = riftData
 
-                    -- Build list of valid rift names (filter out Ignore=true)
+                    -- Build list of ALL rift names (no filtering)
                     for riftName, riftInfo in pairs(riftData) do
-                        -- Skip rifts marked with Ignore=true (event rifts, dev rifts)
-                        if not riftInfo.Ignore then
-                            table.insert(state.gameRiftList, riftName)
-                        end
+                        table.insert(state.gameRiftList, riftName)
                     end
 
-                    print("✅ Loaded " .. #state.gameRiftList .. " rifts from game data (filtered)")
+                    print("✅ Loaded " .. #state.gameRiftList .. " rifts from game data (all included)")
                     return true
                 end
             end
@@ -510,7 +513,7 @@ local function SendStatsWebhook()
             url = state.webhookUrl .. "/messages/" .. state.statsMessageId
             print("[Webhook] Editing existing stats message: " .. state.statsMessageId)
         else
-            print("[Webhook] Creating new stats message")
+            print("[Webhook] Creating new stats message (ID: " .. tostring(state.statsMessageId) .. ")")
         end
 
         local success, response = pcall(function()
@@ -526,11 +529,17 @@ local function SendStatsWebhook()
             print("[Webhook] Request failed: " .. tostring(response))
             -- If editing failed, reset message ID and try creating new one next time
             if method == "PATCH" then
+                print("[Webhook] PATCH failed, will try POST next time")
                 state.statsMessageId = nil
                 saveStatsMessageId("")
                 print("[Webhook] Cleared saved message ID due to error")
             end
             return
+        end
+
+        -- Check response status
+        if response and response.StatusCode then
+            print("[Webhook] Response status: " .. response.StatusCode)
         end
 
         -- If this was a new message (POST), save the message ID
@@ -542,6 +551,8 @@ local function SendStatsWebhook()
                 state.statsMessageId = data.id
                 saveStatsMessageId(data.id)
                 print("[Webhook] Saved new message ID: " .. data.id)
+            else
+                print("[Webhook] Failed to decode response or no message ID in response")
             end
         end
 
@@ -888,9 +899,6 @@ local AdminEventToggle = FarmTab:CreateToggle({
    end,
 })
 
-FarmTab:CreateLabel("Detects: Super, Giftbox, Nostalgia, Music, Retro")
-FarmTab:CreateLabel("Auto-teleports + sets as priority egg")
-
 local ClaimSection = FarmTab:CreateSection("🎁 Auto Claim")
 
 local AutoClaimToggle = FarmTab:CreateToggle({
@@ -972,9 +980,6 @@ EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
-EggsTab:CreateLabel("📋 Contains ALL eggs from game (auto-updates)")
-EggsTab:CreateLabel("✨ Detects eggs even before they spawn")
-
 local PriorityEggDropdown = EggsTab:CreateDropdown({
    Name = "Eggs to prioritize over normal egg",
    Options = {"Loading game data..."},
@@ -1000,8 +1005,6 @@ local PriorityEggToggle = EggsTab:CreateToggle({
       })
    end,
 })
-
-EggsTab:CreateLabel("Priority eggs auto-hatch when detected")
 
 -- === RIFTS TAB ===
 local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
@@ -1057,10 +1060,6 @@ RiftsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
 
-RiftsTab:CreateLabel("📋 Contains ALL rifts from game (auto-updates)")
-RiftsTab:CreateLabel("✨ Detects rifts even before they spawn")
-RiftsTab:CreateLabel("🚫 Event rifts filtered out automatically")
-
 local PriorityRiftDropdown = RiftsTab:CreateDropdown({
    Name = "Rifts to prioritize over normal rift",
    Options = {"Loading game data..."},
@@ -1095,9 +1094,6 @@ local PriorityRiftToggle = RiftsTab:CreateToggle({
       end
    end,
 })
-
-RiftsTab:CreateLabel("Priority rifts auto-farm when detected")
-RiftsTab:CreateLabel("Auto-scans rifts every 2 seconds")
 
 -- === WEBHOOK TAB ===
 local WebTab = Window:CreateTab("📊 Webhook", 4483362458)
@@ -1504,9 +1500,9 @@ end)
 
 -- === MAIN LOOPS ===
 
--- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds) - Only refresh if data changed
-local lastRiftData = ""
-local lastEggData = ""
+-- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds) - Only refresh if count changed
+local lastRiftCount = 0
+local lastEggCount = 0
 
 task.spawn(function()
     while task.wait(2) do
@@ -1517,11 +1513,11 @@ task.spawn(function()
             table.insert(riftNames, rift.displayText)
         end
 
-        -- Only refresh if data changed (prevents list clearing during scroll)
-        local newRiftData = table.concat(riftNames, "|")
-        if newRiftData ~= lastRiftData then
-            lastRiftData = newRiftData
-            if #riftNames > 0 then
+        -- Only refresh if items added/removed (not just reordered)
+        local newCount = #riftNames
+        if newCount ~= lastRiftCount or (newCount > 0 and lastRiftCount == 0) then
+            lastRiftCount = newCount
+            if newCount > 0 then
                 pcall(function()
                     RiftDropdown:Refresh(riftNames, false)  -- false = don't clear selection
                 end)
@@ -1535,11 +1531,11 @@ task.spawn(function()
             table.insert(eggNames, egg.name)
         end
 
-        -- Only refresh if data changed (prevents list clearing during scroll)
-        local newEggData = table.concat(eggNames, "|")
-        if newEggData ~= lastEggData then
-            lastEggData = newEggData
-            if #eggNames > 0 then
+        -- Only refresh if items added/removed (not just reordered)
+        local newCount = #eggNames
+        if newCount ~= lastEggCount or (newCount > 0 and lastEggCount == 0) then
+            lastEggCount = newCount
+            if newCount > 0 then
                 pcall(function()
                     EggDropdown:Refresh(eggNames, false)  -- false = don't clear selection
                 end)
@@ -1745,14 +1741,28 @@ task.spawn(function()
                         end
                     end
 
-                    -- If priority rift is spawned, farm it instead of eggs
+                    -- If priority rift is spawned, farm it based on type
                     if priorityRiftSpawned and priorityRiftInstance then
                         -- Teleport to rift
                         tpToModel(priorityRiftInstance)
                         task.wait(0.15)
 
-                        -- Hatch at rift location (rifts spawn eggs too!)
-                        networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
+                        -- Check rift type from game data
+                        local riftData = state.gameRiftData[state.riftPriority]
+                        if riftData then
+                            if riftData.Type == "Egg" and riftData.Egg then
+                                -- Rift contains an egg - auto-hatch it
+                                if state.autoHatch then
+                                    networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                                    print("🥚 Auto-hatching rift egg: " .. riftData.Egg)
+                                end
+                            elseif riftData.Type == "Chest" then
+                                -- Rift is a chest - start chest farming loop
+                                state.chestFarmActive = true
+                                state.currentChestRift = state.riftPriority
+                                print("📦 Started chest farming: " .. state.riftPriority)
+                            end
+                        end
                         return  -- Skip normal egg hatching
                     end
                     -- If priority rift not spawned, skip auto-hatch (wait for rift)
@@ -1798,6 +1808,28 @@ task.spawn(function()
     end
 end)
 
+-- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (fast chest opening)
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    while task.wait(0.5) do
+        if state.chestFarmActive and state.currentChestRift and state.autoHatch then
+            pcall(function()
+                -- UnlockRiftChest command: FireServer("UnlockRiftChest", chestName, autoOpen)
+                networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, false)
+            end)
+        else
+            -- Stop chest farming if conditions not met
+            if state.chestFarmActive then
+                state.chestFarmActive = false
+                state.currentChestRift = nil
+                print("📦 Stopped chest farming")
+            end
+        end
+    end
+end)
+
 -- ✅ AUTO-CLAIM PLAYTIME GIFTS: Every 60 seconds
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
@@ -1819,8 +1851,8 @@ task.spawn(function()
         if state.webhookStatsEnabled and state.webhookUrl ~= "" then
             -- Check if enough time has passed
             if not state.lastStatsWebhookTime or (tick() - state.lastStatsWebhookTime) >= state.webhookStatsInterval then
+                state.lastStatsWebhookTime = tick()  -- Set BEFORE calling to prevent race condition
                 SendStatsWebhook()
-                state.lastStatsWebhookTime = tick()
             end
         end
     end
