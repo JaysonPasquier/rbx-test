@@ -191,6 +191,44 @@ local function getPetImages(petName)
     return images
 end
 
+-- Find which egg contains a specific pet (searches through egg data)
+local function findEggContainingPet(petName)
+    if not eggData then
+        print("⚠️ Egg data not loaded")
+        return nil
+    end
+
+    -- Search through all eggs
+    for eggName, eggInfo in pairs(eggData) do
+        if eggInfo.Pets then
+            -- Check if this egg contains the pet
+            for _, petEntry in pairs(eggInfo.Pets) do
+                if petEntry.Name == petName or petEntry == petName then
+                    print("✅ Found pet '" .. petName .. "' in egg: " .. eggName)
+                    return eggName
+                end
+            end
+        end
+    end
+
+    -- If not found in structured data, try searching in raw source
+    if eggModuleSource ~= "" then
+        -- Search for :Pet(chance, "PetName") pattern
+        local pattern = ':Pet%([%d%.e%-]+,%s*"' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%s*%)'
+        for eggName in eggModuleSource:gmatch('\\["(.-)"%]%s*=%s*') do
+            local eggPattern = '\\["' .. eggName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%]%s*=%s*(.-)Build%(%)'
+            local eggDef = eggModuleSource:match(eggPattern)
+            if eggDef and eggDef:match(pattern) then
+                print("✅ Found pet '" .. petName .. "' in egg: " .. eggName .. " (via source search)")
+                return eggName
+            end
+        end
+    end
+
+    print("⚠️ Could not find egg containing pet: " .. petName)
+    return nil
+end
+
 -- Get pet chance from egg data
 local function getPetChanceFromEgg(petName, eggName)
     if eggModuleSource == "" then
@@ -746,18 +784,11 @@ task.spawn(function()
                     local isShiny = shinyFrame and shinyFrame.Visible
                     local isSuper = superFrame and superFrame.Visible
 
-                    -- Try to detect egg from GUI
-                    local detectedEgg = nil
-                    for _, guiChild in pairs(child:GetDescendants()) do
-                        if guiChild:IsA("TextLabel") and guiChild.Name == "Egg" and guiChild.Text ~= "" then
-                            detectedEgg = guiChild.Text
-                            print("🥚 Auto-detected egg from GUI: " .. detectedEgg)
-                            break
-                        end
-                    end
+                    -- Auto-detect egg by searching for which egg contains this pet
+                    local detectedEgg = findEggContainingPet(petName)
 
-                    -- Determine current egg
-                    local currentEgg = detectedEgg or state.eggPriority or "Unknown Egg"
+                    -- Determine current egg (priority: rift > detected > manual selection)
+                    local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
                     if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                         local riftName = state.farmingPriorityRift or state.riftPriority
                         local riftData = state.gameRiftData[riftName]
@@ -766,7 +797,7 @@ task.spawn(function()
                         end
                     end
 
-                    print("🥚 Detected Egg: " .. currentEgg .. " (from state.eggPriority: " .. tostring(state.eggPriority) .. ")")
+                    print("🥚 Using Egg: " .. currentEgg .. " (detected: " .. tostring(detectedEgg) .. ", manual: " .. tostring(state.eggPriority) .. ")")
 
                     -- Send webhook
                     SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
