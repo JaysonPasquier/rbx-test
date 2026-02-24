@@ -510,7 +510,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         local embed = {
             title = "🎉 " .. player.Name .. " hatched " .. petTitle .. "!",
             color = colors[baseRarity] or 0xFFFFFF,
-            thumbnail = thumbnailUrl ~= "" and {url = thumbnailUrl} or nil,
+            image = thumbnailUrl ~= "" and {url = thumbnailUrl} or nil,
             fields = {
                 {
                     name = "📊 User Stats",
@@ -536,11 +536,10 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 },
                 {
                     name = "📈 Pet Stats",
-                    value = string.format("🫧 Bubbles: x%s\n💰 Coins: x%s%s%s",
+                    value = string.format("🫧 Bubbles: x%s\n💰 Coins: x%s%s",
                         formatNumber(bubbleStat),
                         formatNumber(coinsStat),
-                        gemsStat > 0 and ("\n💎 Gems: x" .. formatNumber(gemsStat)) or "",
-                        #images > 0 and ("\n🖼️ Asset ID: " .. images[imageIndex]) or ""
+                        gemsStat > 0 and ("\n💎 Gems: x" .. formatNumber(gemsStat)) or ""
                     ),
                     inline = false
                 }
