@@ -492,9 +492,20 @@ end
 
 -- Send rich embed webhook for pet hatches (NEW: accurate GUI-based detection)
 local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper)
-    if state.webhookUrl == "" then return end
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("🔔 WEBHOOK TRIGGERED")
+    print("Pet: " .. petName)
+    print("Egg: " .. eggName)
+    print("Rarity: " .. rarityFromGUI)
+    print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
 
-    pcall(function()
+    if state.webhookUrl == "" then
+        print("❌ Webhook BLOCKED: No webhook URL configured!")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        return
+    end
+
+    local success, error = pcall(function()
         -- Parse rarity from GUI (handle variants like "AA-Secret" -> "Secret")
         local baseRarity = rarityFromGUI
         if rarityFromGUI:find("Secret") or rarityFromGUI:find("secret") then
@@ -513,8 +524,17 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             baseRarity = "Common"
         end
 
+        print("📊 Parsed base rarity: " .. baseRarity)
+        print("📋 Rarity filter enabled for " .. baseRarity .. ": " .. tostring(state.webhookRarities[baseRarity]))
+
         -- Check rarity filter
-        if not state.webhookRarities[baseRarity] then return end
+        if not state.webhookRarities[baseRarity] then
+            print("❌ Webhook BLOCKED: Rarity '" .. baseRarity .. "' not enabled in filter!")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            return
+        end
+
+        print("✅ Rarity filter passed!")
 
         -- Get pet data from game
         local pet = petData and petData[petName]
@@ -562,8 +582,17 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             chanceStr = string.format("%.8f", petChance)
         end
 
+        print("🎲 Pet chance: " .. chanceStr .. "% (1 in " .. chanceRatio .. ")")
+        print("🎯 Chance threshold: 1 in " .. formatNumber(state.webhookChanceThreshold))
+
         -- Check chance threshold
-        if chanceRatio > 0 and chanceRatio < state.webhookChanceThreshold then return end
+        if chanceRatio > 0 and chanceRatio < state.webhookChanceThreshold then
+            print("❌ Webhook BLOCKED: Pet too common (1 in " .. chanceRatio .. " < threshold 1 in " .. state.webhookChanceThreshold .. ")")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            return
+        end
+
+        print("✅ Chance threshold passed!")
 
         -- Format chance ratio with commas
         local function formatChance(num)
@@ -727,28 +756,45 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         end
 
         -- Send webhook with attachments
-        if #files > 0 then
-            local boundary = generateBoundary()
-            local body = buildMultipartBody(boundary, {embeds = {embed}}, files)
+        print("📤 Sending webhook...")
+        print("Files attached: " .. #files)
 
-            request({
-                Url = state.webhookUrl,
-                Method = "POST",
-                Headers = {["Content-Type"] = "multipart/form-data; boundary=" .. boundary},
-                Body = body
-            })
+        local sendSuccess, sendError = pcall(function()
+            if #files > 0 then
+                print("📎 Using multipart/form-data (with images)")
+                local boundary = generateBoundary()
+                local body = buildMultipartBody(boundary, {embeds = {embed}}, files)
+
+                request({
+                    Url = state.webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "multipart/form-data; boundary=" .. boundary},
+                    Body = body
+                })
+            else
+                print("📝 Using JSON (no images)")
+                -- Fallback to simple JSON if no images
+                request({
+                    Url = state.webhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode({embeds = {embed}})
+                })
+            end
+        end)
+
+        if sendSuccess then
+            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. eggName)
         else
-            -- Fallback to simple JSON if no images
-            request({
-                Url = state.webhookUrl,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode({embeds = {embed}})
-            })
+            print("❌ Webhook send FAILED: " .. tostring(sendError))
         end
-
-        print("✅ Webhook sent for " .. petTitle .. " from " .. eggName)
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end)
+
+    if not success then
+        print("❌ WEBHOOK FUNCTION ERROR: " .. tostring(error))
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    end
 end
 
 -- === GUI-BASED PET HATCH DETECTION ===
