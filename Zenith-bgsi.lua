@@ -822,12 +822,15 @@ task.spawn(function()
         end
         print("✅ Found Hatching frame")
 
-        -- Monitor for Template frame appearing
+        -- Track processed templates to avoid duplicates
+        local processedTemplates = {}
+
+        -- Monitor for Template frame appearing (ChildAdded event)
         hatchingFrame.ChildAdded:Connect(function(child)
             print("🔔 Child added to Hatching: " .. child.Name .. " (" .. child.ClassName .. ")")
 
             if child.Name == "Template" and child:IsA("Frame") then
-                print("✅ Detected Template frame - processing hatch...")
+                print("✅ Detected Template frame via ChildAdded - processing hatch...")
                 task.wait(0.1) -- Wait for GUI to fully populate
 
                 pcall(function()
@@ -883,7 +886,69 @@ task.spawn(function()
             end
         end)
 
-        print("✅ Pet hatch GUI monitor initialized (Template detection)")
+        -- BACKUP: Polling method - continuously check for Template frames
+        -- This catches templates even if ChildAdded event doesn't fire
+        task.spawn(function()
+            print("🔄 Starting backup polling method (checks every 0.1s)")
+            while task.wait(0.1) do
+                pcall(function()
+                    for _, child in pairs(hatchingFrame:GetChildren()) do
+                        if child.Name == "Template" and child:IsA("Frame") and not processedTemplates[child] then
+                            print("🔔 [POLL] Found new Template frame!")
+                            processedTemplates[child] = true
+
+                            task.wait(0.05) -- Brief wait for GUI to populate
+
+                            -- Extract pet information
+                            local xlFrame = child:FindFirstChild("XL")
+                            local labelText = child:FindFirstChild("Label")
+                            local rarityText = child:FindFirstChild("Rarity")
+                            local shinyFrame = child:FindFirstChild("Shiny")
+                            local superFrame = child:FindFirstChild("Super")
+
+                            if not labelText or not rarityText then
+                                print("❌ [POLL] Missing Label or Rarity")
+                                return
+                            end
+
+                            local petName = labelText.Text
+                            local rarity = rarityText.Text
+                            local isXL = xlFrame and xlFrame.Visible
+                            local isShiny = shinyFrame and shinyFrame.Visible
+                            local isSuper = superFrame and superFrame.Visible
+
+                            print("✅ [POLL] Pet detected: " .. petName .. " [" .. rarity .. "]")
+
+                            -- Auto-detect egg
+                            local detectedEgg = findEggContainingPet(petName)
+                            local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
+
+                            if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                                local riftName = state.farmingPriorityRift or state.riftPriority
+                                local riftData = state.gameRiftData[riftName]
+                                if riftData and riftData.Egg then
+                                    currentEgg = riftData.Egg
+                                end
+                            end
+
+                            -- Send webhook
+                            SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                            print("🎉 [POLL] Hatched: " .. petName .. " (" .. rarity .. ")")
+
+                            -- Stop animation
+                            task.defer(stopHatchAnimation)
+
+                            -- Clean up old templates from tracking
+                            task.delay(2, function()
+                                processedTemplates[child] = nil
+                            end)
+                        end
+                    end
+                end)
+            end
+        end)
+
+        print("✅ Pet hatch GUI monitor initialized (Template detection + polling backup)")
     end)
 end)
 
