@@ -193,22 +193,36 @@ end
 
 -- Get pet chance from egg data
 local function getPetChanceFromEgg(petName, eggName)
-    if eggModuleSource == "" then return nil end
+    if eggModuleSource == "" then
+        print("⚠️ Egg module source not available")
+        return nil
+    end
+
+    if eggName == "Unknown Egg" then
+        print("⚠️ Cannot get pet chance: Unknown egg name")
+        return nil
+    end
 
     -- Find the egg definition
     local pattern = '\\["' .. eggName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"\\]%s*=%s*(.-)Build%(%)'
     local eggDef = eggModuleSource:match(pattern)
 
-    if not eggDef then return nil end
+    if not eggDef then
+        print("⚠️ Egg definition not found for: " .. eggName)
+        return nil
+    end
 
     -- Find the pet in the egg definition
     local petPattern = ':Pet%(' .. '([%d%.e%-]+)' .. ',%s*"' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%s*%)'
     local chanceStr = eggDef:match(petPattern)
 
     if chanceStr then
-        return tonumber(chanceStr)
+        local chance = tonumber(chanceStr)
+        print(string.format("✅ Found pet chance: %s in %s = %.2f%%", petName, eggName, chance))
+        return chance
     end
 
+    print("⚠️ Pet not found in egg: " .. petName .. " in " .. eggName)
     return nil
 end
 
@@ -466,20 +480,39 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
 
         -- Get pet data from game
         local pet = petData and petData[petName]
-        if not pet then return end
+        if not pet then
+            print("⚠️ Pet not found in petData: " .. petName)
+            return
+        end
 
         local bubbleStat = 0
         local coinsStat = 0
         local gemsStat = 0
 
-        -- Extract stats
-        if type(pet.Stat) == "table" then
-            bubbleStat = pet.Stat.Bubbles or 0
-            coinsStat = pet.Stat.Coins or 0
-            gemsStat = pet.Stat.Gems or 0
-        elseif type(pet.Stat) == "number" then
-            bubbleStat = pet.Stat
+        -- Extract stats - try multiple possible structures
+        if pet.Stat then
+            if type(pet.Stat) == "table" then
+                bubbleStat = pet.Stat.Bubbles or 0
+                coinsStat = pet.Stat.Coins or 0
+                gemsStat = pet.Stat.Gems or 0
+            elseif type(pet.Stat) == "number" then
+                bubbleStat = pet.Stat
+            end
+        -- Try direct stat access
+        elseif pet.Bubbles or pet.Coins or pet.Gems then
+            bubbleStat = pet.Bubbles or 0
+            coinsStat = pet.Coins or 0
+            gemsStat = pet.Gems or 0
+        -- Try Stats (plural)
+        elseif pet.Stats then
+            if type(pet.Stats) == "table" then
+                bubbleStat = pet.Stats.Bubbles or 0
+                coinsStat = pet.Stats.Coins or 0
+                gemsStat = pet.Stats.Gems or 0
+            end
         end
+
+        print(string.format("📊 Pet stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
 
         -- Get pet chance from egg data
         local petChance = getPetChanceFromEgg(petName, eggName)
@@ -601,7 +634,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 name = player.Name,
                 icon_url = "attachment://avatar.png"
             } or nil,
-            image = petImageData and {url = "attachment://pet.png"} or nil,
+            thumbnail = petImageData and {url = "attachment://pet.png"} or nil,
             fields = {
                 {
                     name = "📊 User Stats",
@@ -713,8 +746,18 @@ task.spawn(function()
                     local isShiny = shinyFrame and shinyFrame.Visible
                     local isSuper = superFrame and superFrame.Visible
 
+                    -- Try to detect egg from GUI
+                    local detectedEgg = nil
+                    for _, guiChild in pairs(child:GetDescendants()) do
+                        if guiChild:IsA("TextLabel") and guiChild.Name == "Egg" and guiChild.Text ~= "" then
+                            detectedEgg = guiChild.Text
+                            print("🥚 Auto-detected egg from GUI: " .. detectedEgg)
+                            break
+                        end
+                    end
+
                     -- Determine current egg
-                    local currentEgg = state.eggPriority or "Unknown Egg"
+                    local currentEgg = detectedEgg or state.eggPriority or "Unknown Egg"
                     if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                         local riftName = state.farmingPriorityRift or state.riftPriority
                         local riftData = state.gameRiftData[riftName]
@@ -722,6 +765,8 @@ task.spawn(function()
                             currentEgg = riftData.Egg
                         end
                     end
+
+                    print("🥚 Detected Egg: " .. currentEgg .. " (from state.eggPriority: " .. tostring(state.eggPriority) .. ")")
 
                     -- Send webhook
                     SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
