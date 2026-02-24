@@ -47,8 +47,46 @@ end
 -- Log script start
 print("Zenith (BGSI) - LOADING...")
 
+-- Ensure 'request' exists for Rayfield (some executors use syn.request or http_request)
+if type(request) ~= "function" then
+    if type(syn) == "table" and type(syn.request) == "function" then
+        request = syn.request
+        print("Using syn.request for HTTP")
+    elseif type(http_request) == "function" then
+        request = http_request
+        print("Using http_request for HTTP")
+    elseif type(fluxus) == "table" and type(fluxus.request) == "function" then
+        request = fluxus.request
+        print("Using fluxus.request for HTTP")
+    else
+        warn("No request function found. Rayfield may fail. Your executor might need to support 'request' or 'syn.request'.")
+    end
+end
+
 -- Load Rayfield Library (Mobile-Optimized)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield, rayfieldErr
+do
+    local ok, result = pcall(function()
+        local src = game:HttpGet('https://sirius.menu/rayfield')
+        local fn = loadstring(src)
+        if type(fn) ~= "function" then
+            error("Rayfield loadstring did not return a function")
+        end
+        return fn()
+    end)
+    if ok then
+        Rayfield = result
+    else
+        rayfieldErr = result
+    end
+end
+
+if not Rayfield then
+    local errMsg = "Rayfield failed to load: " .. tostring(rayfieldErr)
+    print(errMsg)
+    warn(errMsg)
+    error(errMsg)
+end
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
