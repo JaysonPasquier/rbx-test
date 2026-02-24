@@ -2057,18 +2057,59 @@ end)
 -- ✅ AUTO FEATURES: Fast loop (100ms)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    -- Wait for remote with timeout and error handling
+    local networkRemote = nil
+    local remoteLoadSuccess = pcall(function()
+        local remoteFolder = RS:WaitForChild("Shared", 10)
+        if remoteFolder then
+            remoteFolder = remoteFolder:WaitForChild("Framework", 10)
+            if remoteFolder then
+                remoteFolder = remoteFolder:WaitForChild("Network", 10)
+                if remoteFolder then
+                    remoteFolder = remoteFolder:WaitForChild("Remote", 10)
+                    if remoteFolder then
+                        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+                    end
+                end
+            end
+        end
+    end)
+
+    if not networkRemote then
+        print("⚠️ Failed to load network remote - auto features disabled")
+        return
+    end
+
+    print("✅ Network remote loaded successfully")
 
     while task.wait(0.1) do
+        -- Validate remote still exists
+        if not networkRemote or not networkRemote:IsDescendantOf(game) then
+            print("⚠️ Network remote disconnected, reloading...")
+            task.wait(5)
+            -- Try to reload
+            pcall(function()
+                networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 5)
+            end)
+            if not networkRemote then
+                print("❌ Failed to reload network remote")
+                task.wait(10)
+                continue
+            end
+        end
+
         -- ✅ Auto Blow Bubbles (IMPLEMENTED)
         if state.autoBlow then
             pcall(function()
-                networkRemote:FireServer("BlowBubble")
+                if networkRemote and networkRemote:IsDescendantOf(game) then
+                    networkRemote:FireServer("BlowBubble")
+                end
             end)
         end
 
         -- ✅ Auto Pickup (Collect coins/gems on ground) - Improved with better validation
-        if state.autoPickup then
+        if state.autoPickup and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
                 if rendered then
@@ -2120,7 +2161,7 @@ task.spawn(function()
         end
 
         -- ✅ Auto Chest (NEW - Open all chests)
-        if state.autoChest then
+        if state.autoChest and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
                 if rendered then
@@ -2137,7 +2178,7 @@ task.spawn(function()
         end
 
         -- ✅ Auto Sell Bubbles (NEW - Convert bubbles to coins)
-        if state.autoSellBubbles then
+        if state.autoSellBubbles and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 networkRemote:FireServer("SellBubble")
             end)
@@ -2152,7 +2193,7 @@ task.spawn(function()
 
         -- ✅ PRIORITY RIFT LIST: Check first (highest priority) - if enabled, check if any spawned rift is in the priority list
         local handledByPriorityRift = false
-        if state.riftPriorityMode and type(state.priorityRifts) == "table" and #state.priorityRifts > 0 then
+        if networkRemote and networkRemote:IsDescendantOf(game) and state.riftPriorityMode and type(state.priorityRifts) == "table" and #state.priorityRifts > 0 then
             pcall(function()
                 local priorityRiftName = nil
                 local priorityRiftInstance = nil
@@ -2200,7 +2241,7 @@ task.spawn(function()
                 end
 
                 -- If we found a priority rift that's spawned, farm it
-                if priorityRiftName and priorityRiftInstance then
+                if priorityRiftName and priorityRiftInstance and networkRemote and networkRemote:IsDescendantOf(game) then
                     -- Validate rift instance still exists and is in workspace
                     if not priorityRiftInstance:IsDescendantOf(Workspace) then
                         print("[Rift] Priority rift instance not in workspace, skipping")
@@ -2251,7 +2292,7 @@ task.spawn(function()
 
         -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list - TP + hatch egg or open chest)
         -- Only run if not handled by priority rift
-        if not handledByPriorityRift and state.riftAutoHatch and state.riftPriority then
+        if not handledByPriorityRift and networkRemote and networkRemote:IsDescendantOf(game) and state.riftAutoHatch and state.riftPriority then
             pcall(function()
                 local riftInstance = nil
 
@@ -2263,7 +2304,7 @@ task.spawn(function()
                     end
                 end
 
-                if riftInstance and riftInstance:IsDescendantOf(Workspace) then
+                if riftInstance and riftInstance:IsDescendantOf(Workspace) and networkRemote and networkRemote:IsDescendantOf(game) then
                     -- Teleport to rift
                     tpToModel(riftInstance)
                     task.wait(0.15)
@@ -2301,7 +2342,7 @@ task.spawn(function()
 
         -- ✅ PRIORITY EGG DETECTION: Check if any spawned eggs are in the priority list
         local handledByPriorityEgg = false
-        if not handledByPriorityRift and state.priorityEggMode and type(state.priorityEggs) == "table" and #state.priorityEggs > 0 and state.autoHatch then
+        if not handledByPriorityRift and networkRemote and networkRemote:IsDescendantOf(game) and state.priorityEggMode and type(state.priorityEggs) == "table" and #state.priorityEggs > 0 and state.autoHatch then
             pcall(function()
                 local priorityEggName = nil
                 local priorityEggInstance = nil
@@ -2319,7 +2360,7 @@ task.spawn(function()
                 end
 
                 -- If we found a priority egg, switch to it temporarily
-                if priorityEggName and priorityEggInstance then
+                if priorityEggName and priorityEggInstance and networkRemote and networkRemote:IsDescendantOf(game) then
                     -- Validate egg instance still exists
                     if priorityEggInstance:IsDescendantOf(Workspace) then
                         -- Save previous egg if we're switching to this priority egg
@@ -2356,7 +2397,7 @@ task.spawn(function()
         end
 
         -- ✅ NORMAL EGG AUTO HATCH (only when not farming any rifts or priority eggs)
-        if not handledByPriorityRift and not handledByPriorityEgg and state.autoHatch and state.eggPriority and not (state.riftAutoHatch and state.riftPriority) then
+        if not handledByPriorityRift and not handledByPriorityEgg and networkRemote and networkRemote:IsDescendantOf(game) and state.autoHatch and state.eggPriority and not (state.riftAutoHatch and state.riftPriority) then
             pcall(function()
                 for _, egg in pairs(state.currentEggs) do
                     if egg.name == state.eggPriority then
@@ -2384,8 +2425,10 @@ task.spawn(function()
                             tpToModel(egg.instance)
                             task.wait(0.15)
                         end
-                        networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
-                        task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                        if networkRemote and networkRemote:IsDescendantOf(game) then
+                            networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
+                            task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                        end
                         break
                     end
                 end
@@ -2397,16 +2440,37 @@ end)
 -- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (from Rift tab or priority rift)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    -- Wait for remote with error handling
+    local networkRemote = nil
+    pcall(function()
+        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    end)
+
+    if not networkRemote then
+        print("⚠️ Failed to load network remote for chest farming")
+        return
+    end
 
     while task.wait(0.5) do
+        -- Validate remote still exists
+        if not networkRemote or not networkRemote:IsDescendantOf(game) then
+            pcall(function()
+                networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 5)
+            end)
+            if not networkRemote then
+                task.wait(5)
+                continue
+            end
+        end
+
         if state.chestFarmActive and state.currentChestRift then
             -- Stop if rift no longer spawned (so we can TP back to previous)
             local riftStillHere = false
             for _, rift in pairs(state.currentRifts) do
                 if rift.name == state.currentChestRift then riftStillHere = true break end
             end
-            if riftStillHere then
+            if riftStillHere and networkRemote and networkRemote:IsDescendantOf(game) then
                 pcall(function()
                     networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, true)
                 end)
@@ -2426,10 +2490,20 @@ end)
 -- ✅ AUTO-CLAIM PLAYTIME GIFTS: Every 60 seconds
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    -- Wait for remote with error handling
+    local networkRemote = nil
+    pcall(function()
+        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    end)
+
+    if not networkRemote then
+        print("⚠️ Failed to load network remote for playtime gifts")
+        return
+    end
 
     while task.wait(60) do
-        if state.autoClaimPlaytime then
+        if state.autoClaimPlaytime and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 networkRemote:FireServer("ClaimAllPlaytime")
                 print("✅ Claimed playtime gifts")
@@ -2441,10 +2515,20 @@ end)
 -- ✅ AUTO POTIONS: Re-apply selected potions every 3 seconds
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    -- Wait for remote with error handling
+    local networkRemote = nil
+    pcall(function()
+        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    end)
+
+    if not networkRemote then
+        print("⚠️ Failed to load network remote for potions")
+        return
+    end
 
     while task.wait(3) do
-        if state.autoPotionEnabled and type(state.selectedPotions) == "table" and #state.selectedPotions > 0 then
+        if state.autoPotionEnabled and type(state.selectedPotions) == "table" and #state.selectedPotions > 0 and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 for _, potionName in pairs(state.selectedPotions) do
                     pcall(function()
@@ -2459,10 +2543,20 @@ end)
 -- ✅ AUTO ENCHANT: Apply main + second enchant to equipped pet (remote name TBD)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    -- Wait for remote with error handling
+    local networkRemote = nil
+    pcall(function()
+        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    end)
+
+    if not networkRemote then
+        print("⚠️ Failed to load network remote for enchants")
+        return
+    end
 
     while task.wait(5) do
-        if state.autoEnchantEnabled and state.enchantMain and state.enchantSecond and state.enchantMain ~= state.enchantSecond then
+        if state.autoEnchantEnabled and state.enchantMain and state.enchantSecond and state.enchantMain ~= state.enchantSecond and networkRemote and networkRemote:IsDescendantOf(game) then
             pcall(function()
                 networkRemote:FireServer("EnchantPet", 1, state.enchantMain)
                 networkRemote:FireServer("EnchantPet", 2, state.enchantSecond)
