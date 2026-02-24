@@ -514,7 +514,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             fields = {
                 {
                     name = "📊 User Stats",
-                    value = string.format("⏱️  Playtime: %s\\n🥚  Hatches: %s\\n💰  Coins: %s\\n💎  Gems: %s\\n🎟️  Tickets: %s",
+                    value = string.format("⏱️ Playtime: %s\n🥚 Hatches: %s\n💰 Coins: %s\n💎 Gems: %s\n🎟️ Tickets: %s",
                         runtimeStr,
                         formatNumber(state.stats.hatches),
                         tostring(state.stats.coins),
@@ -525,7 +525,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 },
                 {
                     name = "🥚 Hatch Info",
-                    value = string.format("🥚  Egg: %s\\n🎲  Rarity: %s%s\\n🔮  Chance: %s%% (1 in %s)",
+                    value = string.format("🥚 Egg: %s\n🎲 Rarity: %s%s\n🔮 Chance: %s%% (1 in %s)",
                         eggName,
                         rarityFromGUI,
                         (isXL and " [XL]" or "") .. (isShiny and " [✨ SHINY]" or "") .. (isSuper and " [⭐ SUPER]" or ""),
@@ -536,10 +536,11 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 },
                 {
                     name = "📈 Pet Stats",
-                    value = string.format("🫧  Bubbles: x%s\\n💰  Coins: x%s%s",
+                    value = string.format("🫧 Bubbles: x%s\n💰 Coins: x%s%s%s",
                         formatNumber(bubbleStat),
                         formatNumber(coinsStat),
-                        gemsStat > 0 and ("\\n💎  Gems: x" .. formatNumber(gemsStat)) or ""
+                        gemsStat > 0 and ("\n💎 Gems: x" .. formatNumber(gemsStat)) or "",
+                        #images > 0 and ("\n🖼️ Asset ID: " .. images[imageIndex]) or ""
                     ),
                     inline = false
                 }
