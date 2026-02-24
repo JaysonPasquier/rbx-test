@@ -129,6 +129,19 @@ local state = {
     currencyLabels = {}  -- NEW: Labels for all currencies
 }
 
+-- === MODIFIER CHANCES (from Constants) ===
+local SHINY_CHANCE = 2.5  -- 2.5%
+local MYTHIC_CHANCE = 1   -- 1%
+local SUPER_CHANCE = 0.04 -- 0.04%
+local XL_CHANCES = {
+    Common = 0.02,      -- 0.02%
+    Unique = 0.028571,
+    Rare = 0.133333,
+    Epic = 0.4,
+    Legendary = 5,      -- 5%
+    Secret = 20         -- 20%
+}
+
 -- === DATA ===
 local petData, eggData, _codeData
 local petModuleSource = "" -- Store raw pet module source for parsing images
@@ -343,6 +356,42 @@ local function getPetChanceFromEgg(petName, eggName)
 
     print("⚠️ Could not extract chance value for: " .. petName .. " in " .. eggName)
     return nil
+end
+
+-- Calculate actual chance including modifiers (shiny, mythic, XL, super)
+local function calculateModifiedChance(baseChance, rarity, isShiny, isMythic, isXL, isSuper)
+    if not baseChance or baseChance == 0 then
+        return nil, {}
+    end
+
+    local modifiedChance = baseChance
+    local modifiers = {}
+
+    -- Apply shiny modifier (2.5% chance to be shiny)
+    if isShiny then
+        modifiedChance = modifiedChance * (SHINY_CHANCE / 100)
+        table.insert(modifiers, string.format("Shiny: %.1f%%", SHINY_CHANCE))
+    end
+
+    -- Apply mythic modifier (1% chance to be mythic)
+    if isMythic then
+        modifiedChance = modifiedChance * (MYTHIC_CHANCE / 100)
+        table.insert(modifiers, string.format("Mythic: %.1f%%", MYTHIC_CHANCE))
+    end
+
+    -- Apply XL modifier (rarity-dependent chance)
+    if isXL and XL_CHANCES[rarity] then
+        modifiedChance = modifiedChance * (XL_CHANCES[rarity] / 100)
+        table.insert(modifiers, string.format("XL: %.3f%%", XL_CHANCES[rarity]))
+    end
+
+    -- Apply super modifier (0.04% chance to be super)
+    if isSuper then
+        modifiedChance = modifiedChance * (SUPER_CHANCE / 100)
+        table.insert(modifiers, string.format("Super: %.2f%%", SUPER_CHANCE))
+    end
+
+    return modifiedChance, modifiers
 end
 
 -- Stop hatch animation function (simple - just hide Hatching frame)
@@ -572,7 +621,7 @@ local function buildMultipartBody(boundary, payload, files)
 end
 
 -- Send rich embed webhook for pet hatches (NEW: accurate GUI-based detection)
-local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper)
+local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("🔔 WEBHOOK TRIGGERED")
     print("Pet: " .. petName)
@@ -653,22 +702,40 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
 
         print(string.format("📊 Pet stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
 
-        -- Get pet chance from egg data
-        local petChance = getPetChanceFromEgg(petName, eggName)
-        local chanceRatio = 0
-        local chanceStr = "Unknown"
+        -- Get base pet chance from egg data
+        local baseChance = getPetChanceFromEgg(petName, eggName)
 
-        if petChance and petChance > 0 then
-            chanceRatio = math.floor(100 / petChance)
-            chanceStr = string.format("%.8f", petChance)
+        -- Calculate modified chance based on shiny/mythic/XL/super modifiers
+        local modifiedChance, modifiers = calculateModifiedChance(baseChance, baseRarity, isShiny, isMythic, isXL, isSuper)
+
+        -- Use modified chance if we have modifiers, otherwise use base chance
+        local displayChance = modifiedChance or baseChance
+        local baseChanceRatio = 0
+        local modifiedChanceRatio = 0
+        local baseChanceStr = "Unknown"
+        local modifiedChanceStr = "Unknown"
+
+        if baseChance and baseChance > 0 then
+            baseChanceRatio = math.floor(100 / baseChance)
+            baseChanceStr = string.format("%.8f", baseChance)
         end
 
-        print("🎲 Pet chance: " .. chanceStr .. "% (1 in " .. chanceRatio .. ")")
+        if modifiedChance and modifiedChance > 0 then
+            modifiedChanceRatio = math.floor(100 / modifiedChance)
+            modifiedChanceStr = string.format("%.10f", modifiedChance)
+        end
+
+        print("🎲 Base chance: " .. baseChanceStr .. "% (1 in " .. baseChanceRatio .. ")")
+        if #modifiers > 0 then
+            print("✨ Modifiers: " .. table.concat(modifiers, ", "))
+            print("🎲 Modified chance: " .. modifiedChanceStr .. "% (1 in " .. modifiedChanceRatio .. ")")
+        end
         print("🎯 Chance threshold: 1 in " .. formatNumber(state.webhookChanceThreshold))
 
-        -- Check chance threshold
-        if chanceRatio > 0 and chanceRatio < state.webhookChanceThreshold then
-            print("❌ Webhook BLOCKED: Pet too common (1 in " .. chanceRatio .. " < threshold 1 in " .. state.webhookChanceThreshold .. ")")
+        -- Check chance threshold using modified chance if available
+        local checkRatio = modifiedChanceRatio > 0 and modifiedChanceRatio or baseChanceRatio
+        if checkRatio > 0 and checkRatio < state.webhookChanceThreshold then
+            print("❌ Webhook BLOCKED: Pet too common (1 in " .. checkRatio .. " < threshold 1 in " .. state.webhookChanceThreshold .. ")")
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             return
         end
@@ -803,6 +870,33 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         if isShiny then petTitle = "✨ " .. petTitle end
         if isSuper then petTitle = "⭐ " .. petTitle end
 
+        -- Format chance ratio with commas
+        local function formatChance(num)
+            local str = tostring(num)
+            local formatted = str:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+            if formatted:sub(1,1) == "," then formatted = formatted:sub(2) end
+            return formatted
+        end
+
+        -- Build chance display text
+        local chanceText = ""
+        if #modifiers > 0 then
+            -- Show modified chance with breakdown
+            chanceText = string.format("🔮 **Modified Chance:** %s%% (1 in %s)\n📊 Base Chance: %s%% (1 in %s)\n✨ Modifiers: %s",
+                modifiedChanceStr,
+                modifiedChanceRatio > 0 and formatChance(modifiedChanceRatio) or "Unknown",
+                baseChanceStr,
+                baseChanceRatio > 0 and formatChance(baseChanceRatio) or "Unknown",
+                table.concat(modifiers, " × ")
+            )
+        else
+            -- Show base chance only
+            chanceText = string.format("🔮 Chance: %s%% (1 in %s)",
+                baseChanceStr,
+                baseChanceRatio > 0 and formatChance(baseChanceRatio) or "Unknown"
+            )
+        end
+
         -- Build embed with attachment references
         local embed = {
             title = "🎉 " .. player.Name .. " hatched " .. petTitle .. "!",
@@ -826,12 +920,11 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 },
                 {
                     name = "🥚 Hatch Info",
-                    value = string.format("🥚 Egg: %s\n🎲 Rarity: %s%s\n🔮 Chance: %s%% (1 in %s)",
+                    value = string.format("🥚 Egg: %s\n🎲 Rarity: %s%s\n%s",
                         eggName,
                         rarityFromGUI,
                         (isXL and " [XL]" or "") .. (isShiny and " [✨ SHINY]" or "") .. (isSuper and " [⭐ SUPER]" or ""),
-                        chanceStr,
-                        chanceRatio > 0 and formatChance(chanceRatio) or "Unknown"
+                        chanceText
                     ),
                     inline = false
                 },
@@ -956,6 +1049,7 @@ task.spawn(function()
                     local rarityText = child:FindFirstChild("Rarity")
                     local shinyFrame = child:FindFirstChild("Shiny")
                     local superFrame = child:FindFirstChild("Super")
+                    local mythicFrame = child:FindFirstChild("Mythic")
 
                     print("🔍 Template contents:")
                     print("  XL frame: " .. (xlFrame and "Found" or "NOT FOUND"))
@@ -963,6 +1057,7 @@ task.spawn(function()
                     print("  Rarity: " .. (rarityText and "Found" or "NOT FOUND"))
                     print("  Shiny: " .. (shinyFrame and "Found" or "NOT FOUND"))
                     print("  Super: " .. (superFrame and "Found" or "NOT FOUND"))
+                    print("  Mythic: " .. (mythicFrame and "Found" or "NOT FOUND"))
 
                     if not labelText or not rarityText then
                         print("❌ Missing required elements (Label or Rarity)")
@@ -974,6 +1069,7 @@ task.spawn(function()
                     local isXL = xlFrame and xlFrame.Visible
                     local isShiny = shinyFrame and shinyFrame.Visible
                     local isSuper = superFrame and superFrame.Visible
+                    local isMythic = mythicFrame and mythicFrame.Visible
 
                     print("✅ Pet detected: " .. petName .. " [" .. rarity .. "]")
 
@@ -1001,7 +1097,7 @@ task.spawn(function()
                     -- Send webhook
                     print("📞 Calling SendPetHatchWebhook...")
                     local webhookSuccess, webhookError = pcall(function()
-                        SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                        SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
                     end)
                     if not webhookSuccess then
                         print("❌ SendPetHatchWebhook ERROR: " .. tostring(webhookError))
@@ -1048,6 +1144,8 @@ task.spawn(function()
                             local isXL = xlFrame and xlFrame.Visible
                             local isShiny = shinyFrame and shinyFrame.Visible
                             local isSuper = superFrame and superFrame.Visible
+                            local mythicFrame = child:FindFirstChild("Mythic")
+                            local isMythic = mythicFrame and mythicFrame.Visible
 
                             print("✅ [POLL] Pet detected: " .. petName .. " [" .. rarity .. "]")
 
@@ -1070,7 +1168,7 @@ task.spawn(function()
                             -- Send webhook
                             print("📞 [POLL] Calling SendPetHatchWebhook...")
                             local webhookSuccess, webhookError = pcall(function()
-                                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
                             end)
                             if not webhookSuccess then
                                 print("❌ [POLL] SendPetHatchWebhook ERROR: " .. tostring(webhookError))
@@ -2207,13 +2305,14 @@ WebTab:CreateButton({
          {name = "Giant Crescent Empress", rarity = "Secret"}
       }
       local testData = testPets[math.random(#testPets)]
-      -- Simulate XL and Shiny randomly for test
+      -- Simulate XL, Shiny, and Mythic randomly for test
       local testXL = math.random() > 0.7
       local testShiny = math.random() > 0.5
-      SendPetHatchWebhook(testData.name, state.eggPriority or "Test Egg", testData.rarity, testXL, testShiny, false)
+      local testMythic = math.random() > 0.8
+      SendPetHatchWebhook(testData.name, state.eggPriority or "Test Egg", testData.rarity, testXL, testShiny, false, testMythic)
       Rayfield:Notify({
          Title = "Pet Hatch Test Sent",
-         Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or ""),
+         Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or "") .. (testMythic and " [Mythic]" or ""),
          Duration = 3,
       })
    end,
