@@ -877,7 +877,13 @@ task.spawn(function()
                     print("🥚 Using Egg: " .. currentEgg .. " (detected: " .. tostring(detectedEgg) .. ", manual: " .. tostring(state.eggPriority) .. ")")
 
                     -- Send webhook
-                    SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                    print("📞 Calling SendPetHatchWebhook...")
+                    local webhookSuccess, webhookError = pcall(function()
+                        SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                    end)
+                    if not webhookSuccess then
+                        print("❌ SendPetHatchWebhook ERROR: " .. tostring(webhookError))
+                    end
                     print("🎉 Hatched: " .. petName .. " (" .. rarity .. ")" .. (isXL and " [XL]" or "") .. (isShiny and " [SHINY]" or ""))
 
                     -- Stop animation if enabled
@@ -932,7 +938,13 @@ task.spawn(function()
                             end
 
                             -- Send webhook
-                            SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                            print("📞 [POLL] Calling SendPetHatchWebhook...")
+                            local webhookSuccess, webhookError = pcall(function()
+                                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                            end)
+                            if not webhookSuccess then
+                                print("❌ [POLL] SendPetHatchWebhook ERROR: " .. tostring(webhookError))
+                            end
                             print("🎉 [POLL] Hatched: " .. petName .. " (" .. rarity .. ")")
 
                             -- Stop animation
