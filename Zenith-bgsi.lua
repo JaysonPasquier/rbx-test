@@ -165,27 +165,55 @@ end)
 local function getPetImages(petName)
     if petModuleSource == "" then return {} end
 
-    -- Find the pet definition line
-    local pattern = '\\["' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"\\]%s*=%s*PetBuilder%.new%(%)(.-)Build%(%)'
-    local petDef = petModuleSource:match(pattern)
+    -- Search for pet definition using plain text search
+    local searchStr = '["' .. petName .. '"]'
+    local petStart = petModuleSource:find(searchStr, 1, true)
 
-    if not petDef then
-        -- Try without brackets
-        pattern = petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '%s*=%s*PetBuilder%.new%(%)(.-)Build%(%)'
-        petDef = petModuleSource:match(pattern)
-    end
+    if not petStart then return {} end
 
-    if not petDef then return {} end
+    -- Find the Build() that ends this pet's definition
+    local buildStart = petModuleSource:find('Build()', petStart, true)
+    if not buildStart then return {} end
 
-    -- Extract all image IDs from :Image() call
-    local imagePattern = ':Image%((.-)%)'
-    local imageStr = petDef:match(imagePattern)
-    if not imageStr then return {} end
+    -- Extract pet definition section
+    local petDef = petModuleSource:sub(petStart, buildStart)
 
-    -- Extract all rbxassetid numbers
+    -- Search for :Image() in the definition
+    local imageStart = petDef:find(':Image(', 1, true)
+    if not imageStart then return {} end
+
+    -- Find the closing parenthesis for :Image(...)
+    local imageEnd = petDef:find(')', imageStart, true)
+    if not imageEnd then return {} end
+
+    -- Extract the content between :Image( and )
+    local imageContent = petDef:sub(imageStart + 7, imageEnd - 1)
+
+    -- Extract all rbxassetid numbers using plain text search
     local images = {}
-    for id in imageStr:gmatch("rbxassetid://(%d+)") do
-        table.insert(images, id)
+    local pos = 1
+    while true do
+        local idStart = imageContent:find('rbxassetid://', pos, true)
+        if not idStart then break end
+
+        -- Extract digits after rbxassetid://
+        local numStart = idStart + 13
+        local numEnd = numStart
+        while numEnd <= #imageContent do
+            local char = imageContent:sub(numEnd, numEnd)
+            if char:match('%d') then
+                numEnd = numEnd + 1
+            else
+                break
+            end
+        end
+
+        if numEnd > numStart then
+            local assetId = imageContent:sub(numStart, numEnd - 1)
+            table.insert(images, assetId)
+        end
+
+        pos = numEnd
     end
 
     return images
@@ -259,26 +287,61 @@ local function getPetChanceFromEgg(petName, eggName)
         return nil
     end
 
-    -- Find the egg definition
-    local pattern = '\\["' .. eggName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"\\]%s*=%s*(.-)Build%(%)'
-    local eggDef = eggModuleSource:match(pattern)
+    -- Find the egg definition using plain text search
+    local searchStr = '["' .. eggName .. '"]'
+    local eggStart = eggModuleSource:find(searchStr, 1, true)
 
-    if not eggDef then
+    if not eggStart then
         print("⚠️ Egg definition not found for: " .. eggName)
         return nil
     end
 
-    -- Find the pet in the egg definition
-    local petPattern = ':Pet%(' .. '([%d%.e%-]+)' .. ',%s*"' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%s*%)'
-    local chanceStr = eggDef:match(petPattern)
+    -- Find the Build() that ends this egg's definition
+    local buildStart = eggModuleSource:find('Build()', eggStart, true)
+    if not buildStart then
+        print("⚠️ No Build() found for egg: " .. eggName)
+        return nil
+    end
+
+    -- Extract egg definition section
+    local eggDef = eggModuleSource:sub(eggStart, buildStart)
+
+    -- Search for the pet in the egg definition: :Pet(chance, "PetName")
+    local petSearch = '"' .. petName .. '"'
+    local petPos = eggDef:find(petSearch, 1, true)
+
+    if not petPos then
+        print("⚠️ Pet not found in egg: " .. petName .. " in " .. eggName)
+        return nil
+    end
+
+    -- Search backwards from pet name to find :Pet(
+    local petCallStart = nil
+    for i = petPos, 1, -1 do
+        if eggDef:sub(i, i+4) == ':Pet(' then
+            petCallStart = i + 5  -- Position after :Pet(
+            break
+        end
+    end
+
+    if not petCallStart then
+        print("⚠️ Could not find :Pet( before pet name")
+        return nil
+    end
+
+    -- Extract the chance value between :Pet( and the comma
+    local chanceEnd = petPos - 3  -- Position before comma and space before pet name
+    local chanceStr = eggDef:sub(petCallStart, chanceEnd):match('[%d%.e%-]+')
 
     if chanceStr then
         local chance = tonumber(chanceStr)
-        print(string.format("✅ Found pet chance: %s in %s = %.2f%%", petName, eggName, chance))
-        return chance
+        if chance then
+            print(string.format("✅ Found pet chance: %s in %s = %.8f%%", petName, eggName, chance))
+            return chance
+        end
     end
 
-    print("⚠️ Pet not found in egg: " .. petName .. " in " .. eggName)
+    print("⚠️ Could not extract chance value for: " .. petName .. " in " .. eggName)
     return nil
 end
 
@@ -624,6 +687,13 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         local images = getPetImages(petName)
         local petImageData = nil
 
+        print("🖼️ Found " .. #images .. " images for pet: " .. petName)
+        if #images > 0 then
+            for i, imgId in ipairs(images) do
+                print("  Image " .. i .. ": " .. imgId)
+            end
+        end
+
         if #images > 0 then
             -- Determine which image to use based on shiny/mythical status
             local imageIndex = 1 -- Default: normal
@@ -631,8 +701,11 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 imageIndex = 2 -- Shiny
             end
 
+            print("🎨 Using image index " .. imageIndex .. " (asset ID: " .. images[imageIndex] .. ")")
+
             -- Get thumbnail URL from Roblox API
             local thumbUrl = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. images[imageIndex] .. "&size=420x420&format=Png"
+            print("📡 Fetching thumbnail from Roblox API...")
 
             local success, response = pcall(function()
                 return request({
@@ -645,6 +718,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 local data = HttpService:JSONDecode(response.Body)
                 if data and data.data and data.data[1] and data.data[1].imageUrl then
                     local imageUrl = data.data[1].imageUrl
+                    print("✅ Got thumbnail URL: " .. imageUrl:sub(1, 50) .. "...")
 
                     -- Download the actual image
                     local imgSuccess, imgResponse = pcall(function()
@@ -656,12 +730,22 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
 
                     if imgSuccess and imgResponse.StatusCode == 200 then
                         petImageData = imgResponse.Body
+                        print("✅ Successfully downloaded pet image (" .. #petImageData .. " bytes)")
+                    else
+                        print("❌ Failed to download pet image: " .. tostring(imgSuccess and imgResponse.StatusCode or "request failed"))
                     end
+                else
+                    print("❌ No image URL in Roblox API response")
                 end
+            else
+                print("❌ Failed to fetch thumbnail from Roblox API: " .. tostring(success and response.StatusCode or "request failed"))
             end
+        else
+            print("⚠️ No images found for pet: " .. petName)
         end
 
         -- Download user avatar
+        print("📡 Fetching user avatar...")
         local avatarImageData = nil
         local avatarSuccess, avatarResponse = pcall(function()
             return request({
@@ -674,6 +758,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             local avatarData = HttpService:JSONDecode(avatarResponse.Body)
             if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
                 local avatarUrl = avatarData.data[1].imageUrl
+                print("✅ Got avatar URL")
 
                 -- Download the avatar image
                 local avatarImgSuccess, avatarImgResponse = pcall(function()
@@ -685,8 +770,15 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
 
                 if avatarImgSuccess and avatarImgResponse.StatusCode == 200 then
                     avatarImageData = avatarImgResponse.Body
+                    print("✅ Successfully downloaded avatar image (" .. #avatarImageData .. " bytes)")
+                else
+                    print("❌ Failed to download avatar image")
                 end
+            else
+                print("❌ No avatar URL in response")
             end
+        else
+            print("❌ Failed to fetch avatar from Roblox API")
         end
 
         -- Get runtime
@@ -759,18 +851,24 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         -- Prepare files for attachment
         local files = {}
         if petImageData then
+            print("📎 Adding pet image to attachments (" .. #petImageData .. " bytes)")
             table.insert(files, {
                 name = "pet.png",
                 contentType = "image/png",
                 data = petImageData
             })
+        else
+            print("⚠️ No pet image data to attach")
         end
         if avatarImageData then
+            print("📎 Adding avatar image to attachments (" .. #avatarImageData .. " bytes)")
             table.insert(files, {
                 name = "avatar.png",
                 contentType = "image/png",
                 data = avatarImageData
             })
+        else
+            print("⚠️ No avatar image data to attach")
         end
 
         -- Send webhook with attachments
