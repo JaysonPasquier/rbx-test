@@ -47,46 +47,8 @@ end
 -- Log script start
 print("Zenith (BGSI) - LOADING...")
 
--- Ensure 'request' exists for Rayfield (some executors use syn.request or http_request)
-if type(request) ~= "function" then
-    if type(syn) == "table" and type(syn.request) == "function" then
-        request = syn.request
-        print("Using syn.request for HTTP")
-    elseif type(http_request) == "function" then
-        request = http_request
-        print("Using http_request for HTTP")
-    elseif type(fluxus) == "table" and type(fluxus.request) == "function" then
-        request = fluxus.request
-        print("Using fluxus.request for HTTP")
-    else
-        warn("No request function found. Rayfield may fail. Your executor might need to support 'request' or 'syn.request'.")
-    end
-end
-
 -- Load Rayfield Library (Mobile-Optimized)
-local Rayfield, rayfieldErr
-do
-    local ok, result = pcall(function()
-        local src = game:HttpGet('https://sirius.menu/rayfield')
-        local fn = loadstring(src)
-        if type(fn) ~= "function" then
-            error("Rayfield loadstring did not return a function")
-        end
-        return fn()
-    end)
-    if ok then
-        Rayfield = result
-    else
-        rayfieldErr = result
-    end
-end
-
-if not Rayfield then
-    local errMsg = "Rayfield failed to load: " .. tostring(rayfieldErr)
-    print(errMsg)
-    warn(errMsg)
-    error(errMsg)
-end
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
@@ -206,36 +168,84 @@ pcall(function()
 end)
 
 -- === HOOK PET HATCH RESPONSES ===
--- Listen for hatch responses from server
+-- Listen for hatch responses from server (improved detection)
 task.spawn(function()
     pcall(function()
         local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
         -- Hook the OnClientEvent to catch hatch responses
         networkRemote.OnClientEvent:Connect(function(eventName, ...)
-            if eventName == "HatchEgg" or eventName == "HatchResponse" or eventName == "PetHatched" then
+            -- Check if the event is related to hatching (multiple possible event names)
+            local isHatchEvent = false
+            local eventLower = string.lower(tostring(eventName))
+
+            if eventLower:find("hatch") or eventLower:find("pet") or eventLower:find("reward") or eventLower:find("open") then
+                isHatchEvent = true
+            end
+
+            if isHatchEvent then
                 local args = {...}
                 -- Try to extract pet name from args
                 -- The structure varies, but typically args[1] or args[2] contains pet info
                 pcall(function()
+                    -- First, check direct string args
+                    for i, arg in ipairs(args) do
+                        if type(arg) == "string" and petData and petData[arg] then
+                            -- Direct pet name string
+                            local currentEgg = state.eggPriority or "Unknown Egg"
+                            -- Check if we're farming a rift
+                            if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                                local riftName = state.farmingPriorityRift or state.riftPriority
+                                local riftData = state.gameRiftData[riftName]
+                                if riftData and riftData.Egg then
+                                    currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
+                                else
+                                    currentEgg = "Rift: " .. riftName
+                                end
+                            end
+                            SendPetHatchWebhook(arg, currentEgg)
+                            print("🎉 Hatched: " .. arg .. " from " .. currentEgg)
+                            return
+                        end
+                    end
+
+                    -- Then check table args
                     for _, arg in pairs(args) do
                         if type(arg) == "table" then
                             -- Check if it's a pet table
                             for k, v in pairs(arg) do
                                 if type(k) == "string" and petData and petData[k] then
                                     -- Found a pet!
-                                    SendPetHatchWebhook(k, state.eggPriority or "Unknown Egg")
-                                    print("🎉 Hatched: " .. k)
+                                    local currentEgg = state.eggPriority or "Unknown Egg"
+                                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                                        local riftName = state.farmingPriorityRift or state.riftPriority
+                                        local riftData = state.gameRiftData[riftName]
+                                        if riftData and riftData.Egg then
+                                            currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
+                                        else
+                                            currentEgg = "Rift: " .. riftName
+                                        end
+                                    end
+                                    SendPetHatchWebhook(k, currentEgg)
+                                    print("🎉 Hatched: " .. k .. " from " .. currentEgg)
+                                    return
                                 elseif type(v) == "string" and petData and petData[v] then
                                     -- Pet name is the value
-                                    SendPetHatchWebhook(v, state.eggPriority or "Unknown Egg")
-                                    print("🎉 Hatched: " .. v)
+                                    local currentEgg = state.eggPriority or "Unknown Egg"
+                                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                                        local riftName = state.farmingPriorityRift or state.riftPriority
+                                        local riftData = state.gameRiftData[riftName]
+                                        if riftData and riftData.Egg then
+                                            currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
+                                        else
+                                            currentEgg = "Rift: " .. riftName
+                                        end
+                                    end
+                                    SendPetHatchWebhook(v, currentEgg)
+                                    print("🎉 Hatched: " .. v .. " from " .. currentEgg)
+                                    return
                                 end
                             end
-                        elseif type(arg) == "string" and petData and petData[arg] then
-                            -- Direct pet name string
-                            SendPetHatchWebhook(arg, state.eggPriority or "Unknown Egg")
-                            print("🎉 Hatched: " .. arg)
                         end
                     end
                     -- Stop hatch animation if toggle is on
@@ -244,7 +254,7 @@ task.spawn(function()
             end
         end)
 
-        print("✅ Pet hatch webhook listener initialized")
+        print("✅ Pet hatch webhook listener initialized (improved detection)")
     end)
 end)
 
@@ -920,21 +930,83 @@ local function scanEggs()
     return newEggs
 end
 
--- Stop character hatch animation (when Disable egg animation is on)
+-- Stop character hatch animation (when Disable egg animation is on) - Improved
 local function stopHatchAnimation()
     if not state.disableHatchAnimation then return end
     pcall(function()
         local char = player.Character
         if not char then return end
+
+        -- Stop humanoid animations
         local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if not humanoid then return end
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-        if not animator then return end
-        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-            track:Stop(0)
+        if humanoid then
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then
+                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                    track:Stop(0)
+                end
+            end
+        end
+
+        -- Try to hide hatch GUI elements
+        local screenGui = playerGui:FindFirstChild("ScreenGui")
+        if screenGui then
+            -- Look for common hatch GUI elements
+            for _, gui in pairs(screenGui:GetDescendants()) do
+                if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
+                    local name = string.lower(gui.Name)
+                    if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
+                        pcall(function()
+                            gui.Visible = false
+                        end)
+                    end
+                end
+            end
         end
     end)
 end
+
+-- Continuous animation monitor (runs when disable animation is on)
+task.spawn(function()
+    while task.wait(0.1) do
+        if state.disableHatchAnimation then
+            pcall(function()
+                local char = player.Character
+                if char then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        local animator = humanoid:FindFirstChildOfClass("Animator")
+                        if animator then
+                            -- Stop any currently playing animations
+                            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                                local animId = track.Animation and track.Animation.AnimationId or ""
+                                -- Stop animations that might be hatch-related
+                                if animId:find("hatch") or animId:find("open") or track.Name:find("Hatch") then
+                                    track:Stop(0)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- Hide hatch GUI continuously
+                local screenGui = playerGui:FindFirstChild("ScreenGui")
+                if screenGui then
+                    for _, gui in pairs(screenGui:GetDescendants()) do
+                        if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
+                            local name = string.lower(gui.Name)
+                            if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
+                                if gui.Visible then
+                                    gui.Visible = false
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
 
 -- ✅ FIXED: Teleport to Plate part for eggs, platform for rifts
 local function tpToModel(model)
@@ -1995,7 +2067,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Pickup (Collect coins/gems on ground)
+        -- ✅ Auto Pickup (Collect coins/gems on ground) - Improved with better validation
         if state.autoPickup then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
@@ -2003,13 +2075,42 @@ task.spawn(function()
                     local pickups = rendered:FindFirstChild("Pickups")
                     if pickups then
                         for _, pickup in pairs(pickups:GetChildren()) do
-                            if pickup:IsA("Model") or pickup:IsA("BasePart") then
+                            -- Validate pickup is a valid instance and in workspace
+                            if (pickup:IsA("Model") or pickup:IsA("BasePart")) and pickup:IsDescendantOf(Workspace) then
+                                -- Try multiple collection methods
                                 pcall(function()
                                     networkRemote:FireServer("CollectPickup", pickup)
                                 end)
-                                -- Some games expect pickup name instead of instance
                                 pcall(function()
                                     networkRemote:FireServer("CollectPickup", pickup.Name)
+                                end)
+                                pcall(function()
+                                    networkRemote:FireServer("PickupCoin", pickup)
+                                end)
+                                pcall(function()
+                                    networkRemote:FireServer("CollectCoin", pickup)
+                                end)
+                                pcall(function()
+                                    networkRemote:FireServer("Collect", pickup)
+                                end)
+                                -- Try with the full instance path
+                                pcall(function()
+                                    networkRemote:FireServer("Pickup", pickup)
+                                end)
+                            end
+                        end
+                    end
+
+                    -- Also check for coins in other common locations
+                    local coins = rendered:FindFirstChild("Coins")
+                    if coins then
+                        for _, coin in pairs(coins:GetChildren()) do
+                            if (coin:IsA("Model") or coin:IsA("BasePart")) and coin:IsDescendantOf(Workspace) then
+                                pcall(function()
+                                    networkRemote:FireServer("CollectPickup", coin)
+                                end)
+                                pcall(function()
+                                    networkRemote:FireServer("CollectCoin", coin)
                                 end)
                             end
                         end
@@ -2049,39 +2150,14 @@ task.spawn(function()
         --     end)
         -- end
 
-        -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list - TP + hatch egg or open chest)
-        if state.riftAutoHatch and state.riftPriority then
-            pcall(function()
-                local riftInstance = nil
-                for _, rift in pairs(state.currentRifts) do
-                    if rift.name == state.riftPriority then
-                        riftInstance = rift.instance
-                        break
-                    end
-                end
-                if riftInstance then
-                    tpToModel(riftInstance)
-                    task.wait(0.15)
-                    local riftData = state.gameRiftData[state.riftPriority]
-                    if riftData then
-                        if riftData.Type == "Egg" and riftData.Egg then
-                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
-                            task.defer(function() task.wait(0.2) stopHatchAnimation() end)
-                        elseif riftData.Type == "Chest" then
-                            state.chestFarmActive = true
-                            state.currentChestRift = state.riftPriority
-                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
-                        end
-                    end
-                end
-            end)
-        end
-
-        -- ✅ PRIORITY RIFT LIST: if enabled, check if any spawned rift is in the priority list
+        -- ✅ PRIORITY RIFT LIST: Check first (highest priority) - if enabled, check if any spawned rift is in the priority list
+        local handledByPriorityRift = false
         if state.riftPriorityMode and type(state.priorityRifts) == "table" and #state.priorityRifts > 0 then
             pcall(function()
                 local priorityRiftName = nil
                 local priorityRiftInstance = nil
+
+                -- Find highest priority rift that's currently spawned
                 for _, rift in pairs(state.currentRifts) do
                     for _, pname in pairs(state.priorityRifts) do
                         if rift.name == pname then
@@ -2097,48 +2173,199 @@ task.spawn(function()
                 if state.farmingPriorityRift then
                     local stillHere = false
                     for _, rift in pairs(state.currentRifts) do
-                        if rift.name == state.farmingPriorityRift then stillHere = true break end
+                        if rift.name == state.farmingPriorityRift then
+                            stillHere = true
+                            break
+                        end
                     end
                     if not stillHere then
+                        print("[Rift] Priority rift '" .. state.farmingPriorityRift .. "' despawned - reverting")
                         state.chestFarmActive = false
                         state.currentChestRift = nil
                         state.eggPriority = state.previousEggPriority
                         state.riftPriority = state.previousRiftPriority
                         state.farmingPriorityRift = nil
+                        -- TP back to the previous egg location if it exists
+                        if state.previousEggPriority and state.autoHatch then
+                            for _, egg in pairs(state.currentEggs) do
+                                if egg.name == state.previousEggPriority then
+                                    tpToModel(egg.instance)
+                                    state.lastEggPosition = egg.instance:GetPivot().Position
+                                    print("[Rift] Teleported back to normal egg: " .. state.previousEggPriority)
+                                    break
+                                end
+                            end
+                        end
                     end
                 end
 
+                -- If we found a priority rift that's spawned, farm it
                 if priorityRiftName and priorityRiftInstance then
+                    -- Validate rift instance still exists and is in workspace
+                    if not priorityRiftInstance:IsDescendantOf(Workspace) then
+                        print("[Rift] Priority rift instance not in workspace, skipping")
+                        return
+                    end
+
                     -- Save previous if we're switching to this priority rift
                     if state.farmingPriorityRift ~= priorityRiftName then
                         state.previousEggPriority = state.eggPriority
                         state.previousRiftPriority = state.riftPriority
                         state.farmingPriorityRift = priorityRiftName
-                        state.riftPriority = priorityRiftName
+                        print("[Rift] Switching to priority rift: " .. priorityRiftName)
                     end
+
+                    -- Teleport to rift
                     tpToModel(priorityRiftInstance)
                     task.wait(0.15)
+
+                    -- Get rift data and farm accordingly
                     local riftData = state.gameRiftData[priorityRiftName]
                     if riftData then
                         if riftData.Type == "Egg" and riftData.Egg then
+                            -- Hatch the rift egg
                             networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
-                            task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                            task.defer(function()
+                                task.wait(0.2)
+                                stopHatchAnimation()
+                            end)
                         elseif riftData.Type == "Chest" then
+                            -- Open the rift chest
                             state.chestFarmActive = true
                             state.currentChestRift = priorityRiftName
                             networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
                         end
+                    else
+                        -- Fallback: Try generic rift commands
+                        pcall(function()
+                            networkRemote:FireServer("HatchEgg", priorityRiftName, 99)
+                        end)
+                        pcall(function()
+                            networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
+                        end)
                     end
-                    return  -- Don't run normal egg this tick
+                    handledByPriorityRift = true
                 end
             end)
         end
 
-        -- ✅ NORMAL EGG AUTO HATCH (only when not farming rift from Rift tab or priority list)
-        if state.autoHatch and state.eggPriority and not state.farmingPriorityRift and not (state.riftAutoHatch and state.riftPriority) then
+        -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list - TP + hatch egg or open chest)
+        -- Only run if not handled by priority rift
+        if not handledByPriorityRift and state.riftAutoHatch and state.riftPriority then
+            pcall(function()
+                local riftInstance = nil
+
+                -- Find the selected rift in currently spawned rifts
+                for _, rift in pairs(state.currentRifts) do
+                    if rift.name == state.riftPriority then
+                        riftInstance = rift.instance
+                        break
+                    end
+                end
+
+                if riftInstance and riftInstance:IsDescendantOf(Workspace) then
+                    -- Teleport to rift
+                    tpToModel(riftInstance)
+                    task.wait(0.15)
+
+                    -- Get rift data and farm accordingly
+                    local riftData = state.gameRiftData[state.riftPriority]
+                    if riftData then
+                        if riftData.Type == "Egg" and riftData.Egg then
+                            -- Hatch the rift egg
+                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                            task.defer(function()
+                                task.wait(0.2)
+                                stopHatchAnimation()
+                            end)
+                        elseif riftData.Type == "Chest" then
+                            -- Open the rift chest
+                            state.chestFarmActive = true
+                            state.currentChestRift = state.riftPriority
+                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
+                        end
+                    else
+                        -- Fallback: Try generic rift commands
+                        pcall(function()
+                            networkRemote:FireServer("HatchEgg", state.riftPriority, 99)
+                        end)
+                        pcall(function()
+                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
+                        end)
+                    end
+                else
+                    print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
+                end
+            end)
+        end
+
+        -- ✅ PRIORITY EGG DETECTION: Check if any spawned eggs are in the priority list
+        local handledByPriorityEgg = false
+        if not handledByPriorityRift and state.priorityEggMode and type(state.priorityEggs) == "table" and #state.priorityEggs > 0 and state.autoHatch then
+            pcall(function()
+                local priorityEggName = nil
+                local priorityEggInstance = nil
+
+                -- Find highest priority egg that's currently spawned
+                for _, egg in pairs(state.currentEggs) do
+                    for _, pname in pairs(state.priorityEggs) do
+                        if egg.name == pname then
+                            priorityEggName = egg.name
+                            priorityEggInstance = egg.instance
+                            break
+                        end
+                    end
+                    if priorityEggName then break end
+                end
+
+                -- If we found a priority egg, switch to it temporarily
+                if priorityEggName and priorityEggInstance then
+                    -- Validate egg instance still exists
+                    if priorityEggInstance:IsDescendantOf(Workspace) then
+                        -- Save previous egg if we're switching to this priority egg
+                        if state.previousEggPriority == nil or state.previousEggPriority ~= state.eggPriority then
+                            if state.eggPriority and state.eggPriority ~= priorityEggName then
+                                state.previousEggPriority = state.eggPriority
+                                print("[Egg] Switching to priority egg: " .. priorityEggName)
+                            end
+                        end
+
+                        -- Teleport to priority egg
+                        tpToModel(priorityEggInstance)
+                        task.wait(0.15)
+
+                        -- Hatch the priority egg
+                        networkRemote:FireServer("HatchEgg", priorityEggName, 99)
+                        task.defer(function()
+                            task.wait(0.2)
+                            stopHatchAnimation()
+                        end)
+
+                        handledByPriorityEgg = true
+                    end
+                else
+                    -- No priority egg found, revert to previous if we had one
+                    if state.previousEggPriority and state.previousEggPriority ~= state.eggPriority then
+                        print("[Egg] Priority egg gone, reverting to: " .. state.previousEggPriority)
+                        state.eggPriority = state.previousEggPriority
+                        state.previousEggPriority = nil
+                        state.lastEggPosition = nil
+                    end
+                end
+            end)
+        end
+
+        -- ✅ NORMAL EGG AUTO HATCH (only when not farming any rifts or priority eggs)
+        if not handledByPriorityRift and not handledByPriorityEgg and state.autoHatch and state.eggPriority and not (state.riftAutoHatch and state.riftPriority) then
             pcall(function()
                 for _, egg in pairs(state.currentEggs) do
                     if egg.name == state.eggPriority then
+                        -- Validate egg still exists
+                        if not egg.instance:IsDescendantOf(Workspace) then
+                            print("[Egg] Normal egg instance not in workspace, rescanning")
+                            return
+                        end
+
                         local shouldTeleport = false
                         if not state.lastEggPosition then
                             shouldTeleport = true
