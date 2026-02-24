@@ -405,6 +405,39 @@ local function SendWebhook(url, msg)
     end)
 end
 
+-- Generate random boundary for multipart/form-data
+local function generateBoundary()
+    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    local boundary = "----WebKitFormBoundary"
+    for i = 1, 16 do
+        local rand = math.random(1, #chars)
+        boundary = boundary .. chars:sub(rand, rand)
+    end
+    return boundary
+end
+
+-- Build multipart/form-data body with JSON payload and image files
+local function buildMultipartBody(boundary, payload, files)
+    local body = ""
+
+    -- Add JSON payload
+    body = body .. "--" .. boundary .. "\r\n"
+    body = body .. "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+    body = body .. "Content-Type: application/json\r\n\r\n"
+    body = body .. HttpService:JSONEncode(payload) .. "\r\n"
+
+    -- Add files
+    for i, file in ipairs(files) do
+        body = body .. "--" .. boundary .. "\r\n"
+        body = body .. "Content-Disposition: form-data; name=\"file" .. (i-1) .. "\"; filename=\"" .. file.name .. "\"\r\n"
+        body = body .. "Content-Type: " .. file.contentType .. "\r\n\r\n"
+        body = body .. file.data .. "\r\n"
+    end
+
+    body = body .. "--" .. boundary .. "--\r\n"
+    return body
+end
+
 -- Send rich embed webhook for pet hatches (NEW: accurate GUI-based detection)
 local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper)
     if state.webhookUrl == "" then return end
@@ -469,9 +502,9 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             return formatted
         end
 
-        -- Get pet images
+        -- Get pet images and download them
         local images = getPetImages(petName)
-        local thumbnailUrl = ""
+        local petImageData = nil
 
         if #images > 0 then
             -- Determine which image to use based on shiny/mythical status
@@ -479,9 +512,63 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             if isShiny and #images >= 2 then
                 imageIndex = 2 -- Shiny
             end
-            -- Note: Mythical detection would require additional GUI elements
 
-            thumbnailUrl = "https://assetdelivery.roblox.com/v1/asset/?id=" .. images[imageIndex]
+            -- Get thumbnail URL from Roblox API
+            local thumbUrl = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. images[imageIndex] .. "&size=420x420&format=Png"
+
+            local success, response = pcall(function()
+                return request({
+                    Url = thumbUrl,
+                    Method = "GET"
+                })
+            end)
+
+            if success and response.StatusCode == 200 then
+                local data = HttpService:JSONDecode(response.Body)
+                if data and data.data and data.data[1] and data.data[1].imageUrl then
+                    local imageUrl = data.data[1].imageUrl
+
+                    -- Download the actual image
+                    local imgSuccess, imgResponse = pcall(function()
+                        return request({
+                            Url = imageUrl,
+                            Method = "GET"
+                        })
+                    end)
+
+                    if imgSuccess and imgResponse.StatusCode == 200 then
+                        petImageData = imgResponse.Body
+                    end
+                end
+            end
+        end
+
+        -- Download user avatar
+        local avatarImageData = nil
+        local avatarSuccess, avatarResponse = pcall(function()
+            return request({
+                Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. player.UserId .. "&size=150x150&format=Png",
+                Method = "GET"
+            })
+        end)
+
+        if avatarSuccess and avatarResponse.StatusCode == 200 then
+            local avatarData = HttpService:JSONDecode(avatarResponse.Body)
+            if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
+                local avatarUrl = avatarData.data[1].imageUrl
+
+                -- Download the avatar image
+                local avatarImgSuccess, avatarImgResponse = pcall(function()
+                    return request({
+                        Url = avatarUrl,
+                        Method = "GET"
+                    })
+                end)
+
+                if avatarImgSuccess and avatarImgResponse.StatusCode == 200 then
+                    avatarImageData = avatarImgResponse.Body
+                end
+            end
         end
 
         -- Get runtime
@@ -506,11 +593,15 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         if isShiny then petTitle = "✨ " .. petTitle end
         if isSuper then petTitle = "⭐ " .. petTitle end
 
-        -- Build embed
+        -- Build embed with attachment references
         local embed = {
             title = "🎉 " .. player.Name .. " hatched " .. petTitle .. "!",
             color = colors[baseRarity] or 0xFFFFFF,
-            image = thumbnailUrl ~= "" and {url = thumbnailUrl} or nil,
+            author = avatarImageData and {
+                name = player.Name,
+                icon_url = "attachment://avatar.png"
+            } or nil,
+            image = petImageData and {url = "attachment://pet.png"} or nil,
             fields = {
                 {
                     name = "📊 User Stats",
@@ -547,12 +638,43 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
         }
 
-        request({
-            Url = state.webhookUrl,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode({embeds = {embed}})
-        })
+        -- Prepare files for attachment
+        local files = {}
+        if petImageData then
+            table.insert(files, {
+                name = "pet.png",
+                contentType = "image/png",
+                data = petImageData
+            })
+        end
+        if avatarImageData then
+            table.insert(files, {
+                name = "avatar.png",
+                contentType = "image/png",
+                data = avatarImageData
+            })
+        end
+
+        -- Send webhook with attachments
+        if #files > 0 then
+            local boundary = generateBoundary()
+            local body = buildMultipartBody(boundary, {embeds = {embed}}, files)
+
+            request({
+                Url = state.webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "multipart/form-data; boundary=" .. boundary},
+                Body = body
+            })
+        else
+            -- Fallback to simple JSON if no images
+            request({
+                Url = state.webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({embeds = {embed}})
+            })
+        end
 
         print("✅ Webhook sent for " .. petTitle .. " from " .. eggName)
     end)
