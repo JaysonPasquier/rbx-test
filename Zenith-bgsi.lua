@@ -74,7 +74,7 @@ local state = {
     autoClaimPlaytime = false,  -- NEW: Auto-claim playtime gifts
     webhookUrl = "",
     webhookStats = true,
-    webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=true, Secret=true},
+    webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=true, Secret=true, Infinity=true},
     webhookChanceThreshold = 100000000,  -- Only send if rarity is 1 in X or rarer (default: 1 in 100M)
     webhookStatsEnabled = false,  -- NEW: Enable user stats webhook
     webhookStatsInterval = 60,  -- NEW: Stats webhook interval (30-120 seconds)
@@ -130,132 +130,105 @@ local state = {
 }
 
 -- === DATA ===
-local petData, _codeData
+local petData, eggData, _codeData
+local petModuleSource = "" -- Store raw pet module source for parsing images
+local eggModuleSource = "" -- Store raw egg module source for parsing chances
+
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
     _codeData = require(RS.Shared.Data.Codes)
-end)
 
--- === HOOK PET HATCH RESPONSES ===
--- Listen for hatch responses from server (improved detection)
-task.spawn(function()
-    pcall(function()
-        local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-
-        -- Hook the OnClientEvent to catch hatch responses
-        networkRemote.OnClientEvent:Connect(function(eventName, ...)
-            -- Check if the event is related to hatching
-            local isHatchEvent = false
-            local eventLower = string.lower(tostring(eventName))
-
-            if eventLower:find("hatch") or eventLower:find("pet") or eventLower:find("reward") or eventLower:find("open") then
-                isHatchEvent = true
-            end
-
-            if isHatchEvent then
-                local args = {...}
-                pcall(function()
-                    -- First, check direct string args
-                    for i, arg in ipairs(args) do
-                        if type(arg) == "string" and petData and petData[arg] then
-                            local currentEgg = state.eggPriority or "Unknown Egg"
-                            if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                                local riftName = state.farmingPriorityRift or state.riftPriority
-                                local riftData = state.gameRiftData[riftName]
-                                if riftData and riftData.Egg then
-                                    currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
-                                else
-                                    currentEgg = "Rift: " .. riftName
-                                end
-                            end
-                            SendPetHatchWebhook(arg, currentEgg)
-                            print("🎉 Hatched: " .. arg .. " from " .. currentEgg)
-                            task.defer(stopHatchAnimation)
-                            return
-                        end
-                    end
-
-                    -- Then check table args
-                    for _, arg in pairs(args) do
-                        if type(arg) == "table" then
-                            for k, v in pairs(arg) do
-                                if type(k) == "string" and petData and petData[k] then
-                                    local currentEgg = state.eggPriority or "Unknown Egg"
-                                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                                        local riftName = state.farmingPriorityRift or state.riftPriority
-                                        local riftData = state.gameRiftData[riftName]
-                                        if riftData and riftData.Egg then
-                                            currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
-                                        else
-                                            currentEgg = "Rift: " .. riftName
-                                        end
-                                    end
-                                    SendPetHatchWebhook(k, currentEgg)
-                                    print("🎉 Hatched: " .. k .. " from " .. currentEgg)
-                                    task.defer(stopHatchAnimation)
-                                    return
-                                elseif type(v) == "string" and petData and petData[v] then
-                                    local currentEgg = state.eggPriority or "Unknown Egg"
-                                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                                        local riftName = state.farmingPriorityRift or state.riftPriority
-                                        local riftData = state.gameRiftData[riftName]
-                                        if riftData and riftData.Egg then
-                                            currentEgg = riftData.Egg .. " (Rift: " .. riftName .. ")"
-                                        else
-                                            currentEgg = "Rift: " .. riftName
-                                        end
-                                    end
-                                    SendPetHatchWebhook(v, currentEgg)
-                                    print("🎉 Hatched: " .. v .. " from " .. currentEgg)
-                                    task.defer(stopHatchAnimation)
-                                    return
-                                end
-                            end
-                        end
-                    end
-                end)
-            end
+    -- Try to get egg data
+    local eggModule = RS:FindFirstChild("Shared")
+    if eggModule then eggModule = eggModule:FindFirstChild("Data") end
+    if eggModule then eggModule = eggModule:FindFirstChild("Eggs") end
+    if eggModule and eggModule:IsA("ModuleScript") then
+        eggData = require(eggModule)
+        -- Get raw source for parsing
+        pcall(function()
+            eggModuleSource = decompile(eggModule)
         end)
+    end
 
-        print("✅ Pet hatch webhook listener initialized (improved detection)")
-    end)
+    -- Get raw pet module source for parsing images
+    local petModule = RS:FindFirstChild("Shared")
+    if petModule then petModule = petModule:FindFirstChild("Data") end
+    if petModule then petModule = petModule:FindFirstChild("Pets") end
+    if petModule and petModule:IsA("ModuleScript") then
+        pcall(function()
+            petModuleSource = decompile(petModule)
+        end)
+    end
 end)
 
--- Stop hatch animation function (improved)
+-- Parse pet images from PetBuilder string (normal, shiny, normal mythical, shiny mythical)
+local function getPetImages(petName)
+    if petModuleSource == "" then return {} end
+
+    -- Find the pet definition line
+    local pattern = '\\["' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"\\]%s*=%s*PetBuilder%.new%(%)(.-)Build%(%)'
+    local petDef = petModuleSource:match(pattern)
+
+    if not petDef then
+        -- Try without brackets
+        pattern = petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '%s*=%s*PetBuilder%.new%(%)(.-)Build%(%)'
+        petDef = petModuleSource:match(pattern)
+    end
+
+    if not petDef then return {} end
+
+    -- Extract all image IDs from :Image() call
+    local imagePattern = ':Image%((.-)%)'
+    local imageStr = petDef:match(imagePattern)
+    if not imageStr then return {} end
+
+    -- Extract all rbxassetid numbers
+    local images = {}
+    for id in imageStr:gmatch("rbxassetid://(%d+)") do
+        table.insert(images, id)
+    end
+
+    return images
+end
+
+-- Get pet chance from egg data
+local function getPetChanceFromEgg(petName, eggName)
+    if eggModuleSource == "" then return nil end
+
+    -- Find the egg definition
+    local pattern = '\\["' .. eggName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"\\]%s*=%s*(.-)Build%(%)'
+    local eggDef = eggModuleSource:match(pattern)
+
+    if not eggDef then return nil end
+
+    -- Find the pet in the egg definition
+    local petPattern = ':Pet%(' .. '([%d%.e%-]+)' .. ',%s*"' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%s*%)'
+    local chanceStr = eggDef:match(petPattern)
+
+    if chanceStr then
+        return tonumber(chanceStr)
+    end
+
+    return nil
+end
+
+-- Stop hatch animation function (simple - just hide Hatching frame)
 local function stopHatchAnimation()
     if not state.disableHatchAnimation then return end
     pcall(function()
-        local char = player.Character
-        if not char then return end
-
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then
-                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                    track:Stop(0)
-                end
-            end
-        end
-
-        -- Hide hatch GUI elements
         local screenGui = playerGui:FindFirstChild("ScreenGui")
         if screenGui then
-            for _, gui in pairs(screenGui:GetDescendants()) do
-                if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
-                    local name = string.lower(gui.Name)
-                    if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
-                        pcall(function() gui.Visible = false end)
-                    end
-                end
+            local hatchingFrame = screenGui:FindFirstChild("Hatching")
+            if hatchingFrame then
+                hatchingFrame.Visible = false
             end
         end
     end)
 end
 
--- Continuous animation monitor
+-- Continuous animation monitor (keeps Hatching frame hidden)
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.05) do  -- Check every 50ms for fast hiding
         if state.disableHatchAnimation then
             stopHatchAnimation()
         end
@@ -432,37 +405,61 @@ local function SendWebhook(url, msg)
     end)
 end
 
--- Send rich embed webhook for pet hatches
-local function SendPetHatchWebhook(petName, eggName)
+-- Send rich embed webhook for pet hatches (NEW: accurate GUI-based detection)
+local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper)
     if state.webhookUrl == "" then return end
 
     pcall(function()
-        -- Get pet data
+        -- Parse rarity from GUI (handle variants like "AA-Secret" -> "Secret")
+        local baseRarity = rarityFromGUI
+        if rarityFromGUI:find("Secret") or rarityFromGUI:find("secret") then
+            baseRarity = "Secret"
+        elseif rarityFromGUI:find("Infinity") or rarityFromGUI:find("infinity") then
+            baseRarity = "Infinity"
+        elseif rarityFromGUI:find("Legendary") or rarityFromGUI:find("legendary") then
+            baseRarity = "Legendary"
+        elseif rarityFromGUI:find("Epic") or rarityFromGUI:find("epic") then
+            baseRarity = "Epic"
+        elseif rarityFromGUI:find("Rare") or rarityFromGUI:find("rare") then
+            baseRarity = "Rare"
+        elseif rarityFromGUI:find("Unique") or rarityFromGUI:find("unique") then
+            baseRarity = "Unique"
+        elseif rarityFromGUI:find("Common") or rarityFromGUI:find("common") then
+            baseRarity = "Common"
+        end
+
+        -- Check rarity filter
+        if not state.webhookRarities[baseRarity] then return end
+
+        -- Get pet data from game
         local pet = petData and petData[petName]
         if not pet then return end
 
-        local rarity = pet.Rarity or "Unknown"
-        local bubbleStat = pet.Stat or 0
+        local bubbleStat = 0
+        local coinsStat = 0
+        local gemsStat = 0
 
-        -- Check rarity filter
-        if not state.webhookRarities[rarity] then return end
+        -- Extract stats
+        if type(pet.Stat) == "table" then
+            bubbleStat = pet.Stat.Bubbles or 0
+            coinsStat = pet.Stat.Coins or 0
+            gemsStat = pet.Stat.Gems or 0
+        elseif type(pet.Stat) == "number" then
+            bubbleStat = pet.Stat
+        end
 
-        -- Calculate chance (estimate based on rarity)
-        local chanceRatios = {
-            Common = 10,
-            Unique = 100,
-            Rare = 1000,
-            Epic = 10000,
-            Legendary = 1000000,
-            Secret = 100000000
-        }
-        local chanceRatio = chanceRatios[rarity] or 100
+        -- Get pet chance from egg data
+        local petChance = getPetChanceFromEgg(petName, eggName)
+        local chanceRatio = 0
+        local chanceStr = "Unknown"
+
+        if petChance and petChance > 0 then
+            chanceRatio = math.floor(100 / petChance)
+            chanceStr = string.format("%.8f", petChance)
+        end
 
         -- Check chance threshold
-        if chanceRatio < state.webhookChanceThreshold then return end
-
-        local chancePercent = (1 / chanceRatio) * 100
-        local chanceStr = string.format("%.6f", chancePercent)
+        if chanceRatio > 0 and chanceRatio < state.webhookChanceThreshold then return end
 
         -- Format chance ratio with commas
         local function formatChance(num)
@@ -472,6 +469,21 @@ local function SendPetHatchWebhook(petName, eggName)
             return formatted
         end
 
+        -- Get pet images
+        local images = getPetImages(petName)
+        local thumbnailUrl = ""
+
+        if #images > 0 then
+            -- Determine which image to use based on shiny/mythical status
+            local imageIndex = 1 -- Default: normal
+            if isShiny and #images >= 2 then
+                imageIndex = 2 -- Shiny
+            end
+            -- Note: Mythical detection would require additional GUI elements
+
+            thumbnailUrl = "https://assetdelivery.roblox.com/v1/asset/?id=" .. images[imageIndex]
+        end
+
         -- Get runtime
         local runtime = tick() - state.startTime
         local h,m,s = math.floor(runtime/3600), math.floor((runtime%3600)/60), math.floor(runtime%60)
@@ -479,21 +491,29 @@ local function SendPetHatchWebhook(petName, eggName)
 
         -- Rarity colors
         local colors = {
-            Common = 0xFFFFFF,
+            Common = 0xAAAAAA,
             Unique = 0x00FF00,
             Rare = 0x0099FF,
             Epic = 0x9900FF,
             Legendary = 0xFF6600,
-            Secret = 0xFFFF00
+            Secret = 0xFFD700,
+            Infinity = 0xFF00FF
         }
+
+        -- Build pet title with modifiers
+        local petTitle = petName
+        if isXL then petTitle = "XL " .. petTitle end
+        if isShiny then petTitle = "✨ " .. petTitle end
+        if isSuper then petTitle = "⭐ " .. petTitle end
 
         -- Build embed
         local embed = {
-            title = player.Name .. " Hatched a " .. petName,
-            color = colors[rarity] or 0xFFFFFF,
+            title = "🎉 " .. player.Name .. " hatched " .. petTitle .. "!",
+            color = colors[baseRarity] or 0xFFFFFF,
+            thumbnail = thumbnailUrl ~= "" and {url = thumbnailUrl} or nil,
             fields = {
                 {
-                    name = "User Info",
+                    name = "📊 User Stats",
                     value = string.format("⏱️  Playtime: %s\\n🥚  Hatches: %s\\n💰  Coins: %s\\n💎  Gems: %s\\n🎟️  Tickets: %s",
                         runtimeStr,
                         formatNumber(state.stats.hatches),
@@ -504,19 +524,22 @@ local function SendPetHatchWebhook(petName, eggName)
                     inline = false
                 },
                 {
-                    name = "Hatch Info",
-                    value = string.format("🥚  Egg: %s\\n🔮  Chance: %s%% (1 in %s)\\n🎲  Rarity: %s",
+                    name = "🥚 Hatch Info",
+                    value = string.format("🥚  Egg: %s\\n🎲  Rarity: %s%s\\n🔮  Chance: %s%% (1 in %s)",
                         eggName,
+                        rarityFromGUI,
+                        (isXL and " [XL]" or "") .. (isShiny and " [✨ SHINY]" or "") .. (isSuper and " [⭐ SUPER]" or ""),
                         chanceStr,
-                        formatChance(chanceRatio),
-                        rarity
+                        chanceRatio > 0 and formatChance(chanceRatio) or "Unknown"
                     ),
                     inline = false
                 },
                 {
-                    name = "Pet Stats",
-                    value = string.format("🫧  Bubbles: x%d",
-                        bubbleStat
+                    name = "📈 Pet Stats",
+                    value = string.format("🫧  Bubbles: x%s\\n💰  Coins: x%s%s",
+                        formatNumber(bubbleStat),
+                        formatNumber(coinsStat),
+                        gemsStat > 0 and ("\\n💎  Gems: x" .. formatNumber(gemsStat)) or ""
                     ),
                     inline = false
                 }
@@ -530,8 +553,67 @@ local function SendPetHatchWebhook(petName, eggName)
             Headers = {["Content-Type"] = "application/json"},
             Body = HttpService:JSONEncode({embeds = {embed}})
         })
+
+        print("✅ Webhook sent for " .. petTitle .. " from " .. eggName)
     end)
 end
+
+-- === GUI-BASED PET HATCH DETECTION ===
+-- Monitor the Hatching GUI for new pets
+task.spawn(function()
+    task.wait(2) -- Wait for GUI to load
+
+    pcall(function()
+        local screenGui = playerGui:WaitForChild("ScreenGui", 5)
+        if not screenGui then return end
+
+        local hatchingFrame = screenGui:FindFirstChild("Hatching")
+        if not hatchingFrame then return end
+
+        -- Monitor for Template frame appearing
+        hatchingFrame.ChildAdded:Connect(function(child)
+            if child.Name == "Template" and child:IsA("Frame") then
+                task.wait(0.1) -- Wait for GUI to fully populate
+
+                pcall(function()
+                    -- Extract pet information from GUI
+                    local xlFrame = child:FindFirstChild("XL")
+                    local labelText = child:FindFirstChild("Label")
+                    local rarityText = child:FindFirstChild("Rarity")
+                    local shinyFrame = child:FindFirstChild("Shiny")
+                    local superFrame = child:FindFirstChild("Super")
+
+                    if not labelText or not rarityText then return end
+
+                    local petName = labelText.Text
+                    local rarity = rarityText.Text
+                    local isXL = xlFrame and xlFrame.Visible
+                    local isShiny = shinyFrame and shinyFrame.Visible
+                    local isSuper = superFrame and superFrame.Visible
+
+                    -- Determine current egg
+                    local currentEgg = state.eggPriority or "Unknown Egg"
+                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                        local riftName = state.farmingPriorityRift or state.riftPriority
+                        local riftData = state.gameRiftData[riftName]
+                        if riftData and riftData.Egg then
+                            currentEgg = riftData.Egg
+                        end
+                    end
+
+                    -- Send webhook
+                    SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper)
+                    print("🎉 Hatched: " .. petName .. " (" .. rarity .. ")" .. (isXL and " [XL]" or "") .. (isShiny and " [SHINY]" or ""))
+
+                    -- Stop animation if enabled
+                    task.defer(stopHatchAnimation)
+                end)
+            end
+        end)
+
+        print("✅ Pet hatch GUI monitor initialized (Template detection)")
+    end)
+end)
 
 -- Send user stats webhook
 local function SendStatsWebhook()
@@ -1483,7 +1565,16 @@ local RaritySecretToggle = WebTab:CreateToggle({
    end,
 })
 
-WebTab:CreateLabel("💡 Legendary & Secret enabled by default")
+local RarityInfinityToggle = WebTab:CreateToggle({
+   Name = "🌟 Infinity",
+   CurrentValue = true,
+   Flag = "RarityInfinity",
+   Callback = function(Value)
+      state.webhookRarities.Infinity = Value
+   end,
+})
+
+WebTab:CreateLabel("💡 Legendary, Secret & Infinity enabled by default")
 
 local ChanceSection = WebTab:CreateSection("🎲 Chance Filter")
 
@@ -1590,12 +1681,20 @@ WebTab:CreateButton({
          return
       end
       -- Send test with a random Secret pet
-      local testPets = {"King Doggy", "The Overlord", "The Superlord", "Giant Crescent Empress"}
-      local testPet = testPets[math.random(#testPets)]
-      SendPetHatchWebhook(testPet, state.eggPriority or "Test Egg")
+      local testPets = {
+         {name = "King Doggy", rarity = "Secret"},
+         {name = "The Overlord", rarity = "Secret"},
+         {name = "The Superlord", rarity = "Infinity"},
+         {name = "Giant Crescent Empress", rarity = "Secret"}
+      }
+      local testData = testPets[math.random(#testPets)]
+      -- Simulate XL and Shiny randomly for test
+      local testXL = math.random() > 0.7
+      local testShiny = math.random() > 0.5
+      SendPetHatchWebhook(testData.name, state.eggPriority or "Test Egg", testData.rarity, testXL, testShiny, false)
       Rayfield:Notify({
          Title = "Pet Hatch Test Sent",
-         Content = testPet,
+         Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or ""),
          Duration = 3,
       })
    end,
