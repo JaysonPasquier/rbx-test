@@ -2060,28 +2060,50 @@ task.spawn(function()
 
     -- Wait for remote with timeout and error handling
     local networkRemote = nil
-    local remoteLoadSuccess = pcall(function()
-        local remoteFolder = RS:WaitForChild("Shared", 10)
-        if remoteFolder then
-            remoteFolder = remoteFolder:WaitForChild("Framework", 10)
-            if remoteFolder then
-                remoteFolder = remoteFolder:WaitForChild("Network", 10)
-                if remoteFolder then
-                    remoteFolder = remoteFolder:WaitForChild("Remote", 10)
-                    if remoteFolder then
-                        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
-                    end
-                end
-            end
+    local remoteLoadSuccess, loadError = pcall(function()
+        print("[Remote] Loading Shared folder...")
+        local sharedFolder = RS:WaitForChild("Shared", 10)
+        if not sharedFolder then
+            error("Shared folder not found")
+        end
+
+        print("[Remote] Loading Framework folder...")
+        local frameworkFolder = sharedFolder:WaitForChild("Framework", 10)
+        if not frameworkFolder then
+            error("Framework folder not found in Shared")
+        end
+
+        print("[Remote] Loading Network folder...")
+        local networkFolder = frameworkFolder:WaitForChild("Network", 10)
+        if not networkFolder then
+            error("Network folder not found in Framework")
+        end
+
+        print("[Remote] Loading Remote folder...")
+        local remoteFolder = networkFolder:WaitForChild("Remote", 10)
+        if not remoteFolder then
+            error("Remote folder not found in Network")
+        end
+
+        print("[Remote] Loading RemoteEvent...")
+        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+        if not networkRemote then
+            error("RemoteEvent not found in Remote folder")
         end
     end)
 
-    if not networkRemote then
-        print("⚠️ Failed to load network remote - auto features disabled")
+    if not remoteLoadSuccess then
+        print("⚠️ Failed to load network remote: " .. tostring(loadError))
+        print("⚠️ Auto features disabled - check if game structure changed")
         return
     end
 
-    print("✅ Network remote loaded successfully")
+    if not networkRemote then
+        print("⚠️ Network remote is nil - auto features disabled")
+        return
+    end
+
+    print("✅ Network remote loaded successfully: " .. networkRemote:GetFullName())
 
     while task.wait(0.1) do
         -- Validate remote still exists
@@ -2443,14 +2465,30 @@ task.spawn(function()
 
     -- Wait for remote with error handling
     local networkRemote = nil
-    pcall(function()
-        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    local success, err = pcall(function()
+        print("[Chest] Loading network remote...")
+        local sharedFolder = RS:WaitForChild("Shared", 10)
+        if not sharedFolder then error("Shared folder not found") end
+
+        local frameworkFolder = sharedFolder:WaitForChild("Framework", 10)
+        if not frameworkFolder then error("Framework folder not found") end
+
+        local networkFolder = frameworkFolder:WaitForChild("Network", 10)
+        if not networkFolder then error("Network folder not found") end
+
+        local remoteFolder = networkFolder:WaitForChild("Remote", 10)
+        if not remoteFolder then error("Remote folder not found") end
+
+        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+        if not networkRemote then error("RemoteEvent not found") end
     end)
 
     if not networkRemote then
-        print("⚠️ Failed to load network remote for chest farming")
+        print("⚠️ Failed to load network remote for chest farming: " .. tostring(err))
         return
     end
+
+    print("✅ Chest farming remote loaded")
 
     while task.wait(0.5) do
         -- Validate remote still exists
@@ -2493,14 +2531,30 @@ task.spawn(function()
 
     -- Wait for remote with error handling
     local networkRemote = nil
-    pcall(function()
-        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    local success, err = pcall(function()
+        print("[Playtime] Loading network remote...")
+        local sharedFolder = RS:WaitForChild("Shared", 10)
+        if not sharedFolder then error("Shared folder not found") end
+
+        local frameworkFolder = sharedFolder:WaitForChild("Framework", 10)
+        if not frameworkFolder then error("Framework folder not found") end
+
+        local networkFolder = frameworkFolder:WaitForChild("Network", 10)
+        if not networkFolder then error("Network folder not found") end
+
+        local remoteFolder = networkFolder:WaitForChild("Remote", 10)
+        if not remoteFolder then error("Remote folder not found") end
+
+        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+        if not networkRemote then error("RemoteEvent not found") end
     end)
 
     if not networkRemote then
-        print("⚠️ Failed to load network remote for playtime gifts")
+        print("⚠️ Failed to load network remote for playtime gifts: " .. tostring(err))
         return
     end
+
+    print("✅ Playtime gifts remote loaded")
 
     while task.wait(60) do
         if state.autoClaimPlaytime and networkRemote and networkRemote:IsDescendantOf(game) then
@@ -2518,14 +2572,30 @@ task.spawn(function()
 
     -- Wait for remote with error handling
     local networkRemote = nil
-    pcall(function()
-        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    local success, err = pcall(function()
+        print("[Potions] Loading network remote...")
+        local sharedFolder = RS:WaitForChild("Shared", 10)
+        if not sharedFolder then error("Shared folder not found") end
+
+        local frameworkFolder = sharedFolder:WaitForChild("Framework", 10)
+        if not frameworkFolder then error("Framework folder not found") end
+
+        local networkFolder = frameworkFolder:WaitForChild("Network", 10)
+        if not networkFolder then error("Network folder not found") end
+
+        local remoteFolder = networkFolder:WaitForChild("Remote", 10)
+        if not remoteFolder then error("Remote folder not found") end
+
+        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+        if not networkRemote then error("RemoteEvent not found") end
     end)
 
     if not networkRemote then
-        print("⚠️ Failed to load network remote for potions")
+        print("⚠️ Failed to load network remote for potions: " .. tostring(err))
         return
     end
+
+    print("✅ Potions remote loaded")
 
     while task.wait(3) do
         if state.autoPotionEnabled and type(state.selectedPotions) == "table" and #state.selectedPotions > 0 and networkRemote and networkRemote:IsDescendantOf(game) then
@@ -2546,14 +2616,30 @@ task.spawn(function()
 
     -- Wait for remote with error handling
     local networkRemote = nil
-    pcall(function()
-        networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent", 10)
+    local success, err = pcall(function()
+        print("[Enchants] Loading network remote...")
+        local sharedFolder = RS:WaitForChild("Shared", 10)
+        if not sharedFolder then error("Shared folder not found") end
+
+        local frameworkFolder = sharedFolder:WaitForChild("Framework", 10)
+        if not frameworkFolder then error("Framework folder not found") end
+
+        local networkFolder = frameworkFolder:WaitForChild("Network", 10)
+        if not networkFolder then error("Network folder not found") end
+
+        local remoteFolder = networkFolder:WaitForChild("Remote", 10)
+        if not remoteFolder then error("Remote folder not found") end
+
+        networkRemote = remoteFolder:WaitForChild("RemoteEvent", 10)
+        if not networkRemote then error("RemoteEvent not found") end
     end)
 
     if not networkRemote then
-        print("⚠️ Failed to load network remote for enchants")
+        print("⚠️ Failed to load network remote for enchants: " .. tostring(err))
         return
     end
+
+    print("✅ Enchants remote loaded")
 
     while task.wait(5) do
         if state.autoEnchantEnabled and state.enchantMain and state.enchantSecond and state.enchantMain ~= state.enchantSecond and networkRemote and networkRemote:IsDescendantOf(game) then
