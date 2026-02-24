@@ -800,18 +800,34 @@ end
 -- === GUI-BASED PET HATCH DETECTION ===
 -- Monitor the Hatching GUI for new pets
 task.spawn(function()
+    print("🔍 Initializing pet hatch GUI monitor...")
     task.wait(2) -- Wait for GUI to load
 
     pcall(function()
         local screenGui = playerGui:WaitForChild("ScreenGui", 5)
-        if not screenGui then return end
+        if not screenGui then
+            print("❌ ScreenGui not found in PlayerGui!")
+            return
+        end
+        print("✅ Found ScreenGui")
 
         local hatchingFrame = screenGui:FindFirstChild("Hatching")
-        if not hatchingFrame then return end
+        if not hatchingFrame then
+            print("❌ Hatching frame not found in ScreenGui!")
+            print("📋 Available frames in ScreenGui:")
+            for _, child in pairs(screenGui:GetChildren()) do
+                print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+            end
+            return
+        end
+        print("✅ Found Hatching frame")
 
         -- Monitor for Template frame appearing
         hatchingFrame.ChildAdded:Connect(function(child)
+            print("🔔 Child added to Hatching: " .. child.Name .. " (" .. child.ClassName .. ")")
+
             if child.Name == "Template" and child:IsA("Frame") then
+                print("✅ Detected Template frame - processing hatch...")
                 task.wait(0.1) -- Wait for GUI to fully populate
 
                 pcall(function()
@@ -822,13 +838,25 @@ task.spawn(function()
                     local shinyFrame = child:FindFirstChild("Shiny")
                     local superFrame = child:FindFirstChild("Super")
 
-                    if not labelText or not rarityText then return end
+                    print("🔍 Template contents:")
+                    print("  XL frame: " .. (xlFrame and "Found" or "NOT FOUND"))
+                    print("  Label: " .. (labelText and "Found" or "NOT FOUND"))
+                    print("  Rarity: " .. (rarityText and "Found" or "NOT FOUND"))
+                    print("  Shiny: " .. (shinyFrame and "Found" or "NOT FOUND"))
+                    print("  Super: " .. (superFrame and "Found" or "NOT FOUND"))
+
+                    if not labelText or not rarityText then
+                        print("❌ Missing required elements (Label or Rarity)")
+                        return
+                    end
 
                     local petName = labelText.Text
                     local rarity = rarityText.Text
                     local isXL = xlFrame and xlFrame.Visible
                     local isShiny = shinyFrame and shinyFrame.Visible
                     local isSuper = superFrame and superFrame.Visible
+
+                    print("✅ Pet detected: " .. petName .. " [" .. rarity .. "]")
 
                     -- Auto-detect egg by searching for which egg contains this pet
                     local detectedEgg = findEggContainingPet(petName)
@@ -1890,6 +1918,46 @@ local StatsIntervalSlider = WebTab:CreateSlider({
 })
 
 WebTab:CreateLabel("Shows: Username, stats, differences, rates/min")
+
+WebTab:CreateButton({
+   Name = "🔍 Diagnose Hatch Detection",
+   Callback = function()
+      print("━━━━━━━━━━ HATCH DETECTION DIAGNOSTICS ━━━━━━━━━━")
+
+      -- Check PlayerGui
+      local screenGui = playerGui:FindFirstChild("ScreenGui")
+      print("PlayerGui.ScreenGui: " .. (screenGui and "✅ EXISTS" or "❌ NOT FOUND"))
+
+      if screenGui then
+         -- List all children
+         print("\n📋 ScreenGui children:")
+         for _, child in pairs(screenGui:GetChildren()) do
+            print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+         end
+
+         -- Check for Hatching frame
+         local hatchingFrame = screenGui:FindFirstChild("Hatching")
+         print("\nScreenGui.Hatching: " .. (hatchingFrame and "✅ EXISTS" or "❌ NOT FOUND"))
+
+         if hatchingFrame then
+            print("\n📋 Hatching frame children:")
+            for _, child in pairs(hatchingFrame:GetChildren()) do
+               print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+            end
+         end
+      end
+
+      print("\n💡 If Hatching frame exists, try hatching an egg!")
+      print("   Template frames should appear as children when hatching.")
+      print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+      Rayfield:Notify({
+         Title = "Diagnostics Complete",
+         Content = "Check console (F9) for details",
+         Duration = 3,
+      })
+   end,
+})
 
 local WebhookTestButton = WebTab:CreateButton({
    Name = "🧪 Test Webhook (Simple)",
