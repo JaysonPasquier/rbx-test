@@ -1,0 +1,529 @@
+-- Script Path: game:GetService("ReplicatedStorage").Shared.Data.Codes
+-- Took 0.68s to decompile.
+-- Executor: Delta (1.0.707.734)
+
+-- Decompiled with Konstant V2.1, a fast Luau decompiler made in Luau by plusgiant5 (https://discord.gg/brNTY8nX8t)
+-- Decompiled on 2026-02-21 12:46:26
+-- Luau version 6, Types version 3
+-- Time taken: 0.018567 seconds
+
+return {
+    release = {{
+        Type = "Currency";
+        Currency = "Coins";
+        Amount = 500;
+    }, {
+        Type = "Powerup";
+        Name = "Mystery Box";
+        Amount = 1;
+    }};
+    lucky = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 5;
+        Amount = 1;
+    }};
+    easter = {{
+        Type = "Powerup";
+        Name = "Mystery Box";
+        Amount = 4;
+    }};
+    update2 = {{
+        Type = "Powerup";
+        Name = "Mystery Box";
+        Amount = 5;
+    }};
+    update3 = {{
+        Type = "Powerup";
+        Name = "Dice";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Giant Dice";
+        Amount = 2;
+    }};
+    sylentlyssorry = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }, {
+        Type = "Powerup";
+        Name = "Dice";
+        Amount = 4;
+    }, {
+        Type = "Powerup";
+        Name = "Giant Dice";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Golden Dice";
+        Amount = 1;
+    }};
+    update4 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 6;
+        Amount = 5;
+    }};
+    update5 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }};
+    update6 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Ancient Token";
+        Amount = 3;
+    }};
+    update7 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }};
+    update8 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    update9 = {{
+        Type = "Powerup";
+        Name = "Light Box";
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Egg Elixir";
+        Amount = 3;
+    }};
+    update10 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 12;
+    }};
+    update11 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 10;
+    }};
+    update12 = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 1;
+    }};
+    update13 = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 10;
+    }};
+    update15 = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    world3 = {{
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 5;
+    }};
+    onemorebonus = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 5;
+    }};
+    fishe = {{
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    fishfix = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 10;
+    }};
+    update16 = {{
+        Type = "Bait";
+        Name = "Normal Bait";
+        Amount = 1;
+    }, {
+        Type = "Bait";
+        Name = "Silver Bait";
+        Amount = 1;
+    }, {
+        Type = "Bait";
+        Name = "Golden Bait";
+        Amount = 1;
+    }, {
+        Type = "Bait";
+        Name = "Diamond Bait";
+        Amount = 1;
+    }, {
+        Type = "Bait";
+        Name = "Galaxy Bait";
+        Amount = 1;
+    }, {
+        Type = "Bait";
+        Name = "Chromatic Bait";
+        Amount = 1;
+    }};
+    season6 = {{
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    season7 = {{
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    bugfix = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 10;
+    }};
+    plasma = {{
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 1;
+    }, {
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    milestones = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 10;
+    }};
+    retroslop = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 10;
+    }};
+    obby = {{
+        Type = "Powerup";
+        Name = "Easy Obby Key";
+        Amount = 10;
+    }, {
+        Type = "Powerup";
+        Name = "Medium Obby Key";
+        Amount = 5;
+    }, {
+        Type = "Powerup";
+        Name = "Hard Obby Key";
+        Amount = 3;
+    }, {
+        Type = "Powerup";
+        Name = "Classic Crate";
+        Amount = 5;
+    }};
+    autumn = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Fall Spin Ticket";
+        Amount = 5;
+    }, {
+        Type = "Powerup";
+        Name = "Fall Mystery Box";
+        Amount = 5;
+    }};
+    superpuff = {{
+        Type = "Potion";
+        Name = "Lucky";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Mythic";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Speed";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Coins";
+        Level = 7;
+        Amount = 3;
+    }, {
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 10;
+    }};
+    cornmaze = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Fall Spin Ticket";
+        Amount = 5;
+    }, {
+        Type = "Powerup";
+        Name = "Fall Mystery Box";
+        Amount = 5;
+    }};
+    halloween = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 2;
+    }, {
+        Type = "Powerup";
+        Name = "Halloween Spin Ticket";
+        Amount = 5;
+    }, {
+        Type = "Potion";
+        Name = "Halloween Elixir";
+        Level = 2;
+        Amount = 3;
+    }};
+    maidnert = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 5;
+    }};
+    ripsoulofplant = {{
+        Type = "Potion";
+        Name = "Halloween Infinity Elixir";
+        Amount = 5;
+    }};
+    adminabuse = {{
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 5;
+    }};
+    miniupdate = {{
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 3;
+    }};
+    shutdown = {{
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 3;
+    }};
+    ogbgs = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    throwback = {{
+        Type = "Potion";
+        Name = "Egg Elixir";
+        Amount = 3;
+    }};
+    christmas = {{
+        Type = "Potion";
+        Name = "Festive Infinity Elixir";
+        Amount = 3;
+    }};
+    jolly = {{
+        Type = "Potion";
+        Name = "Festive Elixir";
+        Level = 3;
+        Amount = 5;
+    }};
+    elf = {{
+        Type = "Potion";
+        Name = "Festive Elixir";
+        Level = 4;
+        Amount = 3;
+    }};
+    sorryshutdown = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 10;
+    }};
+    ["2xinfinity"] = {{
+        Type = "Potion";
+        Name = "Ultra Infinity Elixir";
+        Amount = 10;
+    }};
+    christmasday2025 = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 10;
+    }};
+    secretsanta = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    circus = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    tophats = {{
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 3;
+    }};
+    heaven = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    hell = {{
+        Type = "Potion";
+        Name = "Infinity Elixir";
+        Amount = 3;
+    }};
+    valentine = {{
+        Type = "Potion";
+        Name = "Secret Elixir";
+        Amount = 3;
+    }};
+    galentine = {{
+        Type = "Potion";
+        Name = "Egg Elixir";
+        Amount = 3;
+    }};
+}

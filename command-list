@@ -1,0 +1,142 @@
+i think we got it !
+  17:45:51.526  > -- Search all ServerScriptService and ServerStorage:
+print("=== SEARCHING FOR COMMAND REGISTRATIONS ===")
+
+local function searchScript(script)
+    local success, source = pcall(function()
+        return script.Source
+    end)
+
+    if success and source then
+        -- Look for Event("CommandName") patterns
+        for match in source:gmatch('Event%("([^"]+)"%)') do
+            print("Command found:", match)
+        end
+        for match in source:gmatch("Event%('([^']+)'%)") do
+            print("Command found:", match)
+        end
+    end
+end
+
+-- Search ServerScriptService
+for _, obj in pairs(game:GetService("ServerScriptService"):GetDescendants()) do
+    if obj:IsA("Script") or obj:IsA("ModuleScript") then
+        searchScript(obj)
+    end
+end
+
+-- Search ServerStorage
+for _, obj in pairs(game:GetService("ServerStorage"):GetDescendants()) do
+    if obj:IsA("Script") or obj:IsA("ModuleScript") then
+        searchScript(obj)
+    end
+end  -  Studio
+  17:45:51.526  === SEARCHING FOR COMMAND REGISTRATIONS ===  -  Modifier
+  17:46:00.127  > -- This finds all FireServer calls in LocalScripts (client-side usage)
+print("=== FINDING FIRESERVER CALLS ===")
+local commands = {}
+
+for _, obj in pairs(game:GetDescendants()) do
+    if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
+        local success, source = pcall(function()
+            return obj.Source
+        end)
+
+        if success and source then
+            -- Look for FireServer("CommandName"
+            for match in source:gmatch(':FireServer%s*%(%s*"([^"]+)"') do
+                if not table.find(commands, match) then
+                    table.insert(commands, match)
+                    print("Command:", match)
+                end
+            end
+        end
+    end
+end
+
+print("\nTotal:", #commands)  -  Studio
+  17:46:00.128  === FINDING FIRESERVER CALLS ===  -  Modifier
+  17:46:00.186  Command: HatchEgg  -  Modifier
+  17:46:00.186  Command: Teleport  -  Modifier
+  17:46:00.186  Command: UnlockHatchingZone  -  Modifier
+  17:46:00.186  Command: UnlockWorld  -  Modifier
+  17:46:00.187  Command: AutoRejoinTeleport  -  Modifier
+  17:46:00.187  Command: TradeCancel  -  Modifier
+  17:46:00.187  Command: UnlockEventChest  -  Modifier
+  17:46:00.202  Command: SellBubble  -  Modifier
+  17:46:00.202  Command: BlowBubble  -  Modifier
+  17:46:00.202  Command: TradeAcceptRequest  -  Modifier
+  17:46:00.202  Command: SetSetting  -  Modifier
+  17:46:00.203  Command: ToggleAutoDelete  -  Modifier
+  17:46:00.203  Command: UpdateInfinityEggIndex  -  Modifier
+  17:46:00.203  Command: ClaimChest  -  Modifier
+  17:46:00.204  Command: UpgradeMastery  -  Modifier
+  17:46:00.204  Command: ClearKeybind  -  Modifier
+  17:46:00.204  Command: ClaimPrize  -  Modifier
+  17:46:00.204  Command: StartGenieQuest  -  Modifier
+  17:46:00.204  Command: ChangeGenieQuest  -  Modifier
+  17:46:00.204  Command: RerollGenie  -  Modifier
+  17:46:00.204  Command: TradeAddPowerup  -  Modifier
+  17:46:00.204  Command: TradeRemovePowerup  -  Modifier
+  17:46:00.204  Command: TradeRequest  -  Modifier
+  17:46:00.205  Command: TradeUnblockPlayer  -  Modifier
+  17:46:00.205  Command: TradeBlockPlayer  -  Modifier
+  17:46:00.205  Command: TradeSetRequestsAllowed  -  Modifier
+  17:46:00.205  Command: TradeSetViewingAllowed  -  Modifier
+  17:46:00.205  Command: TradeDecline  -  Modifier
+  17:46:00.205  Command: DailyRewardsBuyItem  -  Modifier
+  17:46:00.205  Command: DailyRewardsForfeitStreak  -  Modifier
+  17:46:00.205  Command: DailyRewardClaimStars  -  Modifier
+  17:46:00.205  Command: RequestRaceLeave  -  Modifier
+  17:46:00.205  Command: ShopFreeReroll  -  Modifier
+  17:46:00.205  Command: SetShopRerollTarget  -  Modifier
+  17:46:00.205  Command: CraftPotion  -  Modifier
+  17:46:00.205  Command: DoggyJumpWin  -  Modifier
+  17:46:00.205  Command: ClaimAllPlaytime  -  Modifier
+  17:46:00.205  Command: ClaimBenefits  -  Modifier
+  17:46:00.206  Command: ChallengePassClaimReward  -  Modifier
+  17:46:00.206  Command: ChallengePassFreeSkip  -  Modifier
+  17:46:00.206  Command: ChallengePassReset  -  Modifier
+  17:46:00.207  Command: ClanKickMember  -  Modifier
+  17:46:00.207  Command: ClanLeave  -  Modifier
+  17:46:00.207  Command: ClanDelete  -  Modifier
+  17:46:00.207  Command: ClanSendInvite  -  Modifier
+  17:46:00.207  Command: ClanAcceptInvite  -  Modifier
+  17:46:00.207  Command: ClanCreate  -  Modifier
+  17:46:00.207  Command: CompetitiveReroll  -  Modifier
+  17:46:00.207  Command: ClaimCompetitivePrize  -  Modifier
+  17:46:00.207  Command: SkipMinigameCooldown  -  Modifier
+  17:46:00.207  Command: CancelMinigame  -  Modifier
+  17:46:00.207  Command: GrabMinigameItem  -  Modifier
+  17:46:00.207  Command: FinishMinigame  -  Modifier
+  17:46:00.207  Command: TradingTerminalSendPost  -  Modifier
+  17:46:00.207  Command: TradingTerminalResetPost  -  Modifier
+  17:46:00.207  Command: TradingTerminalAddItem  -  Modifier
+  17:46:00.207  Command: TradingTerminalLoadPosts  -  Modifier
+  17:46:00.208  Command: PlazaTeleport  -  Modifier
+  17:46:00.208  Command: GuessPet  -  Modifier
+  17:46:00.208  Command: ClaimWorldReward  -  Modifier
+  17:46:00.208  Command: ClaimEventPrize  -  Modifier
+  17:46:00.208  Command: EggPrizeClaim  -  Modifier
+  17:46:00.208  Command: ClaimIndex  -  Modifier
+  17:46:00.208  Command: ClaimXLIndexRewards  -  Modifier
+  17:46:00.208  Command: FinishCastCharge  -  Modifier
+  17:46:00.209  Command: CancelChargeCast  -  Modifier
+  17:46:00.209  Command: BeginCastCharge  -  Modifier
+  17:46:00.209  Command: Reel  -  Modifier
+  17:46:00.209  Command: EquipRod  -  Modifier
+  17:46:00.209  Command: UnequipRod  -  Modifier
+  17:46:00.209  Command: SetEquippedBait  -  Modifier
+  17:46:00.209  Command: SetFishLocked  -  Modifier
+  17:46:00.209  Command: SellAllFish  -  Modifier
+  17:46:00.209  Command: SetEquippedRod  -  Modifier
+  17:46:00.209  Command: FavoriteRod  -  Modifier
+  17:46:00.209  Command: ClaimAllFishingIndexRewards  -  Modifier
+  17:46:00.209  Command: ClaimFishingIndexRewards  -  Modifier
+  17:46:00.210  Command: StartObby  -  Modifier
+  17:46:00.210  Command: ClaimObbyChest  -  Modifier
+  17:46:00.210  Command: CompleteObby  -  Modifier
+  17:46:00.210  Command: ClaimGift  -  Modifier
+  17:46:00.211  Command: WorldTeleport  -  Modifier
+  17:46:00.232
+Total: 82  -  Modifier

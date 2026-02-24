@@ -1,5 +1,5 @@
--- BGSI Premium Hub v2026 - RAYFIELD MOBILE-OPTIMIZED
--- ✅ Perfect for mobile screens - Auto-resizes and single column layout
+-- Zenith - BGSI (Rayfield, mobile-optimized)
+-- Script: Zenith | Game: BGSI — Perfect for mobile screens, auto-resizes, single column layout
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -11,16 +11,50 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("🧼 BGSI Premium Hub v2026 - LOADING (Rayfield)...")
+-- === LOG TO FILE: everything that goes to console also goes to zenith_bgsi_log.txt ===
+local LOG_FILE = "zenith_bgsi_log.txt"
+local _original_print = print
+
+local function logToFile(...)
+    pcall(function()
+        local n = select("#", ...)
+        local parts = {}
+        for i = 1, n do
+            parts[i] = tostring(select(i, ...))
+        end
+        local line = table.concat(parts, "\t")
+        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+        local fullLine = "[" .. timestamp .. "] " .. line .. "\n"
+        if appendfile then
+            appendfile(LOG_FILE, fullLine)
+        elseif writefile and isfile then
+            local existing = (isfile(LOG_FILE) and readfile(LOG_FILE)) or ""
+            writefile(LOG_FILE, existing .. fullLine)
+        end
+    end)
+end
+
+function print(...)
+    _original_print(...)
+    logToFile(...)
+end
+
+warn = function(...)
+    _original_print("[WARN]", ...)
+    logToFile("[WARN]", ...)
+end
+
+-- Log script start
+print("Zenith (BGSI) - LOADING...")
 
 -- Load Rayfield Library (Mobile-Optimized)
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
-   Name = "🧼 BGSI Premium Hub",
+   Name = "Zenith | BGSI",
    Icon = 0,
-   LoadingTitle = "BGSI Premium Hub",
+   LoadingTitle = "Zenith - BGSI",
    LoadingSubtitle = "Mobile-Optimized for 2026",
    Theme = "Default",
 
@@ -30,7 +64,7 @@ local Window = Rayfield:CreateWindow({
    ConfigurationSaving = {
       Enabled = true,
       FolderName = nil,
-      FileName = "BGSIHub"
+      FileName = "Zenith_BGSI"
    },
 
    Discord = {
@@ -41,17 +75,17 @@ local Window = Rayfield:CreateWindow({
 
    KeySystem = false,
    KeySettings = {
-      Title = "BGSI Hub",
+      Title = "Zenith - BGSI",
       Subtitle = "Key System",
       Note = "No key required",
-      FileName = "BGSIKey",
+      FileName = "Zenith_BGSI_Key",
       SaveKey = false,
       GrabKeyFromSite = false,
       Key = {""}
    }
 })
 
-print("✅ Rayfield window created (auto mobile-optimized)")
+print("Zenith (BGSI) window created")
 
 -- === STATE MANAGEMENT ===
 local state = {
@@ -84,8 +118,11 @@ local state = {
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
-    chestFarmActive = false,  -- NEW: Track if chest farming is active
-    currentChestRift = nil,  -- NEW: Current chest rift name being farmed
+    chestFarmActive = false,  -- Track if chest farming is active
+    currentChestRift = nil,  -- Current chest rift name being farmed
+    previousEggPriority = nil,  -- Restore after priority rift/egg is done
+    previousRiftPriority = nil,
+    farmingPriorityRift = nil,  -- Rift name we're currently farming (from priority list); when it despawns we revert
     eggDatabase = {},  -- NEW: Database of all eggs {EggName = {world="WorldName", position=Vector3}}
     gameEggData = {},  -- NEW: Egg data from ReplicatedStorage (all eggs in game)
     gameRiftData = {},  -- NEW: Rift data from ReplicatedStorage (all rifts in game)
@@ -104,7 +141,23 @@ local state = {
     },
     startTime = tick(),
     labels = {},
-    currencyLabels = {}  -- NEW: Labels for all currencies
+    currencyLabels = {},
+    -- Auto potions
+    gamePotionList = {},
+    gamePotionData = {},
+    selectedPotions = {},
+    autoPotionEnabled = false,
+    potionCounts = {},
+    disableHatchAnimation = false,
+    -- Custom team (hatch team, stats team) - remotes TBD
+    hatchTeam = nil,
+    statsTeam = nil,
+    gameTeamList = {},
+    -- Auto enchant (main + second slot, can't be same)
+    gameEnchantList = {},
+    enchantMain = nil,
+    enchantSecond = nil,
+    autoEnchantEnabled = false
 }
 
 -- === DATA ===
@@ -147,6 +200,8 @@ task.spawn(function()
                             print("🎉 Hatched: " .. arg)
                         end
                     end
+                    -- Stop hatch animation if toggle is on
+                    task.defer(stopHatchAnimation)
                 end)
             end
         end)
@@ -158,7 +213,7 @@ end)
 -- === UTILITY FUNCTIONS ===
 
 -- File path for saving stats message ID (persists across rejoins)
-local STATS_MESSAGE_FILE = "bgsi_stats_message_id.txt"
+local STATS_MESSAGE_FILE = "zenith_bgsi_stats_message_id.txt"
 
 -- Load stats message ID from file
 local function loadStatsMessageId()
@@ -241,6 +296,66 @@ local function loadGameRiftData()
     if not success then
         print("⚠️ Failed to load rift data: " .. tostring(result))
     end
+end
+
+-- Load potion data from game (ReplicatedStorage.Shared.Data.Potions)
+local function loadGamePotionData()
+    local success, result = pcall(function()
+        local data = RS:FindFirstChild("Shared")
+        if data then data = data:FindFirstChild("Data") end
+        if data then data = data:FindFirstChild("Potions") end
+        if data and data:IsA("ModuleScript") then
+            local potionData = require(data)
+            state.gamePotionData = potionData
+            state.gamePotionList = {}
+            for name, _ in pairs(potionData) do
+                table.insert(state.gamePotionList, name)
+            end
+            print("✅ Loaded " .. #state.gamePotionList .. " potions from game data")
+            return true
+        end
+        return false
+    end)
+    if not success then
+        print("⚠️ Failed to load potion data: " .. tostring(result))
+    end
+end
+
+-- Load enchant data (optional - path may vary)
+local function loadGameEnchantData()
+    pcall(function()
+        local data = RS:FindFirstChild("Shared")
+        if data then data = data:FindFirstChild("Data") end
+        if data then data = data:FindFirstChild("Enchants") end
+        if data and data:IsA("ModuleScript") then
+            local enchantData = require(data)
+            state.gameEnchantList = {}
+            for name, _ in pairs(enchantData) do
+                table.insert(state.gameEnchantList, name)
+            end
+            if #state.gameEnchantList > 0 then
+                print("✅ Loaded " .. #state.gameEnchantList .. " enchants")
+            end
+        end
+    end)
+end
+
+-- Load team list (optional - path may vary)
+local function loadGameTeamData()
+    pcall(function()
+        local data = RS:FindFirstChild("Shared") and RS.Shared:FindFirstChild("Data")
+        if data then data = data:FindFirstChild("Teams") end
+        if data and data:IsA("ModuleScript") then
+            local teamData = require(data)
+            state.gameTeamList = {}
+            for name, _ in pairs(teamData) do
+                table.insert(state.gameTeamList, name)
+            end
+            if #state.gameTeamList > 0 then
+                print("✅ Loaded " .. #state.gameTeamList .. " teams")
+            end
+        end
+    end)
 end
 
 -- Format numbers with commas (1234567890 -> 1,234,567,890)
@@ -537,22 +652,33 @@ local function SendStatsWebhook()
             return
         end
 
-        -- Check response status
+        -- Check response status (204 = success for PATCH, no body)
         if response and response.StatusCode then
-            print("[Webhook] Response status: " .. response.StatusCode)
+            if method == "PATCH" and response.StatusCode == 204 then
+                -- Edit success, no body - nothing to decode
+            else
+                print("[Webhook] Response status: " .. response.StatusCode)
+            end
         end
 
-        -- If this was a new message (POST), save the message ID
-        if method == "POST" and response and response.Body then
-            local decodeSuccess, data = pcall(function()
-                return HttpService:JSONDecode(response.Body)
-            end)
-            if decodeSuccess and data and data.id then
-                state.statsMessageId = data.id
-                saveStatsMessageId(data.id)
-                print("[Webhook] Saved new message ID: " .. data.id)
+        -- If this was a new message (POST), save the message ID only when response has body
+        if method == "POST" and response then
+            if response.Body and response.Body ~= "" then
+                local decodeSuccess, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                if decodeSuccess and data and data.id then
+                    state.statsMessageId = data.id
+                    saveStatsMessageId(data.id)
+                    print("[Webhook] Saved new message ID: " .. data.id)
+                else
+                    print("[Webhook] No message ID in response body")
+                end
             else
-                print("[Webhook] Failed to decode response or no message ID in response")
+                -- POST returned no body (e.g. 204) - don't overwrite message ID
+                if response.StatusCode and response.StatusCode ~= 200 then
+                    print("[Webhook] POST returned status " .. tostring(response.StatusCode) .. " with no body")
+                end
             end
         end
 
@@ -756,6 +882,22 @@ local function scanEggs()
     return newEggs
 end
 
+-- Stop character hatch animation (when Disable egg animation is on)
+local function stopHatchAnimation()
+    if not state.disableHatchAnimation then return end
+    pcall(function()
+        local char = player.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid then return end
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if not animator then return end
+        for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+            track:Stop(0)
+        end
+    end)
+end
+
 -- ✅ FIXED: Teleport to Plate part for eggs, platform for rifts
 local function tpToModel(model)
     pcall(function()
@@ -798,6 +940,47 @@ local CurrencySection = MainTab:CreateSection("💰 All Currencies")
 
 -- Single dynamic label for all currencies (no empty space!)
 state.labels.allCurrencies = MainTab:CreateLabel("Loading currencies...")
+
+local TeamSection = MainTab:CreateSection("👥 Custom Team")
+MainTab:CreateLabel("Hatch team / Stats team (set remote when known)")
+
+local HatchTeamDropdown = MainTab:CreateDropdown({
+   Name = "Hatch team",
+   Options = {"—"},
+   CurrentOption = {"—"},
+   MultipleOptions = false,
+   Flag = "HatchTeam",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "—" then
+         state.hatchTeam = Option[1]
+         pcall(function()
+            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+            networkRemote:FireServer("SetHatchTeam", Option[1])
+         end)
+      else
+         state.hatchTeam = nil
+      end
+   end,
+})
+
+local StatsTeamDropdown = MainTab:CreateDropdown({
+   Name = "Stats team",
+   Options = {"—"},
+   CurrentOption = {"—"},
+   MultipleOptions = false,
+   Flag = "StatsTeam",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "—" then
+         state.statsTeam = Option[1]
+         pcall(function()
+            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+            networkRemote:FireServer("SetStatsTeam", Option[1])
+         end)
+      else
+         state.statsTeam = nil
+      end
+   end,
+})
 
 -- === FARM TAB ===
 local FarmTab = Window:CreateTab("🔧 Farm", 4483362458)
@@ -918,6 +1101,91 @@ local AutoClaimToggle = FarmTab:CreateToggle({
 
 FarmTab:CreateLabel("Claims playtime rewards every 60 seconds")
 
+-- === AUTO POTIONS ===
+local PotionSection = FarmTab:CreateSection("🧪 Auto Potions")
+
+local PotionDropdown = FarmTab:CreateDropdown({
+   Name = "Potions to auto-use (multi-select)",
+   Options = {"Loading..."},
+   CurrentOption = {"Loading..."},
+   MultipleOptions = true,
+   Flag = "PotionSelect",
+   Callback = function(Options)
+      state.selectedPotions = Options or {}
+   end,
+})
+
+local AutoPotionToggle = FarmTab:CreateToggle({
+   Name = "Auto Use Potion",
+   CurrentValue = false,
+   Flag = "AutoPotion",
+   Callback = function(Value)
+      state.autoPotionEnabled = Value
+      Rayfield:Notify({
+         Title = "Auto Potion",
+         Content = Value and "Enabled - Re-applying selected potions" or "Disabled",
+         Duration = 2,
+      })
+   end,
+})
+
+FarmTab:CreateLabel("Keeps selected potions active (re-use when in list)")
+
+-- === AUTO ENCHANT ===
+local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
+FarmTab:CreateLabel("Main slot + second slot (can't be same)")
+
+local EnchantMainDropdown = FarmTab:CreateDropdown({
+   Name = "Main enchant slot",
+   Options = {"Loading..."},
+   CurrentOption = {"Loading..."},
+   MultipleOptions = false,
+   Flag = "EnchantMain",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "Loading..." then
+         state.enchantMain = Option[1]
+      else
+         state.enchantMain = nil
+      end
+   end,
+})
+
+local EnchantSecondDropdown = FarmTab:CreateDropdown({
+   Name = "Second enchant slot",
+   Options = {"Loading..."},
+   CurrentOption = {"Loading..."},
+   MultipleOptions = false,
+   Flag = "EnchantSecond",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "Loading..." then
+         if Option[1] == state.enchantMain then
+            state.enchantSecond = nil
+            Rayfield:Notify({ Title = "Enchant", Content = "Second slot can't be same as main", Duration = 2 })
+         else
+            state.enchantSecond = Option[1]
+         end
+      else
+         state.enchantSecond = nil
+      end
+   end,
+})
+
+local AutoEnchantToggle = FarmTab:CreateToggle({
+   Name = "Auto Enchant equipped pet",
+   CurrentValue = false,
+   Flag = "AutoEnchant",
+   Callback = function(Value)
+      state.autoEnchantEnabled = Value
+      Rayfield:Notify({
+         Title = "Auto Enchant",
+         Content = Value and "Enabled" or "Disabled",
+         Duration = 2,
+      })
+   end,
+})
+
+FarmTab:CreateLabel("Requires Enchants data + remote (e.g. EnchantPet)")
+
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
 
@@ -976,7 +1244,19 @@ local AutoHatchToggle = EggsTab:CreateToggle({
    end,
 })
 
-EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
+local DisableHatchAnimToggle = EggsTab:CreateToggle({
+   Name = "Disable egg hatching animation",
+   CurrentValue = false,
+   Flag = "DisableHatchAnim",
+   Callback = function(Value)
+      state.disableHatchAnimation = Value
+      Rayfield:Notify({
+         Title = "Hatch animation",
+         Content = Value and "Disabled (animation will be stopped)" or "Enabled",
+         Duration = 2,
+      })
+   end,
+})
 
 local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
@@ -1261,7 +1541,7 @@ local WebhookTestButton = WebTab:CreateButton({
          })
          return
       end
-      SendWebhook(state.webhookUrl, "**🧼 BGSI Test** " .. os.date("%H:%M"))
+      SendWebhook(state.webhookUrl, "**Zenith (BGSI) Test** " .. os.date("%H:%M"))
       Rayfield:Notify({
          Title = "Test Sent",
          Content = "Check your Discord!",
@@ -1427,9 +1707,12 @@ print("🔍 Loading all game chunks and scanning for eggs...")
 loadStatsMessageId()
 
 -- Load egg and rift data from game modules (auto-updates with game versions)
-print("📦 Fetching egg and rift data from game...")
+print("📦 Fetching egg, rift, potion, enchant and team data from game...")
 loadGameEggData()
 loadGameRiftData()
+loadGamePotionData()
+loadGameEnchantData()
+loadGameTeamData()
 
 task.spawn(function()
     pcall(function()
@@ -1674,7 +1957,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Pickup (Collect all coins/gems)
+        -- ✅ Auto Pickup (Collect coins/gems on ground)
         if state.autoPickup then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
@@ -1685,6 +1968,10 @@ task.spawn(function()
                             if pickup:IsA("Model") or pickup:IsA("BasePart") then
                                 pcall(function()
                                     networkRemote:FireServer("CollectPickup", pickup)
+                                end)
+                                -- Some games expect pickup name instead of instance
+                                pcall(function()
+                                    networkRemote:FireServer("CollectPickup", pickup.Name)
                                 end)
                             end
                         end
@@ -1724,63 +2011,101 @@ task.spawn(function()
         --     end)
         -- end
 
-        -- ✅ Auto Hatch (IMPLEMENTED - Smart teleport + max quantity)
-        if state.autoHatch and state.eggPriority then
+        -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list - TP + hatch egg or open chest)
+        if state.riftAutoHatch and state.riftPriority then
             pcall(function()
-                -- ✅ RIFT PRIORITY: Check if priority rift is spawned
-                if state.riftPriorityMode and state.riftPriority then
-                    local priorityRiftSpawned = false
-                    local priorityRiftInstance = nil
+                local riftInstance = nil
+                for _, rift in pairs(state.currentRifts) do
+                    if rift.name == state.riftPriority then
+                        riftInstance = rift.instance
+                        break
+                    end
+                end
+                if riftInstance then
+                    tpToModel(riftInstance)
+                    task.wait(0.15)
+                    local riftData = state.gameRiftData[state.riftPriority]
+                    if riftData then
+                        if riftData.Type == "Egg" and riftData.Egg then
+                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                            task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                        elseif riftData.Type == "Chest" then
+                            state.chestFarmActive = true
+                            state.currentChestRift = state.riftPriority
+                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
+                        end
+                    end
+                end
+            end)
+        end
 
-                    -- Check if priority rift is currently spawned
-                    for _, rift in pairs(state.currentRifts) do
-                        if rift.name == state.riftPriority then
-                            priorityRiftSpawned = true
+        -- ✅ PRIORITY RIFT LIST: if enabled, check if any spawned rift is in the priority list
+        if state.riftPriorityMode and type(state.priorityRifts) == "table" and #state.priorityRifts > 0 then
+            pcall(function()
+                local priorityRiftName = nil
+                local priorityRiftInstance = nil
+                for _, rift in pairs(state.currentRifts) do
+                    for _, pname in pairs(state.priorityRifts) do
+                        if rift.name == pname then
+                            priorityRiftName = rift.name
                             priorityRiftInstance = rift.instance
                             break
                         end
                     end
-
-                    -- If priority rift is spawned, farm it based on type
-                    if priorityRiftSpawned and priorityRiftInstance then
-                        -- Teleport to rift
-                        tpToModel(priorityRiftInstance)
-                        task.wait(0.15)
-
-                        -- Check rift type from game data
-                        local riftData = state.gameRiftData[state.riftPriority]
-                        if riftData then
-                            if riftData.Type == "Egg" and riftData.Egg then
-                                -- Rift contains an egg - auto-hatch it
-                                if state.autoHatch then
-                                    networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
-                                    print("🥚 Auto-hatching rift egg: " .. riftData.Egg)
-                                end
-                            elseif riftData.Type == "Chest" then
-                                -- Rift is a chest - start chest farming loop
-                                state.chestFarmActive = true
-                                state.currentChestRift = state.riftPriority
-                                print("📦 Started chest farming: " .. state.riftPriority)
-                            end
-                        end
-                        return  -- Skip normal egg hatching
-                    end
-                    -- If priority rift not spawned, skip auto-hatch (wait for rift)
-                    return
+                    if priorityRiftName then break end
                 end
 
-                -- Normal egg auto-hatch (no rift priority or rift priority disabled)
-                -- Find the egg instance
+                -- If we were farming a priority rift and it's gone, revert to previous
+                if state.farmingPriorityRift then
+                    local stillHere = false
+                    for _, rift in pairs(state.currentRifts) do
+                        if rift.name == state.farmingPriorityRift then stillHere = true break end
+                    end
+                    if not stillHere then
+                        state.chestFarmActive = false
+                        state.currentChestRift = nil
+                        state.eggPriority = state.previousEggPriority
+                        state.riftPriority = state.previousRiftPriority
+                        state.farmingPriorityRift = nil
+                    end
+                end
+
+                if priorityRiftName and priorityRiftInstance then
+                    -- Save previous if we're switching to this priority rift
+                    if state.farmingPriorityRift ~= priorityRiftName then
+                        state.previousEggPriority = state.eggPriority
+                        state.previousRiftPriority = state.riftPriority
+                        state.farmingPriorityRift = priorityRiftName
+                        state.riftPriority = priorityRiftName
+                    end
+                    tpToModel(priorityRiftInstance)
+                    task.wait(0.15)
+                    local riftData = state.gameRiftData[priorityRiftName]
+                    if riftData then
+                        if riftData.Type == "Egg" and riftData.Egg then
+                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                            task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                        elseif riftData.Type == "Chest" then
+                            state.chestFarmActive = true
+                            state.currentChestRift = priorityRiftName
+                            networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
+                        end
+                    end
+                    return  -- Don't run normal egg this tick
+                end
+            end)
+        end
+
+        -- ✅ NORMAL EGG AUTO HATCH (only when not farming rift from Rift tab or priority list)
+        if state.autoHatch and state.eggPriority and not state.farmingPriorityRift and not (state.riftAutoHatch and state.riftPriority) then
+            pcall(function()
                 for _, egg in pairs(state.currentEggs) do
                     if egg.name == state.eggPriority then
                         local shouldTeleport = false
-
-                        -- Check if player has moved away or is first time
                         if not state.lastEggPosition then
                             shouldTeleport = true
                             state.lastEggPosition = egg.instance:GetPivot().Position
                         else
-                            -- Check if player is far from egg (more than 20 studs)
                             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                             if hrp then
                                 local distance = (hrp.Position - state.lastEggPosition).Magnitude
@@ -1790,16 +2115,12 @@ task.spawn(function()
                                 end
                             end
                         end
-
-                        -- Only teleport if needed
                         if shouldTeleport then
                             tpToModel(egg.instance)
-                            task.wait(0.15)  -- Small delay after teleport
+                            task.wait(0.15)
                         end
-
-                        -- Always use 99 (game will cap to player's max)
                         networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
-
+                        task.defer(function() task.wait(0.2) stopHatchAnimation() end)
                         break
                     end
                 end
@@ -1808,23 +2129,30 @@ task.spawn(function()
     end
 end)
 
--- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (fast chest opening)
+-- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (from Rift tab or priority rift)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(0.5) do
-        if state.chestFarmActive and state.currentChestRift and state.autoHatch then
-            pcall(function()
-                -- UnlockRiftChest command: FireServer("UnlockRiftChest", chestName, autoOpen)
-                networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, false)
-            end)
-        else
-            -- Stop chest farming if conditions not met
-            if state.chestFarmActive then
+        if state.chestFarmActive and state.currentChestRift then
+            -- Stop if rift no longer spawned (so we can TP back to previous)
+            local riftStillHere = false
+            for _, rift in pairs(state.currentRifts) do
+                if rift.name == state.currentChestRift then riftStillHere = true break end
+            end
+            if riftStillHere then
+                pcall(function()
+                    networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, true)
+                end)
+            else
                 state.chestFarmActive = false
                 state.currentChestRift = nil
-                print("📦 Stopped chest farming")
+                if state.farmingPriorityRift then
+                    state.eggPriority = state.previousEggPriority
+                    state.riftPriority = state.previousRiftPriority
+                    state.farmingPriorityRift = nil
+                end
             end
         end
     end
@@ -1840,6 +2168,39 @@ task.spawn(function()
             pcall(function()
                 networkRemote:FireServer("ClaimAllPlaytime")
                 print("✅ Claimed playtime gifts")
+            end)
+        end
+    end
+end)
+
+-- ✅ AUTO POTIONS: Re-apply selected potions every 3 seconds
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    while task.wait(3) do
+        if state.autoPotionEnabled and type(state.selectedPotions) == "table" and #state.selectedPotions > 0 then
+            pcall(function()
+                for _, potionName in pairs(state.selectedPotions) do
+                    pcall(function()
+                        networkRemote:FireServer("UsePotion", potionName)
+                    end)
+                end
+            end)
+        end
+    end
+end)
+
+-- ✅ AUTO ENCHANT: Apply main + second enchant to equipped pet (remote name TBD)
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+    while task.wait(5) do
+        if state.autoEnchantEnabled and state.enchantMain and state.enchantSecond and state.enchantMain ~= state.enchantSecond then
+            pcall(function()
+                networkRemote:FireServer("EnchantPet", 1, state.enchantMain)
+                networkRemote:FireServer("EnchantPet", 2, state.enchantSecond)
             end)
         end
     end
@@ -1877,6 +2238,29 @@ task.spawn(function()
             PriorityRiftDropdown:Refresh(state.gameRiftList, true)
         end)
         print("✅ Priority rift list populated with " .. #state.gameRiftList .. " rifts from game data")
+    end
+
+    if #state.gamePotionList > 0 then
+        pcall(function()
+            PotionDropdown:Refresh(state.gamePotionList, true)
+        end)
+        print("✅ Potion list populated with " .. #state.gamePotionList .. " potions")
+    end
+
+    if #state.gameEnchantList > 0 then
+        pcall(function()
+            EnchantMainDropdown:Refresh(state.gameEnchantList, true)
+            EnchantSecondDropdown:Refresh(state.gameEnchantList, true)
+        end)
+    end
+
+    if #state.gameTeamList > 0 then
+        local teamOpts = {"—"}
+        for _, t in pairs(state.gameTeamList) do table.insert(teamOpts, t) end
+        pcall(function()
+            HatchTeamDropdown:Refresh(teamOpts, true)
+            StatsTeamDropdown:Refresh(teamOpts, true)
+        end)
     end
 end)
 
@@ -1922,9 +2306,9 @@ end)
 Rayfield:LoadConfiguration()
 
 print("✅ ==========================================")
-print("✅ BGSI Premium Hub - READY!")
+print("✅ Zenith (BGSI) - READY!")
 print("✅ ==========================================")
-print("📱 Rayfield is automatically mobile-optimized!")
+print("📱 Zenith is mobile-optimized (Rayfield)")
 print("   • Single column layout")
 print("   • Auto-resizes to your screen")
 print("   • Touch-friendly buttons")
@@ -1953,12 +2337,12 @@ print("   • Configurable stats interval (30-120s)")
 print("✅ ==========================================")
 
 Rayfield:Notify({
-   Title = "🧼 BGSI Hub Ready!",
+   Title = "Zenith (BGSI) Ready!",
    Content = "Mobile-optimized | All systems active!",
    Duration = 5,
    Image = 4483362458,
 })
 
-print("🎉 BGSI Hub loaded successfully!")
+print("Zenith (BGSI) loaded successfully!")
 print("💡 Rifts and eggs will auto-refresh every 2 seconds")
 print("💡 Enable webhook for pet hatch notifications!")

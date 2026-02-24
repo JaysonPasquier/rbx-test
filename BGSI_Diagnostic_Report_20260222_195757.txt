@@ -1,0 +1,1898 @@
+========================================
+🔍 BGSI GAME DIAGNOSTIC REPORT
+Generated: 2026-02-22 19:57:57
+========================================
+
+
+📦 === REPLICATEDSTORAGE STRUCTURE ===
+├─ Assets [Folder]
+│  ├─ Fishing [Folder]
+│  ├─ Super [ImageLabel]
+│  ├─ Eggs [Folder]
+│  ├─ XLBorder [Frame]
+│  ├─ Gradients [Folder]
+│  ├─ Particles [Folder]
+│  ├─ Sounds [Folder]
+│  ├─ Books [Folder]
+│  ├─ PetTag [BillboardGui]
+│  ├─ Effects [Folder]
+│  ├─ Animations [Folder]
+│  ├─ GiftGui [BillboardGui]
+│  ├─ ItemFrame [Frame]
+│  ├─ PlayerTag [BillboardGui]
+│  ├─ Pets [Folder]
+│  ├─ Powerups [Folder]
+│  ├─ ProximityPrompt [BillboardGui]
+│  ├─ EggLock [BillboardGui]
+│  ├─ ChestRespawn [Model]
+│  ├─ VisualPortalLock [Model]
+│  ├─ VisualEggLock [Model]
+│  ├─ Rifts [Folder]
+│  ├─ RiftChest [BillboardGui]
+│  ├─ Chests [Folder]
+│  ├─ LevelUp [BillboardGui]
+│  ├─ Trampoline [Model]
+│  ├─ Pickups [Folder]
+│  ├─ Minigames [Folder]
+│  ├─ Rejoining [ScreenGui]
+│  ├─ EasterEggs [Folder]
+│  ├─ Bobbers [Folder]
+│  ├─ Intro_ [ScreenGui]
+│  ├─ FishingRods [Folder]
+│  ├─ Boats [Folder]
+│  ├─ Fish [Folder]
+│  ├─ Intro [ScreenGui]
+│  ├─ Bundles [Folder]
+│  ├─ Bubble [MeshPart]
+│  ├─ VisualItem [Part]
+│  ├─ Tutorial [MeshPart]
+│  ├─ GoldenEgg [Part]
+├─ Client [Folder]
+│  ├─ PetRender [ModuleScript]
+│  ├─ Activation [ModuleScript]
+│  ├─ PlayerRender [ModuleScript]
+│  ├─ Moonlite [ModuleScript]
+│  ├─ LowDetail [ModuleScript]
+│  ├─ PlayerControls [ModuleScript]
+│  ├─ Music [ModuleScript]
+│  ├─ IsTrading [ModuleScript]
+│  ├─ Tutorial [ModuleScript]
+│  ├─ AFKReport [ModuleScript]
+│  ├─ Gui [Folder]
+│  ├─ Framework [Folder]
+│  ├─ Effects [Folder]
+├─ Shared [Folder]
+│  ├─ Types [ModuleScript]
+│  ├─ Constants [ModuleScript]
+│  ├─ T [ModuleScript]
+│  ├─ Palette [ModuleScript]
+│  ├─ GlobalEvent [ModuleScript]
+│  ├─ HeavenHellShared [ModuleScript]
+│  ├─ ValentinesShared [ModuleScript]
+│  ├─ Framework [Folder]
+│  ├─ Utils [Folder]
+│  ├─ Data [Folder]
+├─ Remotes [Folder]
+│  ├─ PlayerDataLoaded [RemoteEvent]
+│  ├─ PlayerDataChanged [RemoteEvent]
+│  ├─ PlayerDataFailed [RemoteEvent]
+│  ├─ Pickups [Folder]
+├─ FastFlags [Folder]
+
+
+📡 === ALL REMOTEEVENTS & REMOTEFUNCTIONS ===
+[1] RemoteEvent → ReplicatedStorage.Shared.Framework.Network.Remote.RemoteEvent
+[2] RemoteFunction → ReplicatedStorage.Shared.Framework.Network.Remote.RemoteFunction
+[3] RemoteEvent → ReplicatedStorage.Shared.Framework.Utilities.SendSystemMessage.RemoteEvent
+[4] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataLoaded
+[5] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataChanged
+[6] RemoteEvent → ReplicatedStorage.Remotes.PlayerDataFailed
+[7] RemoteEvent → ReplicatedStorage.Remotes.Pickups.SpawnPickups
+[8] RemoteEvent → ReplicatedStorage.Remotes.Pickups.CollectPickup
+
+Total Remotes Found: 8
+
+
+🧼 === BUBBLE/BLOW RELATED REMOTES ===
+
+
+🥚 === EGG/HATCH RELATED REMOTES ===
+
+
+🗺️ === WORKSPACE STRUCTURE ===
+├─ Camera [Camera]
+├─ Sound [Sound]
+├─ Eggs [Folder]
+├─ Stages [Folder]
+├─ Markers [Folder]
+├─ Worlds [Folder]
+├─ Scene [Folder]
+├─ xyeetplazyoutub [Model]
+├─ EventShop [Model]
+├─ TravelingMerchant [Model]
+├─ DailyPerks [Model]
+├─ ShardActivation [Model]
+├─ ImageLabel [ImageLabel]
+├─ RebirthMachine [Model]
+├─ Obbys [Folder]
+├─ Decal [Decal]
+├─ Potion of Currency [Model]
+├─ Model [Model]
+├─ Decore [Model]
+├─ ref [Model]
+├─ XLSign [Model]
+├─ GlobalIncentive [Model]
+├─ Everlasting Moonglow [Model]
+├─ LunarWheelSpin [Model]
+├─ diesel2010m [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Incentive [Model]
+├─ TopIncentive [Model]
+├─ Rotates [Model]
+├─ Board [Model]
+├─ Model [Model]
+├─ World Bubble [Model]
+├─ Giant Crescent Empress [Model]
+├─ All-Seeing Overseer [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Model [Model]
+├─ Wealthy Trio [Model]
+├─ Decal [Decal]
+├─ Egg Trophy [Model]
+├─ WorldEmitters [Folder]
+├─ SummonedEgg [Folder]
+├─ Rendered [Folder]
+│  📂 RENDERED FOLDER (Important!):
+│  ├─ Bubbles [Folder] (0 children)
+│  ├─ Generic [Folder] (111 children)
+│  ├─ Pets [Folder] (20 children)
+│  ├─ Chests [Folder] (4 children)
+│  ├─ Gifts [Folder] (0 children)
+│  ├─ Pickups [Folder] (0 children)
+│  ├─ Teleport [Folder] (0 children)
+│  ├─ Boats [Folder] (0 children)
+│  ├─ PresentRain [Folder] (0 children)
+│  ├─ Timer [Model] (2 children)
+│  ├─ Rifts [Folder] (10 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Chunker [Folder] (1 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Chunker [Folder] (0 children)
+│  ├─ Active [Model] (7 children)
+├─ AdminIsland [Model]
+├─ AdminPortal [Model]
+├─ scorpio74890 [Model]
+├─ Lantern [Part]
+├─ Terrain [Terrain]
+├─ Part [Part]
+├─ Part [Part]
+├─ MysteryVoice [Part]
+├─ floorbox [Part]
+├─ CircusSpawn [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ HeavenIslandReturn [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ Lantern [Part]
+├─ AdminWheelSpin [Model]
+├─ limelz [Model]
+├─ TurqutQehbedi [Model]
+├─ kinghairyson04 [Model]
+├─ OzzyWillBePro [Model]
+├─ camon20hick [Model]
+
+
+🌀 === RIFT STRUCTURE ===
+✅ Found Rifts folder at: Workspace.Rendered.Rifts
+Rifts detected: 10
+
+[Rift 1] moon-rift
+   Full structure:
+   Workspace.Rendered.Rifts.moon-rift.MoonShop [Model]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root [Part]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.Attachment1 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.Attachment2 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.BillboardGui [BillboardGui]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.BillboardGui.Title [TextLabel]
+      └─ Text: "Moon Shop"
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.BillboardGui.Title.UIGradient [UIGradient]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.BillboardGui.Description [TextLabel]
+      └─ Text: "Spend Moon Shards!"
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Root.Tutorial [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Ring [UnionOperation]
+   Workspace.Rendered.Rifts.moon-rift.MoonShop.Border [UnionOperation]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn [Model]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Sign [Model]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment0 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001.Poison [ParticleEmitter]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment0 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001.Poison [ParticleEmitter]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/floatingisland1_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/floatingisland1_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/floatingisland1_Circle.003.Texture [Texture]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment0 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001.Poison [ParticleEmitter]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Cylinder.003 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Cylinder.005 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Plane.003 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Cylinder.006 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Cylinder.004 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/rocketihope1_Cylinder.002 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment0 [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Attachment [Attachment]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.Beam [Beam]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001.Poison [ParticleEmitter]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Model.Meshes/crater3_Circle.001 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part [Part]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Part.Decal [Decal]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1 [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Model.Meshes/bgsstar1.PointLight [PointLight]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/bgsspikething [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/mooncratorthing [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/mooncratorthing [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/mooncratorthing [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/mooncratorthing [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Decoration.Meshes/mooncratorthing [MeshPart]
+   Workspace.Rendered.Rifts.moon-rift.Display [Part]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Icon [Frame]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Icon.Label [ImageLabel]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Icon.Luck [TextLabel]
+      └─ Text: "x25"
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Icon.Luck.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "1 hour"
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.moon-rift.Display.SurfaceGui.UIPadding [UIPadding]
+   Workspace.Rendered.Rifts.moon-rift.Output [Part]
+
+[Rift 2] rainbow-egg
+   Full structure:
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.008 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstreeREAL3_bgstree.006 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.004 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Tree.Meshes/bgstree2_Circle.005 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Meshes/floatingisland1_Circle.002 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Meshes/floatingisland1_Circle.003 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Decoration.Meshes/floatingisland1_Circle.003.Texture [Texture]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.rainbow-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn [Model]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.Output [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.Display [Part]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Icon [Frame]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Icon.Label [ImageLabel]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Icon.Luck [TextLabel]
+      └─ Text: "x25"
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Icon.Luck.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "23 seconds"
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.rainbow-egg.Display.SurfaceGui.UIPadding [UIPadding]
+
+[Rift 3] mining-egg
+   Full structure:
+   Workspace.Rendered.Rifts.mining-egg.Sign [Model]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign [Model]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Cube.002 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Plane.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.mining-egg.Sign.Sign.Meshes/sign2_Plane.001.Decal [Decal]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn [Model]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.EggPlatformSpawn.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.Decoration [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Model [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Model.Meshes/Floating Island_Circle.004 (2) [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Model.Meshes/Floating Island_Circle.013 (1) [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Model.Meshes/Floating Island_Circle.013 (1).Texture [Texture]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Model.Meshes/Floating Island_Circle.013 (1).SurfaceLight [SurfaceLight]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice [Model]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_Dice2.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Dice.Meshes/Dice2_DiceSpot.001 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Clouds [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Meshes/Suits_Circle.115 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Clouds [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Meshes/Suits_Circle.110 [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Clouds [MeshPart]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Mesh [SpecialMesh]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Stars [ParticleEmitter]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Mesh [SpecialMesh]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Stars [ParticleEmitter]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part [Part]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Mesh [SpecialMesh]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.PointLight [PointLight]
+   Workspace.Rendered.Rifts.mining-egg.Decoration.Part.Stars [ParticleEmitter]
+   Workspace.Rendered.Rifts.mining-egg.Output [Part]
+   Workspace.Rendered.Rifts.mining-egg.Display [Part]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui [SurfaceGui]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Icon [Frame]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Icon.Label [ImageLabel]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Icon.Luck [TextLabel]
+      └─ Text: "x5"
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Icon.Luck.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Timer [TextLabel]
+      └─ Text: "1 minute"
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.Timer.UIStroke [UIStroke]
+   Workspace.Rendered.Rifts.mining-egg.Display.SurfaceGui.UIPadding [UIPadding]
+
+
+🥚 === EGG STRUCTURE (Chuncker folders) ===
+✅ Rendered folder exists
+All children in Rendered:
+   ├─ Bubbles (0 children)
+   ├─ Generic (111 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Book [Model] ❌ NO PLATE
+            └─ Model [Model]
+         • Top [Model] ❌ NO PLATE
+            └─ Page [MeshPart]
+            └─ Root [MeshPart]
+         • AnimatedParts [Folder] ❌ NO PLATE
+         • AnimatedParts [Folder] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Display [Part]
+            └─ Visual [MeshPart]
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Model [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Super Egg [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • FriendInvite [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         • Tile [Model] ❌ NO PLATE
+         (...and 86 more)
+   ├─ Pets (20 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Doggyton [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Decoration [Model]
+            └─ Hitbox [Part]
+         • Sunburst [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Hitbox [Part]
+         • Hot Dog Doggy [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Hitbox [Part]
+            └─ Face [Part]
+         • Koi [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Hitbox [Part]
+         • The Shocklord [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Hitbox [Part]
+            └─ AnimatedFace [Part]
+         • Guardian Skull [Model] ❌ NO PLATE
+         • Royal Trophy [Model] ❌ NO PLATE
+         • 824e713d-ddc3-4c57-88e7-1e08edc560ee:e575305b-6f72-440b-a300-dbec71947450 [Model] ❌ NO PLATE
+         • 7936783d-ad46-4f75-becf-f51aa8d6a90e:634785cb-bc31-48d4-80f6-4bb46aae5c3a [Model] ❌ NO PLATE
+         • bc38d607-3a1b-4823-bad3-151216ac4ac8:121b0732-3527-47ac-a5cc-84370441b39a [Model] ❌ NO PLATE
+         • a3584c2c-f2b8-4f48-ab6e-1cf21d605027:b1c3a35c-5d1d-45a8-811b-edd00875ca3e [Model] ❌ NO PLATE
+         • 3c56ff15-069e-4032-b8be-4d14f279a44d:7981de2d-88a5-4290-9b7b-fd1f4b2fdf24 [Model] ❌ NO PLATE
+         • 0272c0e8-ac93-474f-8323-36c539b733dc:fe578648-23ce-46c1-af1a-f81b6234c0a2 [Model] ❌ NO PLATE
+         • 9951e2c5-f931-4a5a-92b2-66a096953019:d1fe5eba-8a62-4906-8ec3-ee3f1d0e27c3 [Model] ❌ NO PLATE
+         • 90af6368-d32d-483d-a3b2-b584f12e689b:f5fc3bd9-10e3-4d73-8591-65beba79a67e [Model] ❌ NO PLATE
+         • 4b12c99e-80d5-48ff-b938-7df72d7ea35c:bca1a420-30b8-4c14-9c36-fc9ca4946d7f [Model] ❌ NO PLATE
+         • 2b983c81-a73f-4fee-bef4-98b9b9c2242b:0878d4ac-233b-4c44-a854-9eab44d75949 [Model] ❌ NO PLATE
+         • 53a1d649-c6c0-4047-bd71-87b3bd3d25a6:ccec1d19-8515-40be-8519-63475b8d58d4 [Model] ❌ NO PLATE
+         • 258a9620-efdd-47d9-b08d-814c171cffd6:e3697add-42a5-412e-b53f-492a4bc725f9 [Model] ❌ NO PLATE
+         • Festival One Mythic [Model] ❌ NO PLATE
+   ├─ Chests (4 children)
+   ├─ Gifts (0 children)
+   ├─ Pickups (0 children)
+   ├─ Teleport (0 children)
+   ├─ Boats (0 children)
+   ├─ PresentRain (0 children)
+   ├─ Timer (2 children)
+   ├─ Rifts (10 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • moon-rift [Model] ❌ NO PLATE
+            └─ MoonShop [Model]
+            └─ EggPlatformSpawn [Model]
+            └─ Sign [Model]
+         • rainbow-egg [Model] ❌ NO PLATE
+            └─ Decoration [Model]
+            └─ Sign [Model]
+            └─ EggPlatformSpawn [Model]
+         • mining-egg [Model] ❌ NO PLATE
+            └─ Sign [Model]
+            └─ EggPlatformSpawn [Model]
+            └─ Decoration [Model]
+         • cyber-egg [Model] ❌ NO PLATE
+            └─ Sign [Model]
+            └─ EggPlatformSpawn [Model]
+            └─ Decoration [Model]
+         • neon-egg [Model] ❌ NO PLATE
+            └─ Sign [Model]
+            └─ EggPlatformSpawn [Model]
+            └─ Decoration [Model]
+         • void-egg [Model] ❌ NO PLATE
+         • magma-egg [Model] ❌ NO PLATE
+         • golden-chest [Model] ❌ NO PLATE
+         • gift-rift [Model] ❌ NO PLATE
+         • neon-egg [Model] ❌ NO PLATE
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Chunker (1 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Super Egg [Model] ✅ HAS PLATE
+            └─ Decoration [Model]
+            └─ Root [Part]
+            └─ Prompt [Part]
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Chunker (0 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+   ├─ Active (7 children)
+      ⭐ POSSIBLE EGG FOLDER! Contents:
+         • Model [Model] ❌ NO PLATE
+            └─ Meshes/Hot Air Balloon_Sphere.009 [MeshPart]
+            └─ Meshes/Hot Air Balloon_Plane.006 [MeshPart]
+            └─ Meshes/Hot Air Balloon_Cylinder.006 [MeshPart]
+         • Captain [Model] ❌ NO PLATE
+            └─ Humanoid [Humanoid]
+            └─ Body Colors [BodyColors]
+            └─ Shirt [Shirt]
+         • Meshes/balloon landing1_Plane [MeshPart] ❌ NO PLATE
+         • Meshes/balloon landing2 [MeshPart] ❌ NO PLATE
+         • Meshes/balloon landing2 [MeshPart] ❌ NO PLATE
+         • Meshes/balloon landing2 [MeshPart] ❌ NO PLATE
+         • Meshes/balloon landing2 [MeshPart] ❌ NO PLATE
+
+
+🐾 === PET DATA ===
+✅ Pet data found! Sample pets:
+   • Retro Doggy - Rarity: Common
+   • Dice - Rarity: Epic
+   • Everblaze - Rarity: Secret
+   • Hellshard - Rarity: Secret
+   • Avernus Tophat - Rarity: Secret
+   • Christmas Trophy - Rarity: Secret
+   • Easter Egg - Rarity: Unique
+   • Space Mouse - Rarity: Common
+   • BGS Box - Rarity: Secret
+   • Atlantis Guardian - Rarity: Legendary
+
+Total pets in data: 10
+
+
+🎁 === CODES DATA ===
+✅ Code data found! Available codes:
+   • maidnert
+   • bugfix
+   • update6
+   • secretsanta
+   • hell
+   • halloween
+   • adminabuse
+   • fishfix
+   • update5
+   • cornmaze
+   • miniupdate
+   • plasma
+   • update2
+   • christmas
+   • 2xinfinity
+   • obby
+   • onemorebonus
+   • valentine
+   • superpuff
+   • heaven
+   • tophats
+   • circus
+   • lucky
+   • galentine
+   • update7
+   • sorryshutdown
+   • jolly
+   • elf
+   • world3
+   • christmasday2025
+   • update8
+   • throwback
+   • ogbgs
+   • shutdown
+   • update3
+   • ripsoulofplant
+   • autumn
+   • update11
+   • easter
+   • milestones
+   • update10
+   • season7
+   • season6
+   • update4
+   • update13
+   • sylentlyssorry
+   • update16
+   • update15
+   • fishe
+   • release
+   • update12
+   • retroslop
+   • update9
+
+Total codes: 53
+
+
+🖥️ === PLAYERGUI STRUCTURE (Currency Labels) ===
+✅ ScreenGui found
+   ✅ HUD found
+      ✅ Left panel found
+         ✅ Currency frame found
+
+         Currency Labels:
+         ├─ UIListLayout
+         ├─ UIPadding
+         ├─ Coins
+         │  └─ Current Value: "414.7B"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Frame.Label
+         ├─ Gems
+         │  └─ Current Value: "1,836,350,528"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Gems.Frame.Label
+         ├─ Bubble
+         │  └─ Current Value: "<stroke color="#00295E" joins="round" thickness="2">56,601,651,246 / <font size="58">∞</font></stroke>"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Bubble.Frame.Label
+         ├─ Tokens
+         │  └─ Current Value: "0"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tokens.Frame.Label
+         ├─ Tickets
+         │  └─ Current Value: "4.8T"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Frame.Label
+         ├─ Seashells
+         │  └─ Current Value: "1.2T"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Frame.Label
+         ├─ FestivalCoins
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Frame.Label
+         ├─ Pearls
+         │  └─ Current Value: "890"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Frame.Label
+         ├─ Leaves
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Frame.Label
+         ├─ Candycorn
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Frame.Label
+         ├─ OGPoints
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.OGPoints.Frame.Label
+         ├─ ThanksgivingShards
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Frame.Label
+         ├─ WinterShards
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Frame.Label
+         ├─ Snowflakes
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Frame.Label
+         ├─ NewYearsShard
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Frame.Label
+         ├─ Horns
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Horns.Frame.Label
+         ├─ Halos
+         │  └─ Current Value: "$1,000,000"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Halos.Frame.Label
+         ├─ MoonShards
+         │  └─ Current Value: "373,188"
+         │     Full Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.MoonShards.Frame.Label
+
+
+📊 === LEADERSTATS ===
+✅ Leaderstats found:
+   • 🥚 Hatches: 8781228
+   • 🟣 Bubbles: 83380506490
+
+
+📦 === CHEST STRUCTURE ===
+✅ Found Chests folder
+Total chests: 4
+
+[Chest 1] Infinity Chest [Part]
+   Children:
+
+[Chest 2] Ticket Chest [Part]
+   Children:
+
+[Chest 3] Giant Chest [Part]
+   Children:
+
+[Chest 4] Void Chest [Part]
+   Children:
+
+
+💰 === PICKUP/DROP STRUCTURE ===
+✅ Found Pickups folder
+Current pickups in folder: 0
+   ⚠️ No pickups currently spawned
+   Try: Blow bubbles or break objects to spawn pickups
+
+
+👑 === ADMIN ABUSE EVENT DETECTION ===
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg Golden in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg Golden
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Generic
+   Full path: Workspace.Rendered.Generic.Super Egg
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Kitty in Generic
+   Full path: Workspace.Rendered.Generic.Super Kitty
+🎯 FOUND ADMIN EVENT ITEM: Super Doggy in Generic
+   Full path: Workspace.Rendered.Generic.Super Doggy
+🎯 FOUND ADMIN EVENT ITEM: Super Egg in Chunker
+   Full path: Workspace.Rendered.Chunker.Super Egg
+🎯 FOUND: AdminIsland [Model]
+   Location: Workspace.AdminIsland
+🎯 FOUND: AdminPortal [Model]
+   Location: Workspace.AdminPortal
+🎯 FOUND: AdminWheelSpin [Model]
+   Location: Workspace.AdminWheelSpin
+
+✅ Admin Abuse event MAY be active!
+
+
+🌀 === TELEPORTER/PORTAL DETECTION ===
+✅ Found Teleport folder
+Active teleporters: 0
+
+
+🐾 === COMPLETE PET RARITY BREAKDOWN ===
+✅ Total pets in game: 1295
+
+Breakdown by rarity:
+   • Common: 90
+   • Unique: 21
+   • Rare: 107
+   • Epic: 79
+   • Legendary: 442
+   • Secret: 556
+
+🌟 All SECRET pets:
+   • Everblaze
+   • Hellshard
+   • Avernus Tophat
+   • Christmas Trophy
+   • BGS Box
+   • Bot In The Box
+   • Mystical Galaxy
+   • Northern Star
+   • Dinosaur Tophat
+   • Ornament Round
+   • OG Lucid Leaf
+   • Dark Pyramidium
+   • Fox O' Wisp
+   • Infernal Revenant
+   • OG Wolflord
+   • Eternal Cucumber
+   • Radiance
+   • Dark Plasma Wolflord
+   • Giant NULLvoid
+   • Pot O' Gold
+   • King Slime
+   • Rumblecon Halftime Show
+   • Sinister Shard
+   • Twitch Defender
+   • D0GGY1337
+   • Queen Bee
+   • Stellar Acheron
+   • OG Morning Star
+   • Royal Dogcat
+   • Frost Sentinel
+   • OG New Year's Champion
+   • King Bell
+   • Tidal God
+   • Watermelon Round
+   • Dark Seer
+   • Radiant Crystal Dragon
+   • Mech Robot
+   • Eternal Burger
+   • Hyperwave Kitty
+   • Quamatic Giftbox
+   • Shard
+   • 67 GOD
+   • Radiant Soul
+   • Aero Heart
+   • The Overlord
+   • Ice Cream Fairy
+   • SUPER BIG ROUND
+   • Super Tophat Stack
+   • Sinistar
+   • Guardian Skull
+   • Dementor Tophat
+   • QUE FOFO FACE GOD
+   • Voodoo Plushie
+   • BIG ROUND
+   • Doggy Tophat
+   • Shadow Leviathan
+   • Supreme Seraphim
+   • Prototype DR4G0N
+   • Hellfire
+   • Peppermint Leviathan
+   • Hollow Reflection
+   • Giant One Eyed Monster
+   • Symphonic Hieromphant
+   • Krampus
+   • Pumpkin-Bot
+   • Giant Classic Chicken
+   • The Elder
+   • Clown Nert Plushie
+   • Morning Star
+   • Prophet
+   • Providence
+   • Galactic Paladin
+   • Elephant Plushie
+   • Air Basilisk
+   • Queen Overlord
+   • Christmas Bell
+   • Nert Plushie
+   • DUMB PUMPKIN
+   • Super Radiant One
+   • Lucid Potion
+   • OG Crystal Teddy
+   • Dementor
+   • OG OwOlord
+   • Surreal Seeker
+   • Trophy
+   • Rockstar Leviathan
+   • Retro Kraken
+   • Reincarnation
+   • Diamond Ring
+   • Peppermint Shard
+   • Equilibrium
+   • Chroma Defender
+   • Darkest Omen
+   • Giant Fall Turkey
+   • OG Giant Robot
+   • Colossal Kraken
+   • Big Flakey
+   • Lenny Box
+   • Mistletoe Fairy
+   • Sinister Lord
+   • Gigantic Spitty
+   • Beelzebub
+   • Leviathan Tophat
+   • Light Lord
+   • Ultimate Clover
+   • Frost Defender
+   • OG Holy Bell
+   • Retro Soul Heart
+   • Soul Heart
+   • Santa Nert Plushie
+   • OG Godly Gem
+   • God Tamer
+   • Almighty Hexarium
+   • Harvest Dogcat
+   • Archangel
+   • Grand Guardian
+   • Flake Spirit
+   • Pig Tophat
+   • Robot Tophat
+   • Rainbow Shock Tophat
+   • OG Cardinal Bunny
+   • OG Sinister Skull
+   • 2026 Pyramidium
+   • Hope Candle
+   • Oceandeep Bounty
+   • Serendipity
+   • Amour Archer
+   • Giant Pearl
+   • Candycorn Star
+   • Spookivus
+   • Everlasting Moonglow
+   • OG King Skull
+   • Moonlord
+   • Royal Lion
+   • Lantern Koi
+   • Magic Marshmallow
+   • Void Soul
+   • Chocolate Sundae Champion
+   • Eternal Heart
+   • The Puppeteer
+   • Shadow Jester
+   • Shimmering Shard
+   • Void Crystal Dragon
+   • Fall Pyramidium
+   • Giant Emerald Golem
+   • Retro Pyramidium
+   • OG Air Basilisk
+   • Synthesis
+   • Divine Seraph
+   • Liberty
+   • Santa Slime
+   • Aureate Koi
+   • The Dusekkar
+   • Radiant Challenger
+   • Autumn Leaf
+   • Dark Guardian
+   • Giant Neon Elemental
+   • MAN FACE GOD
+   • Fire Basilisk
+   • Leviathan Plushie
+   • Gryphon
+   • Prismidium
+   • Maid Nert Plushie
+   • 1x1x1x1
+   • Godly Gem
+   • OG Archangel
+   • Fallen Angel
+   • Super Soul Heart
+   • Azure Fate
+   • Auronium
+   • Chronos
+   • Santa's Giftbag
+   • Giant Gummy Worm
+   • Crystal Snowman
+   • Ultra Heart
+   • Hellish One
+   • Nephalem
+   • Neon Prototype
+   • Blizzard Dementor
+   • Fortune Star
+   • Electric Basilisk
+   • Dark Leviathan
+   • Bruh Tophat
+   • Easter Basket
+   • Earth Champion
+   • Isaac's Creation
+   • OG Infinity Gem
+   • Starfruit
+   • Harmonic Lily
+   • Festive Basket
+   • Manticore
+   • ObscureEntity Plushie
+   • Ancient Frost Leviathan
+   • Festive Deity
+   • Sky Champion
+   • Blue Raspberry Snowcone
+   • Strawberry Snowcone
+   • Joy Candle
+   • Axolotl Army
+   • Sinister Skull
+   • OG King Kitty
+   • Royal Trophy
+   • Gumdrop King
+   • Cthulhu
+   • Dark Omen
+   • Bunny Tophat
+   • Big Rigby
+   • Wealthy Trio
+   • Kitty Tophat
+   • Moonlit Gaze
+   • The Flawless
+   • Chroma Star
+   • Silly Doggy :)
+   • Drippy Slice
+   • Ice Basilisk
+   • Cup O' Cocoa
+   • Maple Divinity
+   • Fairylight Kitsune
+   • Classic Overlord
+   • Pure Guard
+   • Destiny
+   • Giant Chocolate Chicken
+   • Hermit Crab
+   • Fortuitous Overlord
+   • Prince Pumpkin
+   • Faithless Virtue
+   • Dark Jester
+   • Sea Star
+   • Cursed King
+   • OG Angelic Ghost Spirit
+   • Eternity
+   • True Titan
+   • Plasma Wolflord
+   • OG Koi
+   • Soul Jam
+   • Cherry Snowcone
+   • Snowstorm
+   • Cream Snowcone
+   • Demonlord
+   • Rainbow Dogcat
+   • OG Guardian Skull
+   • OG Wolf Skull
+   • Starglitcher
+   • OG Angelic Skull
+   • OG Easter Spirit
+   • OG Lucky Pyramidium
+   • Selenic Paladin
+   • Moon Goddess
+   • The Dark Tyrant
+   • Chinese Dragon
+   • OG The Keeper
+   • Silly King Doggy
+   • Venom Moth
+   • Fire Champion
+   • All-Seeing Overseer
+   • Giant Crescent Empress
+   • Egg Trophy
+   • World Bubble
+   • Mint Sundae Champion
+   • Night Bloom
+   • Rainbow Pyramidium
+   • Rainbow Gryphon
+   • Lunar New Years Basilisk
+   • Light Lantern
+   • Super Leviathan
+   • The Superlord
+   • Mecha Kraken
+   • Snake Eyes
+   • Angelus
+   • Angelic Spirit
+   • Floral Dogcat
+   • Frost Shard
+   • Whimsical Fairy
+   • Seraphim
+   • Luminosity
+   • Memory of Remembrance
+   • The Love Thief
+   • Angelic Ghost Spirit
+   • OG Mint Sundae Champion
+   • Snowglobe Doggy
+   • Queen of Thorns
+   • Wolf Skull
+   • Dark Avernus
+   • Stuffed Tabby
+   • Dark Basilisk
+   • Dogcat
+   • Pumpgeist
+   • Dark Destiny
+   • Cobalt Sea Dragon
+   • Snowverlord
+   • Monolith
+   • Love Candle
+   • Shadow Crystal Shard
+   • Sakura Specter
+   • The Infinity Gem
+   • Creepy Overlord
+   • Candycorn Shard
+   • Velvet Wolflord
+   • Blossom Chime
+   • Dark Radiance
+   • Giant Kitsune
+   • King Doggy
+   • Rose Koi
+   • Pure of Heart
+   • Festival One
+   • Firecracker
+   • Festive Fox
+   • Mirror Gem
+   • Gummy Overlord
+   • OG Luminance
+   • Elegant Emerald
+   • Kraken Couplet
+   • Lovely Omen
+   • Inferno Gryphon
+   • Love Basilisk
+   • Heartbroken One
+   • Giant que fofo
+   • Bubblegum Pegasus
+   • Santa's Hat
+   • Divine One
+   • Equipoise
+   • Nightmare Guardian
+   • Inferno Gem
+   • Devil's Skull
+   • Rudolph Shock
+   • The Eternity
+   • Dark Koi
+   • Fantasia
+   • Merry-Go Hound
+   • Diamond Overlord
+   • Butter Dawg
+   • FutureWebsiteOwner Giftbox
+   • Malware
+   • PC-Bot
+   • Retro Face God
+   • UwUlord
+   • 2026 Kitsune
+   • Okami Spirit
+   • Dragon Lily
+   • Giant Dreamscape
+   • Superstar
+   • Circus Monster
+   • Kitty Pot
+   • Secret Circus Stack
+   • Retro Sylently's Pet
+   • Classic Dogcat
+   • Golden Tokage
+   • Bubble Circus Show
+   • Giant Cave Mole
+   • Deception
+   • Starcaster
+   • OG Soulflake
+   • Lovely Shock
+   • Nexus
+   • Dark Gryphon
+   • Star Titan
+   • Encore
+   • Giant Chocolate Chicken Tophat
+   • OG Eternal Heart
+   • Super Crimson Bloodmoon
+   • Sylently Giftbox
+   • Clown Round
+   • Tophat Spitty
+   • Cyber Pyramidium
+   • Fancy Dragon Plushie
+   • Giant Bongo Kitty
+   • Silly Doggy Tophat
+   • Seraph Tophat
+   • Pufferfish Tophat
+   • Deer Tophat
+   • OG Demoncore
+   • LOL
+   • ObscureEntity Giftbox
+   • Sparkly Lemonade
+   • Painted Daze
+   • OG The Overlord
+   • Royal Hog
+   • Inferno Moth
+   • OG Shard
+   • Forest Drifter
+   • Clown Rigby
+   • Crimson Sea Dragon
+   • OG Prisma Cube
+   • Aurora Guardian
+   • New Year's Champion
+   • Prosperity
+   • New Year's Overlord
+   • Solitaire
+   • Dark Lord
+   • Ghost Wisps
+   • Lonely Rose
+   • Giant D.I.Y Robot
+   • OG Demonic Ghost Spirit
+   • Virtual Pet
+   • BUBBLE
+   • Frosty One
+   • Demonic Ghost Spirit
+   • Shadow Raven
+   • The Cornucopia
+   • Overlord Plushie
+   • Frost Pyramidium
+   • Frosty Lord Shock
+   • Karma
+   • Sea Chime
+   • Heavenly Poinsettia
+   • Giant Snowman
+   • Christmas Tree
+   • Pyramidium
+   • Frigid Blade
+   • Hot Dog Doggy
+   • Classic King Doggy
+   • Lord Shock
+   • Divine Frost
+   • Giant Nert's Pufferfish
+   • Sylently Plushie
+   • Balloon Doggy
+   • Sircfenner Giftbox
+   • Nert Giftbox
+   • Illumination
+   • Dark Prophet
+   • Strawberry Sundae Champion
+   • Festive Wreath
+   • Dark Star
+   • The Leviathan
+   • Angelic Skull
+   • Soulflake
+   • OwOlord
+   • OG Ice Basilisk
+   • King Skull
+   • Christmas Robot
+   • Iridescent Catcher
+   • Peace Candle
+   • OG Radiant One
+   • Permafrost
+   • Sakuralord
+   • The Golden Ticket
+   • OG Love Thief
+   • Dark Champion
+   • Sweet Heart
+   • Festive Snow Jar
+   • Frosted Dogcat
+   • Giftbox King Doggy
+   • Radiant One
+   • Peppermint Heart
+   • Gingerbread Shard
+   • RUMBLECON GOD
+   • Giant DOOF
+   • OG Duality
+   • Avernus
+   • Super Trophy
+   • OG Godly Shamrock
+   • Man Face Dogcat
+   • Pumpkin Pie
+   • OG Sinister Lord
+   • Danger of the Abyss
+   • Infinity Wisp
+   • Super Shock
+   • OG Hellshard
+   • OG Overlord Plushie
+   • Man Face Leviathan
+   • OG Soul Heart
+   • OG Galactic Paladin
+   • Shallow Radiance
+   • Royal Guardian
+   • OG Dark Guardian
+   • Mega Mech
+   • Dragon Tophat
+   • OG Dementor
+   • Parasol Paladin
+   • OG Electric Basilisk
+   • OG Fire Basilisk
+   • OG Hellfire
+   • Jelly Overlord
+   • Guardian Angel
+   • Silly Leviathan
+   • Super Silly Doggy
+   • King Kitty
+   • Rumblecon Trophy
+   • OG Plasma Wolflord
+   • OG Dragonfruit
+   • OG Strawberry Sundae Champion
+   • OG Chocolate Sundae Champion
+   • Witch of The Woods
+   • OG Immortal One
+   • OG Frost Sentinel
+   • OG Diamond Ring
+   • Harlequin
+   • FutureWebsiteOwner Plushie
+   • Prisma
+   • Phantom
+   • Quamatic Plushie
+   • Harmonic Harp
+   • Super Hacker Prism
+   • DUMB SINISTER LORD
+   • Holy Bell
+   • Wicked Widow
+   • Sircfenner Plushie
+   • Haunted Spirit
+   • OG Radiance
+   • Pumpkin Pyramidium
+   • Ghosdeeri
+   • The Missing Ones
+   • Neon Robot
+   • Patriotic Robot
+   • Frankenbot
+   • Armageddon
+   • Shattered Soul
+   • Nekomata
+   • Big Leafy
+   • Forest Light
+   • Man Face Lord
+   • Sylently's Pet
+   • King Leviathan
+   • All Seeing Eye
+   • Twilight Opal
+   • Sea Champion
+   • Classic Leviathan
+   • New Years Shard
+   • Andromeda
+   • Kuuhenki
+   • Box of Secrets
+   • Vanilla Sundae Champion
+   • Holy Candle
+   • Giant Pixel Robot
+   • Super Pufferfish
+   • OG Vanilla Sundae Champion
+   • Wolflord
+   • Bloomshifter
+   • Royal Fishbowl
+   • Mariposa
+   • WOMAN FACE GOD
+   • Koi
+   • BRUH GOD
+   • Abyssal Sea Dragon
+   • False Prophet
+   • King Spitty
+   • Giant Robot
+   • King Mush
+   • Almighty Pumpkin
+   • Immortal One
+   • Lucid Leaf
+   • Da Cool Trio
+   • Ethereal One
+   • Valentium
+   • Festivus
+   • Golden Retreiver
+   • Kraken
+   • OG BGS Plaque
+   • Shinigami
+   • Borealis Elk
+   • Dragonfruit
+   • Frosted Luminosity
+   • Queen Kitty
+   • Eternal Star
+   • Frosted Bond
+   • All Seeing Shard
+
+
+🎁 === CODE REWARDS BREAKDOWN ===
+✅ Analyzing 0 codes...
+
+Reward types given by codes:
+   • Bait: 6 rewards
+   • Currency: 1 rewards
+   • Potion: 81 rewards
+   • Powerup: 19 rewards
+
+💎 Best codes (most rewards):
+   1. "update16" - 6 rewards
+   2. "onemorebonus" - 5 rewards
+   3. "fishfix" - 5 rewards
+   4. "superpuff" - 5 rewards
+   5. "milestones" - 5 rewards
+
+
+📍 === PLAYER LOCATION ===
+✅ Current position: 1028.0185546875, 1129.25, 468.7131652832031
+   CFrame: 1028.01855, 1129.25, 468.713165, 0.347302854, -7.23631501e-07, -0.937753022, 5.63112678e-07, 1, -5.63112906e-07, 0.937753022, -3.32489918e-07, 0.347302854
+
+
+🌍 === WORLDS & STAGES ===
+✅ Found Worlds folder
+Available worlds: 3
+   [1] Minigame Paradise
+   [2] Seven Seas
+   [3] The Overworld
+
+✅ Found Stages folder
+Available stages: 56
+   [1] Model
+   [2] Model
+   [3] Model
+   [4] Stage
+   [5] Stage
+   [6] Stage
+   [7] Stage
+   [8] Stage
+   [9] Stage
+   [10] Stage
+   (...and 46 more)
+
+
+🏪 === NPC & SHOP LOCATIONS ===
+Scanning for NPCs and shops...
+   ✅ EventShop at -8805.7353515625, 252.3480224609375, 681.3914184570312
+   ✅ TravelingMerchant at 95.84706115722656, 5.785773754119873, -33.4132194519043
+   ✅ DailyPerks at 59.93791961669922, 10.734017372131348, -123.25338745117188
+   ✅ RebirthMachine at -104.12705993652344, 18.463050842285156, -82.31440734863281
+   ✅ LunarWheelSpin at -2.3470075130462646, 11.122085571289062, -42.35883712768555
+   ✅ GlobalIncentive at 92.47002410888672, -359.34136962890625, -36.08257293701172
+   ✅ Incentive at 103.11155700683594, -314.02056884765625, -33.132659912109375
+   ✅ TopIncentive at 94.6357192993164, -352.081787109375, -24.728496551513672
+
+
+👆 === ALL PROXIMITYP ROMPTS ===
+   [1] Workspace.Worlds.Seven Seas.OldSailor.HumanoidRootPart.ProximityPrompt
+
+Total ProximityPrompts: 1
+
+
+⚡ === ACTIVE FOLDER (Dynamic Content) ===
+✅ Found Active folder: 7 items
+   [1] Model [Model]
+      Children: 10
+         • Meshes/Hot Air Balloon_Sphere.009
+         • Meshes/Hot Air Balloon_Plane.006
+         • Meshes/Hot Air Balloon_Cylinder.006
+   [2] Captain [Model]
+      Children: 21
+         • Humanoid
+         • Body Colors
+         • Shirt
+   [3] Meshes/balloon landing1_Plane [MeshPart]
+   [4] Meshes/balloon landing2 [MeshPart]
+   [5] Meshes/balloon landing2 [MeshPart]
+   [6] Meshes/balloon landing2 [MeshPart]
+   [7] Meshes/balloon landing2 [MeshPart]
+
+
+🌌 === COMPLETE RIFT LIST ===
+✅ All rifts currently spawned:
+   [1] moon-rift
+      └─ Type: EGG RIFT
+   [2] rainbow-egg
+      └─ Type: EGG RIFT
+   [3] mining-egg
+      └─ Type: EGG RIFT
+   [4] cyber-egg
+      └─ Type: EGG RIFT
+   [5] neon-egg
+      └─ Type: EGG RIFT
+   [6] void-egg
+      └─ Type: EGG RIFT
+   [7] magma-egg
+      └─ Type: EGG RIFT
+   [8] golden-chest
+      └─ Type: CHEST RIFT
+   [9] gift-rift
+      └─ Type: GIFT RIFT
+   [10] neon-egg
+      └─ Type: EGG RIFT
+
+
+⚙️ === PERFORMANCE INFO ===
+Memory usage: 1722 MB
+Ping: 30 ms
+FPS: 2
+
+
+⚡ === POWERUP & POTION DATA ===
+✅ Found Powerups data module
+   • Season 12 Egg - Effect: Unknown | Duration: N/A
+   • Silver Valentine's Letter - Effect: Unknown | Duration: N/A
+   • Thanksgiving Spin Ticket - Effect: Unknown | Duration: N/A
+   • Golden Dice - Effect: Unknown | Duration: N/A
+   • Stellaris Egg - Effect: Unknown | Duration: N/A
+   • Heartbreak Letter - Effect: Unknown | Duration: N/A
+   • Steel Crate - Effect: Unknown | Duration: N/A
+   • Season 4 Egg - Effect: Unknown | Duration: N/A
+   • Golden Crate - Effect: Unknown | Duration: N/A
+   • Spooky Egg - Effect: Unknown | Duration: N/A
+   • Spooky Mystery Box - Effect: Unknown | Duration: N/A
+   • Season 13 Egg - Effect: Unknown | Duration: N/A
+   • Prismatic Egg - Effect: Unknown | Duration: N/A
+   • Season 9 Egg - Effect: Unknown | Duration: N/A
+   • Mystery Box - Effect: Unknown | Duration: N/A
+   (...and 76 more)
+
+Total powerups: 91
+
+✅ Found Potions data module
+   • Lucky
+   • Valentine's Elixir
+   • Mythic
+   • Tickets
+   • Coins
+   • Secret Elixir
+   • Halloween Infinity Elixir
+   • Speed
+   • Festive Infinity Elixir
+   • 2026 Elixir
+   (...and 12 more)
+
+Total potions: 22
+
+
+🎒 === PLAYER INVENTORY & EQUIPPED PETS ===
+⚠️ No items in backpack
+
+
+💰 === COMPLETE GUI STRUCTURE FOR CURRENCIES ===
+✅ Found Currency folder at: PlayerGui.ScreenGui.HUD.Left.Currency
+All currency elements:
+
+   [Coins]
+      └─ Label: "x494K"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Frame.Icon.Label
+      └─ Label: "414.7B"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Bundles.ChallengePass.Button.Label
+      └─ Label: "0"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Coins.Bundles.ChallengePass.Button.Notification.Label
+
+   [Gems]
+      └─ Label: "x24K"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Gems.Frame.Icon.Label
+      └─ Label: "1,836,350,528"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Gems.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Gems.Frame.Buy.Button.Label
+
+   [Bubble]
+      └─ Label: "<stroke color="#00295E" joins="round" thickness="2">56,601,651,246 / <font size="58">∞</font></stroke>"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Bubble.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Bubble.Frame.Buy.Button.Label
+      └─ Label: "Auto"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Bubble.Frame.AutoBubble.Button.Label
+
+   [Tokens]
+      └─ Label: "x1"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tokens.Frame.Icon.Label
+      └─ Label: "0"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tokens.Frame.Label
+
+   [Tickets]
+      └─ Label: "x2"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Frame.Icon.Label
+      └─ Label: "4.8T"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Tickets.Bundles.ChallengePass.Button.Notification.Label
+
+   [Seashells]
+      └─ Label: "x1"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Frame.Icon.Label
+      └─ Label: "1.2T"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Seashells.Bundles.ChallengePass.Button.Notification.Label
+
+   [FestivalCoins]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.FestivalCoins.Bundles.ChallengePass.Button.Notification.Label
+
+   [Pearls]
+      └─ Label: "x2"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Frame.Icon.Label
+      └─ Label: "890"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Pearls.Bundles.ChallengePass.Button.Notification.Label
+
+   [Leaves]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Leaves.Bundles.ChallengePass.Button.Notification.Label
+
+   [Candycorn]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Candycorn.Bundles.ChallengePass.Button.Notification.Label
+
+   [OGPoints]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.OGPoints.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.OGPoints.Frame.Label
+
+   [ThanksgivingShards]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.ThanksgivingShards.Bundles.ChallengePass.Button.Notification.Label
+
+   [WinterShards]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.WinterShards.Bundles.ChallengePass.Button.Notification.Label
+
+   [Snowflakes]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Snowflakes.Bundles.ChallengePass.Button.Notification.Label
+
+   [NewYearsShard]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Frame.Label
+      └─ Label: "+"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Frame.Buy.Button.Label
+      └─ Label: "Bundle"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Bundles.Starter.Button.Label
+      └─ Label: "Benefits"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Bundles.Benefits.Button.Label
+      └─ Label: "Hunt"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Bundles.Hunt.Button.Label
+      └─ Label: "? Days"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Bundles.ChallengePass.Button.Label
+      └─ Label: "!"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.NewYearsShard.Bundles.ChallengePass.Button.Notification.Label
+
+   [Horns]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Horns.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Horns.Frame.Label
+
+   [Halos]
+      └─ Label: "x14k"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Halos.Frame.Icon.Label
+      └─ Label: "$1,000,000"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.Halos.Frame.Label
+
+   [MoonShards]
+      └─ Label: "x1"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.MoonShards.Frame.Icon.Label
+      └─ Label: "373,188"
+         Path: Players.scorpio74890.PlayerGui.ScreenGui.HUD.Left.Currency.MoonShards.Frame.Label
+
+✅ Total currency displays found: 20
+
+
+🏆 === BADGE SYSTEM ===
+✅ Found Badges data module
+   • Badge ID: 3118039627796133 - Unknown
+   • Badge ID: 2113590115918140 - Unknown
+   • Badge ID: 1596637791422828 - Unknown
+   • Badge ID: 264494209383906 - Unknown
+   • Badge ID: 470805405292091 - Unknown
+   • Badge ID: 1697379762708218 - Unknown
+   • Badge ID: 967619436348747 - Unknown
+   • Badge ID: 2718129323670663 - Unknown
+   • Badge ID: 542484307529882 - Unknown
+   • Badge ID: 3148356404260788 - Unknown
+   (...and 6 more badges)
+
+Total badges: 16
+
+
+💎 === GAMEPASS SYSTEM ===
+✅ Found Gamepasses data module
+   • Extra Equips (ID: table: 0xab81a773991e26f4)
+   • Double Gems (ID: table: 0xd10a40a57d0fc754)
+   • Double Fishing XP (ID: table: 0x9c1f452a8136a3e4)
+   • Triple Hatch (ID: table: 0x4e9526a8913ea1b4)
+   • Digital Storage (ID: table: 0x51ab15dd99116874)
+   • Double Currency (ID: table: 0x833bf511f917ec24)
+   • VIP (ID: table: 0xabe22dcafd2dfdd4)
+   • Double Luck (ID: table: 0x34f1be0615307f84)
+   • Auto Fishing (ID: table: 0xf96dac6b05178044)
+   • Fast Hatch (ID: table: 0x9648690cb176ed64)
+   • Double Enchant Luck (ID: table: 0x21ac5ad004f93904)
+   • Infinity Gum (ID: table: 0xcc141e763df08414)
+
+
+🌤️ === LIGHTING & ATMOSPHERE ===
+Time of Day: 07:41:14
+Brightness: 2
+Ambient: 0.85098, 0.85098, 0.85098
+✅ Atmosphere detected - Density: 0.23800000548362732
+   Effect: ColorCorrection [ColorCorrectionEffect]
+   Effect: Bloom [BloomEffect]
+⚠️ Special lighting effects active (possible event)
+
+
+✨ === ACTIVE PARTICLE EFFECTS ===
+   [1] Workspace.Rendered.Generic.Super Egg.Hitbox.ELECTRIC
+   [2] Workspace.Rendered.Generic.Super Egg.Hitbox.Middle.Charge
+   [3] Workspace.Rendered.Generic.Super Egg.Hitbox.SPECKS
+   [4] Workspace.Rendered.Generic.Super Egg.Hitbox.SPIKES
+   [5] Workspace.Rendered.Generic.Super Egg.Hitbox.Shine
+   [6] Workspace.Rendered.Rifts.neon-egg.Decoration.Part.Stars
+   [7] Workspace.Rendered.Rifts.neon-egg.Decoration.Part.Stars
+   [8] Workspace.Rendered.Rifts.neon-egg.Decoration.Part.Stars
+
+✅ Total active particle emitters: 8
+
+
+👥 === TEAM SYSTEM ===
+⚠️ No team system detected
+
+
+========================================
+✅ DIAGNOSTIC SCAN COMPLETE
+========================================

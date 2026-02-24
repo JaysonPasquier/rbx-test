@@ -1,39 +1,18 @@
--- ===================================
--- 🧪 CHUNK LOADING TEST SCRIPT
--- Tests multiple methods to force all game chunks to load
--- ===================================
-
--- Check if we're in a valid Roblox environment
-if not game then
-    error("❌ Not running in Roblox environment!")
-end
-
-print("🧪 === CHUNK LOADING TEST STARTING ===")
-print("Testing multiple methods to load all game areas...\n")
-
--- Safe service loading
-local success, Players = pcall(function() return game:GetService("Players") end)
-if not success then error("❌ Failed to get Players service") end
-
-local success2, Workspace = pcall(function() return game:GetService("Workspace") end)
-if not success2 then Workspace = workspace end -- Fallback to global
-
-local success3, RS = pcall(function() return game:GetService("ReplicatedStorage") end)
-if not success3 then error("❌ Failed to get ReplicatedStorage") end
-
-local success4, RunService = pcall(function() return game:GetService("RunService") end)
-if not success4 then error("❌ Failed to get RunService") end
-
-local player = Players.LocalPlayer
-if not player then
-    error("❌ LocalPlayer not found!")
-end
-
-print("✅ Services loaded successfully")
-print("Player:", player.Name)
+print("CHUNK LOADING TEST STARTING")
+print("Testing multiple methods to load all game areas")
 print("")
 
+local Players = game:GetService("Players")
+local Workspace = workspace or game:GetService("Workspace")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
 local results = {}
+
+print("Services loaded successfully")
+print("Player: " .. tostring(player.Name))
+print("")
 
 -- Helper function to count loaded chunks
 local function countLoadedChunks()
@@ -70,16 +49,16 @@ local function getWorlds()
     return worldNames
 end
 
-print("📊 === INITIAL STATE ===")
+print("INITIAL STATE")
 local initialChunks, initialEggs = countLoadedChunks()
-print("Loaded chunks:", initialChunks)
-print("Eggs found:", #initialEggs)
+print("Loaded chunks: " .. tostring(initialChunks))
+print("Eggs found: " .. tostring(#initialEggs))
 if #initialEggs > 0 then
     for _, eggName in pairs(initialEggs) do
         print("  - " .. eggName)
     end
 else
-    print("  (No eggs currently loaded)")
+    print("  No eggs currently loaded")
 end
 print("")
 
@@ -98,10 +77,8 @@ if networkRemote then
     end
 end
 
--- ===================================
--- TEST 1: Disable Workspace Streaming
--- ===================================
-print("🧪 TEST 1: Disabling workspace.StreamingEnabled")
+print("")
+print("TEST 1: Disabling workspace.StreamingEnabled")
 task.spawn(function()
     local success, err = pcall(function()
         local wasEnabled = Workspace.StreamingEnabled
@@ -109,14 +86,14 @@ task.spawn(function()
 
         if wasEnabled then
             Workspace.StreamingEnabled = false
-            print("✅ Set StreamingEnabled = false")
+            print("Set StreamingEnabled = false")
             task.wait(2) -- Wait for chunks to load
 
             local chunks, eggs = countLoadedChunks()
             print("Result: " .. chunks .. " chunks, " .. #eggs .. " eggs")
             results["Disable Streaming"] = {success = true, chunks = chunks, eggs = #eggs}
         else
-            print("⚠️ Streaming already disabled")
+            print("Streaming already disabled")
             results["Disable Streaming"] = {success = false, reason = "Already disabled"}
         end
     end)
