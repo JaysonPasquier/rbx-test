@@ -198,6 +198,12 @@ local function findEggContainingPet(petName)
         return nil
     end
 
+    -- Helper function to escape special pattern characters
+    local function escapePattern(str)
+        -- Escape all Lua pattern special characters
+        return str:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1")
+    end
+
     -- Search through all eggs
     for eggName, eggInfo in pairs(eggData) do
         if eggInfo.Pets then
@@ -214,13 +220,26 @@ local function findEggContainingPet(petName)
     -- If not found in structured data, try searching in raw source
     if eggModuleSource ~= "" then
         -- Search for :Pet(chance, "PetName") pattern
-        local pattern = ':Pet%([%d%.e%-]+,%s*"' .. petName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%s*%)'
+        local escapedPetName = escapePattern(petName)
+        local pattern = ':Pet%([%d%.e%-]+,%s*"' .. escapedPetName .. '"%s*%)'
+
         for eggName in eggModuleSource:gmatch('\\["(.-)"%]%s*=%s*') do
-            local eggPattern = '\\["' .. eggName:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%1") .. '"%]%s*=%s*(.-)Build%(%)'
-            local eggDef = eggModuleSource:match(eggPattern)
-            if eggDef and eggDef:match(pattern) then
-                print("✅ Found pet '" .. petName .. "' in egg: " .. eggName .. " (via source search)")
-                return eggName
+            local escapedEggName = escapePattern(eggName)
+            local eggPattern = '\\["' .. escapedEggName .. '"%]%s*=%s*(.-)Build%(%)'
+
+            local success, eggDef = pcall(function()
+                return eggModuleSource:match(eggPattern)
+            end)
+
+            if success and eggDef then
+                local matchSuccess, matchResult = pcall(function()
+                    return eggDef:match(pattern)
+                end)
+
+                if matchSuccess and matchResult then
+                    print("✅ Found pet '" .. petName .. "' in egg: " .. eggName .. " (via source search)")
+                    return eggName
+                end
             end
         end
     end
