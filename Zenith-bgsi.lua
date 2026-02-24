@@ -112,7 +112,7 @@ local state = {
     gameEnchantList = {},
     enchantMain = nil,
     enchantSecond = nil,
-    autoEnchantEnabled = false
+    autoEnchantEnabled = false,
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
