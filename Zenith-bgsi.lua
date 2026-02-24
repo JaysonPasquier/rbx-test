@@ -198,13 +198,7 @@ local function findEggContainingPet(petName)
         return nil
     end
 
-    -- Helper function to escape special pattern characters
-    local function escapePattern(str)
-        -- Escape all Lua pattern special characters
-        return str:gsub("[%(%)%.%%%+%-%*%?%[%]%^%$]", "%%%1")
-    end
-
-    -- Search through all eggs
+    -- Search through all eggs in structured data
     for eggName, eggInfo in pairs(eggData) do
         if eggInfo.Pets then
             -- Check if this egg contains the pet
@@ -217,29 +211,34 @@ local function findEggContainingPet(petName)
         end
     end
 
-    -- If not found in structured data, try searching in raw source
+    -- If not found in structured data, try simple string search in raw source
     if eggModuleSource ~= "" then
-        -- Search for :Pet(chance, "PetName") pattern
-        local escapedPetName = escapePattern(petName)
-        local pattern = ':Pet%([%d%.e%-]+,%s*"' .. escapedPetName .. '"%s*%)'
+        -- Search for the pet name in quotes after :Pet(
+        local searchString = ':Pet(' -- Start of pet definition
+        local petQuoted = '"' .. petName .. '"' -- Pet name in quotes
 
-        for eggName in eggModuleSource:gmatch('\\["(.-)"%]%s*=%s*') do
-            local escapedEggName = escapePattern(eggName)
-            local eggPattern = '\\["' .. escapedEggName .. '"%]%s*=%s*(.-)Build%(%)'
+        -- Split source into egg sections and search each
+        local pos = 1
+        while true do
+            local eggStart = eggModuleSource:find('["', pos, true)
+            if not eggStart then break end
 
-            local success, eggDef = pcall(function()
-                return eggModuleSource:match(eggPattern)
-            end)
+            local eggNameStart = eggStart + 2
+            local eggNameEnd = eggModuleSource:find('"', eggNameStart, true)
+            if not eggNameEnd then break end
 
-            if success and eggDef then
-                local matchSuccess, matchResult = pcall(function()
-                    return eggDef:match(pattern)
-                end)
-
-                if matchSuccess and matchResult then
+            local eggName = eggModuleSource:sub(eggNameStart, eggNameEnd - 1)
+            local buildPos = eggModuleSource:find('Build()', eggNameEnd, true)
+            if buildPos then
+                local eggSection = eggModuleSource:sub(eggNameEnd, buildPos)
+                -- Simple string search - does this section contain our pet?
+                if eggSection:find(petQuoted, 1, true) then
                     print("✅ Found pet '" .. petName .. "' in egg: " .. eggName .. " (via source search)")
                     return eggName
                 end
+                pos = buildPos + 1
+            else
+                break
             end
         end
     end
