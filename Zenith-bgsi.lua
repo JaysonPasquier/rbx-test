@@ -1,4 +1,4 @@
--- Zenith - BGSI (Rayfield, mobile-optimized)
+-- Zenith (BGSI) - Bubble Gum Simulator Infinite
 -- Script: Zenith | Game: BGSI — Perfect for mobile screens, auto-resizes, single column layout
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
@@ -11,40 +11,6 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- === LOG TO FILE: everything that goes to console also goes to zenith_bgsi_log.txt ===
-local LOG_FILE = "zenith_bgsi_log.txt"
-local _original_print = print
-
-local function logToFile(...)
-    pcall(function()
-        local n = select("#", ...)
-        local parts = {}
-        for i = 1, n do
-            parts[i] = tostring(select(i, ...))
-        end
-        local line = table.concat(parts, "\t")
-        local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-        local fullLine = "[" .. timestamp .. "] " .. line .. "\n"
-        if appendfile then
-            appendfile(LOG_FILE, fullLine)
-        elseif writefile and isfile then
-            local existing = (isfile(LOG_FILE) and readfile(LOG_FILE)) or ""
-            writefile(LOG_FILE, existing .. fullLine)
-        end
-    end)
-end
-
-function print(...)
-    _original_print(...)
-    logToFile(...)
-end
-
-warn = function(...)
-    _original_print("[WARN]", ...)
-    logToFile("[WARN]", ...)
-end
-
--- Log script start
 print("Zenith (BGSI) - LOADING...")
 
 -- Load Rayfield Library (Mobile-Optimized)
@@ -118,16 +84,35 @@ local state = {
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
-    chestFarmActive = false,  -- Track if chest farming is active
-    currentChestRift = nil,  -- Current chest rift name being farmed
-    previousEggPriority = nil,  -- Restore after priority rift/egg is done
+    chestFarmActive = false,
+    currentChestRift = nil,
+    previousEggPriority = nil,
     previousRiftPriority = nil,
-    farmingPriorityRift = nil,  -- Rift name we're currently farming (from priority list); when it despawns we revert
-    eggDatabase = {},  -- NEW: Database of all eggs {EggName = {world="WorldName", position=Vector3}}
-    gameEggData = {},  -- NEW: Egg data from ReplicatedStorage (all eggs in game)
-    gameRiftData = {},  -- NEW: Rift data from ReplicatedStorage (all rifts in game)
-    gameEggList = {},  -- NEW: Simple list of all egg names from game data
-    gameRiftList = {},  -- NEW: Simple list of all rift names from game data (all included)
+    farmingPriorityRift = nil,
+    farmingPriorityEgg = nil,
+    eggDatabase = {},
+    gameEggData = {},
+    gameRiftData = {},
+    gameEggList = {},
+    gameRiftList = {},
+    -- Auto potions
+    gamePotionList = {},
+    gamePotionData = {},
+    selectedPotions = {},
+    autoPotionEnabled = false,
+    potionCounts = {},
+    activePotions = {},
+    -- Disable animation
+    disableHatchAnimation = false,
+    -- Custom teams
+    hatchTeam = nil,
+    statsTeam = nil,
+    gameTeamList = {},
+    -- Auto enchant
+    gameEnchantList = {},
+    enchantMain = nil,
+    enchantSecond = nil,
+    autoEnchantEnabled = false
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
@@ -141,23 +126,7 @@ local state = {
     },
     startTime = tick(),
     labels = {},
-    currencyLabels = {},
-    -- Auto potions
-    gamePotionList = {},
-    gamePotionData = {},
-    selectedPotions = {},
-    autoPotionEnabled = false,
-    potionCounts = {},
-    disableHatchAnimation = false,
-    -- Custom team (hatch team, stats team) - remotes TBD
-    hatchTeam = nil,
-    statsTeam = nil,
-    gameTeamList = {},
-    -- Auto enchant (main + second slot, can't be same)
-    gameEnchantList = {},
-    enchantMain = nil,
-    enchantSecond = nil,
-    autoEnchantEnabled = false
+    currencyLabels = {}  -- NEW: Labels for all currencies
 }
 
 -- === DATA ===
@@ -175,7 +144,7 @@ task.spawn(function()
 
         -- Hook the OnClientEvent to catch hatch responses
         networkRemote.OnClientEvent:Connect(function(eventName, ...)
-            -- Check if the event is related to hatching (multiple possible event names)
+            -- Check if the event is related to hatching
             local isHatchEvent = false
             local eventLower = string.lower(tostring(eventName))
 
@@ -185,15 +154,11 @@ task.spawn(function()
 
             if isHatchEvent then
                 local args = {...}
-                -- Try to extract pet name from args
-                -- The structure varies, but typically args[1] or args[2] contains pet info
                 pcall(function()
                     -- First, check direct string args
                     for i, arg in ipairs(args) do
                         if type(arg) == "string" and petData and petData[arg] then
-                            -- Direct pet name string
                             local currentEgg = state.eggPriority or "Unknown Egg"
-                            -- Check if we're farming a rift
                             if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                                 local riftName = state.farmingPriorityRift or state.riftPriority
                                 local riftData = state.gameRiftData[riftName]
@@ -205,6 +170,7 @@ task.spawn(function()
                             end
                             SendPetHatchWebhook(arg, currentEgg)
                             print("🎉 Hatched: " .. arg .. " from " .. currentEgg)
+                            task.defer(stopHatchAnimation)
                             return
                         end
                     end
@@ -212,10 +178,8 @@ task.spawn(function()
                     -- Then check table args
                     for _, arg in pairs(args) do
                         if type(arg) == "table" then
-                            -- Check if it's a pet table
                             for k, v in pairs(arg) do
                                 if type(k) == "string" and petData and petData[k] then
-                                    -- Found a pet!
                                     local currentEgg = state.eggPriority or "Unknown Egg"
                                     if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                                         local riftName = state.farmingPriorityRift or state.riftPriority
@@ -228,9 +192,9 @@ task.spawn(function()
                                     end
                                     SendPetHatchWebhook(k, currentEgg)
                                     print("🎉 Hatched: " .. k .. " from " .. currentEgg)
+                                    task.defer(stopHatchAnimation)
                                     return
                                 elseif type(v) == "string" and petData and petData[v] then
-                                    -- Pet name is the value
                                     local currentEgg = state.eggPriority or "Unknown Egg"
                                     if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                                         local riftName = state.farmingPriorityRift or state.riftPriority
@@ -243,19 +207,59 @@ task.spawn(function()
                                     end
                                     SendPetHatchWebhook(v, currentEgg)
                                     print("🎉 Hatched: " .. v .. " from " .. currentEgg)
+                                    task.defer(stopHatchAnimation)
                                     return
                                 end
                             end
                         end
                     end
-                    -- Stop hatch animation if toggle is on
-                    task.defer(stopHatchAnimation)
                 end)
             end
         end)
 
         print("✅ Pet hatch webhook listener initialized (improved detection)")
     end)
+end)
+
+-- Stop hatch animation function (improved)
+local function stopHatchAnimation()
+    if not state.disableHatchAnimation then return end
+    pcall(function()
+        local char = player.Character
+        if not char then return end
+
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            local animator = humanoid:FindFirstChildOfClass("Animator")
+            if animator then
+                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                    track:Stop(0)
+                end
+            end
+        end
+
+        -- Hide hatch GUI elements
+        local screenGui = playerGui:FindFirstChild("ScreenGui")
+        if screenGui then
+            for _, gui in pairs(screenGui:GetDescendants()) do
+                if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
+                    local name = string.lower(gui.Name)
+                    if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
+                        pcall(function() gui.Visible = false end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Continuous animation monitor
+task.spawn(function()
+    while task.wait(0.1) do
+        if state.disableHatchAnimation then
+            stopHatchAnimation()
+        end
+    end
 end)
 
 -- === UTILITY FUNCTIONS ===
@@ -369,7 +373,7 @@ local function loadGamePotionData()
     end
 end
 
--- Load enchant data (optional - path may vary)
+-- Load enchant data
 local function loadGameEnchantData()
     pcall(function()
         local data = RS:FindFirstChild("Shared")
@@ -388,7 +392,7 @@ local function loadGameEnchantData()
     end)
 end
 
--- Load team list (optional - path may vary)
+-- Load team data
 local function loadGameTeamData()
     pcall(function()
         local data = RS:FindFirstChild("Shared") and RS.Shared:FindFirstChild("Data")
@@ -700,33 +704,22 @@ local function SendStatsWebhook()
             return
         end
 
-        -- Check response status (204 = success for PATCH, no body)
+        -- Check response status
         if response and response.StatusCode then
-            if method == "PATCH" and response.StatusCode == 204 then
-                -- Edit success, no body - nothing to decode
-            else
-                print("[Webhook] Response status: " .. response.StatusCode)
-            end
+            print("[Webhook] Response status: " .. response.StatusCode)
         end
 
-        -- If this was a new message (POST), save the message ID only when response has body
-        if method == "POST" and response then
-            if response.Body and response.Body ~= "" then
-                local decodeSuccess, data = pcall(function()
-                    return HttpService:JSONDecode(response.Body)
-                end)
-                if decodeSuccess and data and data.id then
-                    state.statsMessageId = data.id
-                    saveStatsMessageId(data.id)
-                    print("[Webhook] Saved new message ID: " .. data.id)
-                else
-                    print("[Webhook] No message ID in response body")
-                end
+        -- If this was a new message (POST), save the message ID
+        if method == "POST" and response and response.Body then
+            local decodeSuccess, data = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+            if decodeSuccess and data and data.id then
+                state.statsMessageId = data.id
+                saveStatsMessageId(data.id)
+                print("[Webhook] Saved new message ID: " .. data.id)
             else
-                -- POST returned no body (e.g. 204) - don't overwrite message ID
-                if response.StatusCode and response.StatusCode ~= 200 then
-                    print("[Webhook] POST returned status " .. tostring(response.StatusCode) .. " with no body")
-                end
+                print("[Webhook] Failed to decode response or no message ID in response")
             end
         end
 
@@ -930,84 +923,6 @@ local function scanEggs()
     return newEggs
 end
 
--- Stop character hatch animation (when Disable egg animation is on) - Improved
-local function stopHatchAnimation()
-    if not state.disableHatchAnimation then return end
-    pcall(function()
-        local char = player.Character
-        if not char then return end
-
-        -- Stop humanoid animations
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            local animator = humanoid:FindFirstChildOfClass("Animator")
-            if animator then
-                for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                    track:Stop(0)
-                end
-            end
-        end
-
-        -- Try to hide hatch GUI elements
-        local screenGui = playerGui:FindFirstChild("ScreenGui")
-        if screenGui then
-            -- Look for common hatch GUI elements
-            for _, gui in pairs(screenGui:GetDescendants()) do
-                if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
-                    local name = string.lower(gui.Name)
-                    if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
-                        pcall(function()
-                            gui.Visible = false
-                        end)
-                    end
-                end
-            end
-        end
-    end)
-end
-
--- Continuous animation monitor (runs when disable animation is on)
-task.spawn(function()
-    while task.wait(0.1) do
-        if state.disableHatchAnimation then
-            pcall(function()
-                local char = player.Character
-                if char then
-                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        local animator = humanoid:FindFirstChildOfClass("Animator")
-                        if animator then
-                            -- Stop any currently playing animations
-                            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                                local animId = track.Animation and track.Animation.AnimationId or ""
-                                -- Stop animations that might be hatch-related
-                                if animId:find("hatch") or animId:find("open") or track.Name:find("Hatch") then
-                                    track:Stop(0)
-                                end
-                            end
-                        end
-                    end
-                end
-
-                -- Hide hatch GUI continuously
-                local screenGui = playerGui:FindFirstChild("ScreenGui")
-                if screenGui then
-                    for _, gui in pairs(screenGui:GetDescendants()) do
-                        if gui:IsA("Frame") or gui:IsA("ImageLabel") or gui:IsA("ImageButton") then
-                            local name = string.lower(gui.Name)
-                            if name:find("hatch") or name:find("egg") or name:find("open") or name:find("reveal") then
-                                if gui.Visible then
-                                    gui.Visible = false
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
 -- ✅ FIXED: Teleport to Plate part for eggs, platform for rifts
 local function tpToModel(model)
     pcall(function()
@@ -1052,7 +967,7 @@ local CurrencySection = MainTab:CreateSection("💰 All Currencies")
 state.labels.allCurrencies = MainTab:CreateLabel("Loading currencies...")
 
 local TeamSection = MainTab:CreateSection("👥 Custom Team")
-MainTab:CreateLabel("Hatch team / Stats team (set remote when known)")
+MainTab:CreateLabel("Hatch team / Stats team")
 
 local HatchTeamDropdown = MainTab:CreateDropdown({
    Name = "Hatch team",
@@ -1239,7 +1154,7 @@ local AutoPotionToggle = FarmTab:CreateToggle({
    end,
 })
 
-FarmTab:CreateLabel("Keeps selected potions active (re-use when in list)")
+FarmTab:CreateLabel("Keeps selected potions active")
 
 -- === AUTO ENCHANT ===
 local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
@@ -1294,7 +1209,7 @@ local AutoEnchantToggle = FarmTab:CreateToggle({
    end,
 })
 
-FarmTab:CreateLabel("Requires Enchants data + remote (e.g. EnchantPet)")
+FarmTab:CreateLabel("Auto-enchants equipped pet")
 
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
@@ -1367,6 +1282,8 @@ local DisableHatchAnimToggle = EggsTab:CreateToggle({
       })
    end,
 })
+
+EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
@@ -1651,7 +1568,7 @@ local WebhookTestButton = WebTab:CreateButton({
          })
          return
       end
-      SendWebhook(state.webhookUrl, "**Zenith (BGSI) Test** " .. os.date("%H:%M"))
+      SendWebhook(state.webhookUrl, "**🧼 BGSI Test** " .. os.date("%H:%M"))
       Rayfield:Notify({
          Title = "Test Sent",
          Content = "Check your Discord!",
@@ -2060,14 +1977,14 @@ task.spawn(function()
     local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(0.1) do
-        -- ✅ Auto Blow Bubbles (IMPLEMENTED)
+        -- ✅ Auto Blow Bubbles
         if state.autoBlow then
             pcall(function()
                 networkRemote:FireServer("BlowBubble")
             end)
         end
 
-        -- ✅ Auto Pickup (Collect coins/gems on ground) - Improved with better validation
+        -- ✅ Auto Pickup (Improved - multiple remote attempts)
         if state.autoPickup then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
@@ -2075,43 +1992,25 @@ task.spawn(function()
                     local pickups = rendered:FindFirstChild("Pickups")
                     if pickups then
                         for _, pickup in pairs(pickups:GetChildren()) do
-                            -- Validate pickup is a valid instance and in workspace
                             if (pickup:IsA("Model") or pickup:IsA("BasePart")) and pickup:IsDescendantOf(Workspace) then
                                 -- Try multiple collection methods
-                                pcall(function()
-                                    networkRemote:FireServer("CollectPickup", pickup)
-                                end)
-                                pcall(function()
-                                    networkRemote:FireServer("CollectPickup", pickup.Name)
-                                end)
-                                pcall(function()
-                                    networkRemote:FireServer("PickupCoin", pickup)
-                                end)
-                                pcall(function()
-                                    networkRemote:FireServer("CollectCoin", pickup)
-                                end)
-                                pcall(function()
-                                    networkRemote:FireServer("Collect", pickup)
-                                end)
-                                -- Try with the full instance path
-                                pcall(function()
-                                    networkRemote:FireServer("Pickup", pickup)
-                                end)
+                                pcall(function() networkRemote:FireServer("CollectPickup", pickup) end)
+                                pcall(function() networkRemote:FireServer("CollectPickup", pickup.Name) end)
+                                pcall(function() networkRemote:FireServer("PickupCoin", pickup) end)
+                                pcall(function() networkRemote:FireServer("CollectCoin", pickup) end)
+                                pcall(function() networkRemote:FireServer("Collect", pickup) end)
+                                pcall(function() networkRemote:FireServer("Pickup", pickup) end)
                             end
                         end
                     end
 
-                    -- Also check for coins in other common locations
+                    -- Also check for coins in separate folder
                     local coins = rendered:FindFirstChild("Coins")
                     if coins then
                         for _, coin in pairs(coins:GetChildren()) do
                             if (coin:IsA("Model") or coin:IsA("BasePart")) and coin:IsDescendantOf(Workspace) then
-                                pcall(function()
-                                    networkRemote:FireServer("CollectPickup", coin)
-                                end)
-                                pcall(function()
-                                    networkRemote:FireServer("CollectCoin", coin)
-                                end)
+                                pcall(function() networkRemote:FireServer("CollectPickup", coin) end)
+                                pcall(function() networkRemote:FireServer("CollectCoin", coin) end)
                             end
                         end
                     end
@@ -2119,7 +2018,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Chest (NEW - Open all chests)
+        -- ✅ Auto Chest
         if state.autoChest then
             pcall(function()
                 local rendered = Workspace:FindFirstChild("Rendered")
@@ -2136,21 +2035,14 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Sell Bubbles (NEW - Convert bubbles to coins)
+        -- ✅ Auto Sell Bubbles
         if state.autoSellBubbles then
             pcall(function()
                 networkRemote:FireServer("SellBubble")
             end)
         end
 
-        -- DISABLED: Auto Claim Event Prizes (Not working correctly)
-        -- if state.autoClaimEventPrizes then
-        --     pcall(function()
-        --         networkRemote:FireServer("ClaimEventPrize")
-        --     end)
-        -- end
-
-        -- ✅ PRIORITY RIFT LIST: Check first (highest priority) - if enabled, check if any spawned rift is in the priority list
+        -- ✅ PRIORITY RIFT AUTO-HATCH (Highest priority - check first)
         local handledByPriorityRift = false
         if state.riftPriorityMode and type(state.priorityRifts) == "table" and #state.priorityRifts > 0 then
             pcall(function()
@@ -2185,7 +2077,7 @@ task.spawn(function()
                         state.eggPriority = state.previousEggPriority
                         state.riftPriority = state.previousRiftPriority
                         state.farmingPriorityRift = nil
-                        -- TP back to the previous egg location if it exists
+                        -- TP back to previous egg if auto hatch is on
                         if state.previousEggPriority and state.autoHatch then
                             for _, egg in pairs(state.currentEggs) do
                                 if egg.name == state.previousEggPriority then
@@ -2201,7 +2093,6 @@ task.spawn(function()
 
                 -- If we found a priority rift that's spawned, farm it
                 if priorityRiftName and priorityRiftInstance then
-                    -- Validate rift instance still exists and is in workspace
                     if not priorityRiftInstance:IsDescendantOf(Workspace) then
                         print("[Rift] Priority rift instance not in workspace, skipping")
                         return
@@ -2223,34 +2114,24 @@ task.spawn(function()
                     local riftData = state.gameRiftData[priorityRiftName]
                     if riftData then
                         if riftData.Type == "Egg" and riftData.Egg then
-                            -- Hatch the rift egg
                             networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
-                            task.defer(function()
-                                task.wait(0.2)
-                                stopHatchAnimation()
-                            end)
+                            task.defer(stopHatchAnimation)
                         elseif riftData.Type == "Chest" then
-                            -- Open the rift chest
                             state.chestFarmActive = true
                             state.currentChestRift = priorityRiftName
                             networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
                         end
                     else
-                        -- Fallback: Try generic rift commands
-                        pcall(function()
-                            networkRemote:FireServer("HatchEgg", priorityRiftName, 99)
-                        end)
-                        pcall(function()
-                            networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
-                        end)
+                        -- Fallback
+                        pcall(function() networkRemote:FireServer("HatchEgg", priorityRiftName, 99) end)
+                        pcall(function() networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true) end)
                     end
                     handledByPriorityRift = true
                 end
             end)
         end
 
-        -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list - TP + hatch egg or open chest)
-        -- Only run if not handled by priority rift
+        -- ✅ RIFT AUTO HATCH (Rift tab: selected rift from list)
         if not handledByPriorityRift and state.riftAutoHatch and state.riftPriority then
             pcall(function()
                 local riftInstance = nil
@@ -2272,26 +2153,17 @@ task.spawn(function()
                     local riftData = state.gameRiftData[state.riftPriority]
                     if riftData then
                         if riftData.Type == "Egg" and riftData.Egg then
-                            -- Hatch the rift egg
                             networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
-                            task.defer(function()
-                                task.wait(0.2)
-                                stopHatchAnimation()
-                            end)
+                            task.defer(stopHatchAnimation)
                         elseif riftData.Type == "Chest" then
-                            -- Open the rift chest
                             state.chestFarmActive = true
                             state.currentChestRift = state.riftPriority
                             networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
                         end
                     else
-                        -- Fallback: Try generic rift commands
-                        pcall(function()
-                            networkRemote:FireServer("HatchEgg", state.riftPriority, 99)
-                        end)
-                        pcall(function()
-                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
-                        end)
+                        -- Fallback
+                        pcall(function() networkRemote:FireServer("HatchEgg", state.riftPriority, 99) end)
+                        pcall(function() networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true) end)
                     end
                 else
                     print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
@@ -2299,7 +2171,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ PRIORITY EGG DETECTION: Check if any spawned eggs are in the priority list
+        -- ✅ PRIORITY EGG DETECTION
         local handledByPriorityEgg = false
         if not handledByPriorityRift and state.priorityEggMode and type(state.priorityEggs) == "table" and #state.priorityEggs > 0 and state.autoHatch then
             pcall(function()
@@ -2320,9 +2192,8 @@ task.spawn(function()
 
                 -- If we found a priority egg, switch to it temporarily
                 if priorityEggName and priorityEggInstance then
-                    -- Validate egg instance still exists
                     if priorityEggInstance:IsDescendantOf(Workspace) then
-                        -- Save previous egg if we're switching to this priority egg
+                        -- Save previous egg if we're switching
                         if state.previousEggPriority == nil or state.previousEggPriority ~= state.eggPriority then
                             if state.eggPriority and state.eggPriority ~= priorityEggName then
                                 state.previousEggPriority = state.eggPriority
@@ -2336,10 +2207,7 @@ task.spawn(function()
 
                         -- Hatch the priority egg
                         networkRemote:FireServer("HatchEgg", priorityEggName, 99)
-                        task.defer(function()
-                            task.wait(0.2)
-                            stopHatchAnimation()
-                        end)
+                        task.defer(stopHatchAnimation)
 
                         handledByPriorityEgg = true
                     end
@@ -2385,7 +2253,7 @@ task.spawn(function()
                             task.wait(0.15)
                         end
                         networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
-                        task.defer(function() task.wait(0.2) stopHatchAnimation() end)
+                        task.defer(stopHatchAnimation)
                         break
                     end
                 end
@@ -2394,30 +2262,23 @@ task.spawn(function()
     end
 end)
 
--- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (from Rift tab or priority rift)
+-- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (fast chest opening)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(0.5) do
-        if state.chestFarmActive and state.currentChestRift then
-            -- Stop if rift no longer spawned (so we can TP back to previous)
-            local riftStillHere = false
-            for _, rift in pairs(state.currentRifts) do
-                if rift.name == state.currentChestRift then riftStillHere = true break end
-            end
-            if riftStillHere then
-                pcall(function()
-                    networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, true)
-                end)
-            else
+        if state.chestFarmActive and state.currentChestRift and state.autoHatch then
+            pcall(function()
+                -- UnlockRiftChest command: FireServer("UnlockRiftChest", chestName, autoOpen)
+                networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, false)
+            end)
+        else
+            -- Stop chest farming if conditions not met
+            if state.chestFarmActive then
                 state.chestFarmActive = false
                 state.currentChestRift = nil
-                if state.farmingPriorityRift then
-                    state.eggPriority = state.previousEggPriority
-                    state.riftPriority = state.previousRiftPriority
-                    state.farmingPriorityRift = nil
-                end
+                print("📦 Stopped chest farming")
             end
         end
     end
@@ -2433,39 +2294,6 @@ task.spawn(function()
             pcall(function()
                 networkRemote:FireServer("ClaimAllPlaytime")
                 print("✅ Claimed playtime gifts")
-            end)
-        end
-    end
-end)
-
--- ✅ AUTO POTIONS: Re-apply selected potions every 3 seconds
-task.spawn(function()
-    local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-
-    while task.wait(3) do
-        if state.autoPotionEnabled and type(state.selectedPotions) == "table" and #state.selectedPotions > 0 then
-            pcall(function()
-                for _, potionName in pairs(state.selectedPotions) do
-                    pcall(function()
-                        networkRemote:FireServer("UsePotion", potionName)
-                    end)
-                end
-            end)
-        end
-    end
-end)
-
--- ✅ AUTO ENCHANT: Apply main + second enchant to equipped pet (remote name TBD)
-task.spawn(function()
-    local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-
-    while task.wait(5) do
-        if state.autoEnchantEnabled and state.enchantMain and state.enchantSecond and state.enchantMain ~= state.enchantSecond then
-            pcall(function()
-                networkRemote:FireServer("EnchantPet", 1, state.enchantMain)
-                networkRemote:FireServer("EnchantPet", 2, state.enchantSecond)
             end)
         end
     end
