@@ -833,7 +833,7 @@ task.spawn(function()
                 print("✅ Detected Template frame via ChildAdded - processing hatch...")
                 task.wait(0.1) -- Wait for GUI to fully populate
 
-                pcall(function()
+                local success, errorMsg = pcall(function()
                     -- Extract pet information from GUI
                     local xlFrame = child:FindFirstChild("XL")
                     local labelText = child:FindFirstChild("Label")
@@ -862,11 +862,17 @@ task.spawn(function()
                     print("✅ Pet detected: " .. petName .. " [" .. rarity .. "]")
 
                     -- Auto-detect egg by searching for which egg contains this pet
+                    print("🔍 Step 1: Finding egg for pet...")
                     local detectedEgg = findEggContainingPet(petName)
+                    print("🔍 Step 2: Detected egg = " .. tostring(detectedEgg))
 
                     -- Determine current egg (priority: rift > detected > manual selection)
+                    print("🔍 Step 3: Determining current egg...")
                     local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
+                    print("🔍 Step 4: Current egg (before rift check) = " .. currentEgg)
+
                     if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                        print("🔍 Step 5: Checking rift egg...")
                         local riftName = state.farmingPriorityRift or state.riftPriority
                         local riftData = state.gameRiftData[riftName]
                         if riftData and riftData.Egg then
@@ -889,6 +895,10 @@ task.spawn(function()
                     -- Stop animation if enabled
                     task.defer(stopHatchAnimation)
                 end)
+
+                if not success then
+                    print("❌ HATCH PROCESSING ERROR: " .. tostring(errorMsg))
+                end
             end
         end)
 
@@ -926,8 +936,12 @@ task.spawn(function()
                             print("✅ [POLL] Pet detected: " .. petName .. " [" .. rarity .. "]")
 
                             -- Auto-detect egg
+                            print("🔍 [POLL] Step 1: Finding egg...")
                             local detectedEgg = findEggContainingPet(petName)
+                            print("🔍 [POLL] Step 2: Detected egg = " .. tostring(detectedEgg))
+
                             local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
+                            print("🔍 [POLL] Step 3: Current egg = " .. currentEgg)
 
                             if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
                                 local riftName = state.farmingPriorityRift or state.riftPriority
