@@ -2871,12 +2871,29 @@ task.spawn(function()
                 return
             end
 
+            -- Island display name to area ID mapping
+            local islandToAreaId = {
+                ["Fisher's Island"] = "starter",
+                ["Blizzard Hills"] = "blizzard",
+                ["Poison Jungle"] = "jungle",
+                ["Infernite Volcano"] = "lava",
+                ["Lost Atlantis"] = "atlantis",
+                ["Dream Island"] = "dream",
+                ["Classic Island"] = "classic"
+            }
+
+            local areaId = islandToAreaId[state.fishingIsland]
+            if not areaId then
+                log("❌ [Fishing] ERROR: Unknown island name: " .. state.fishingIsland)
+                return
+            end
+
             local currentTime = tick()
 
             -- Only teleport ONCE when first enabled or when island changes
             if not state.fishingTeleported then
                 pcall(function()
-                    log("🎣 [Fishing] Initiating teleport to " .. state.fishingIsland)
+                    log("🎣 [Fishing] Initiating teleport to " .. state.fishingIsland .. " (areaId: " .. areaId .. ")")
                     local teleportPath = "Workspace.Worlds.Seven Seas.Areas." .. state.fishingIsland .. ".IslandTeleport.Spawn"
                     log("🎣 [Fishing] Teleport path: " .. teleportPath)
 
@@ -2891,7 +2908,7 @@ task.spawn(function()
             -- Fishing cooldown: 5 seconds between attempts
             if currentTime - state.lastFishingAttempt >= 5 then
                 pcall(function()
-                    log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland)
+                    log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland .. " (areaId: " .. areaId .. ")")
 
                     -- Find fishing areas
                     local workspace = game:GetService("Workspace")
@@ -2958,9 +2975,17 @@ task.spawn(function()
                         log("❌ [Fishing] ERROR: HumanoidRootPart not found")
                         return
                     end
-                    log("✅ [Fishing] Player position: " .. tostring(hrp.Position))
+                    log("✅ [Fishing] Player position BEFORE teleport: " .. tostring(hrp.Position))
 
-                    -- Fishing sequence
+                    -- TELEPORT PLAYER TO FISHING AREA CENTER (above water to avoid drowning)
+                    local fishingPosition = CFrame.new(center.X, center.Y + 5, center.Z)
+                    hrp.CFrame = fishingPosition
+                    log("✅ [Fishing] TELEPORTED player to fishing area: " .. tostring(fishingPosition.Position))
+                    task.wait(0.5)  -- Wait for teleport to settle
+
+                    log("✅ [Fishing] Player position AFTER teleport: " .. tostring(hrp.Position))
+
+                    -- Fishing sequence (CORRECTED: Use areaId, not area.Name UUID)
                     log("🎣 [Fishing] Step 1/4: Equipping rod...")
                     networkRemote:FireServer("EquipRod")
                     task.wait(0.3)
@@ -2969,17 +2994,18 @@ task.spawn(function()
                     networkRemote:FireServer("BeginCastCharge")
                     task.wait(1.5)  -- Charge time
 
-                    log("🎣 [Fishing] Step 3/4: Finishing cast (UUID: " .. area.Name .. ", Pos: " .. tostring(center) .. ")...")
-                    networkRemote:FireServer("FinishCastCharge", area.Name, center)
-                    task.wait(3)  -- Wait for fish to bite
+                    log("🎣 [Fishing] Step 3/4: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
+                    networkRemote:FireServer("FinishCastCharge", areaId, center)
+                    task.wait(4.5)  -- Wait for fish to bite and auto-reel minigame to complete
 
-                    log("🎣 [Fishing] Step 4/4: Reeling...")
-                    networkRemote:FireServer("Reel", true)
-                    task.wait(0.5)
+                    log("🎣 [Fishing] Step 4/4: Unequipping rod (cleanup)...")
+                    networkRemote:FireServer("UnequipRod")
+                    task.wait(0.2)
 
                     state.lastFishingAttempt = currentTime
                     log("✅ [Fishing] Fishing cycle completed successfully!")
                     log("⏱️ [Fishing] Next attempt in 5 seconds...")
+                    log("📝 [Fishing] NOTE: Reel is handled automatically by game minigame")
                 end)
             end
         else
