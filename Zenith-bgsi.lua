@@ -1704,8 +1704,8 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "—" then
          state.hatchTeam = Option[1]
          pcall(function()
-            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            networkRemote:FireServer("SetHatchTeam", Option[1])
+            local Remote = require(RS.Shared.Framework.Network.Remote)
+            Remote:FireServer("SetHatchTeam", Option[1])
          end)
       else
          state.hatchTeam = nil
@@ -1723,8 +1723,8 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "—" then
          state.statsTeam = Option[1]
          pcall(function()
-            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            networkRemote:FireServer("SetStatsTeam", Option[1])
+            local Remote = require(RS.Shared.Framework.Network.Remote)
+            Remote:FireServer("SetStatsTeam", Option[1])
          end)
       else
          state.statsTeam = nil
@@ -2568,8 +2568,8 @@ DataTab:CreateButton({
    Callback = function()
       pcall(function()
          local RS = game:GetService("ReplicatedStorage")
-         local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-         networkRemote:FireServer("BlowBubble")
+         local Remote = require(RS.Shared.Framework.Network.Remote)
+         Remote:FireServer("BlowBubble")
          print("✅ Sent BlowBubble command!")
       end)
 
@@ -2587,8 +2587,8 @@ DataTab:CreateButton({
       if state.eggPriority then
          pcall(function()
             local RS = game:GetService("ReplicatedStorage")
-            local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
+            local Remote = require(RS.Shared.Framework.Network.Remote)
+            Remote:FireServer("HatchEgg", state.eggPriority, 99)
             print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
 
@@ -2817,13 +2817,14 @@ end)
 -- ✅ AUTO FEATURES: Fast loop (100ms)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+    -- ✅ FIX: Use Remote MODULE (not RemoteEvent) - this is what the game uses!
+    local Remote = require(RS.Shared.Framework.Network.Remote)
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles
         if state.autoBlow then
             pcall(function()
-                networkRemote:FireServer("BlowBubble")
+                Remote:FireServer("BlowBubble")
             end)
         end
 
@@ -2837,12 +2838,12 @@ task.spawn(function()
                         for _, pickup in pairs(pickups:GetChildren()) do
                             if (pickup:IsA("Model") or pickup:IsA("BasePart")) and pickup:IsDescendantOf(Workspace) then
                                 -- Try multiple collection methods
-                                pcall(function() networkRemote:FireServer("CollectPickup", pickup) end)
-                                pcall(function() networkRemote:FireServer("CollectPickup", pickup.Name) end)
-                                pcall(function() networkRemote:FireServer("PickupCoin", pickup) end)
-                                pcall(function() networkRemote:FireServer("CollectCoin", pickup) end)
-                                pcall(function() networkRemote:FireServer("Collect", pickup) end)
-                                pcall(function() networkRemote:FireServer("Pickup", pickup) end)
+                                pcall(function() Remote:FireServer("CollectPickup", pickup) end)
+                                pcall(function() Remote:FireServer("CollectPickup", pickup.Name) end)
+                                pcall(function() Remote:FireServer("PickupCoin", pickup) end)
+                                pcall(function() Remote:FireServer("CollectCoin", pickup) end)
+                                pcall(function() Remote:FireServer("Collect", pickup) end)
+                                pcall(function() Remote:FireServer("Pickup", pickup) end)
                             end
                         end
                     end
@@ -2852,8 +2853,8 @@ task.spawn(function()
                     if coins then
                         for _, coin in pairs(coins:GetChildren()) do
                             if (coin:IsA("Model") or coin:IsA("BasePart")) and coin:IsDescendantOf(Workspace) then
-                                pcall(function() networkRemote:FireServer("CollectPickup", coin) end)
-                                pcall(function() networkRemote:FireServer("CollectCoin", coin) end)
+                                pcall(function() Remote:FireServer("CollectPickup", coin) end)
+                                pcall(function() Remote:FireServer("CollectCoin", coin) end)
                             end
                         end
                     end
@@ -2870,7 +2871,7 @@ task.spawn(function()
                     if chests then
                         for _, chest in pairs(chests:GetChildren()) do
                             pcall(function()
-                                networkRemote:FireServer("ClaimChest", chest.Name)
+                                Remote:FireServer("ClaimChest", chest.Name)
                             end)
                         end
                     end
@@ -2881,7 +2882,7 @@ task.spawn(function()
         -- ✅ Auto Sell Bubbles
         if state.autoSellBubbles then
             pcall(function()
-                networkRemote:FireServer("SellBubble")
+                Remote:FireServer("SellBubble")
             end)
         end
 
@@ -2919,7 +2920,7 @@ task.spawn(function()
                     local teleportPath = "Workspace.Worlds.Seven Seas.Areas." .. state.fishingIsland .. ".IslandTeleport.Spawn"
                     log("🎣 [Fishing] Teleport path: " .. teleportPath)
 
-                    networkRemote:FireServer("Teleport", teleportPath)
+                    Remote:FireServer("Teleport", teleportPath)
                     state.fishingTeleported = true
                     log("🎣 [Fishing] Teleport command sent, waiting 2 seconds...")
                     task.wait(2)  -- Wait for teleport to complete
@@ -3032,26 +3033,26 @@ task.spawn(function()
 
                     -- Fishing sequence (CORRECTED: Much longer waits for server processing)
                     log("🎣 [Fishing] Step 1/6: Selecting " .. state.fishingRod .. "...")
-                    networkRemote:FireServer("SetEquippedRod", state.fishingRod, false)
+                    Remote:FireServer("SetEquippedRod", state.fishingRod, false)
                     task.wait(1.5)  -- Wait for server to process rod selection
 
                     log("🎣 [Fishing] Step 2/6: Equipping rod...")
-                    networkRemote:FireServer("EquipRod")
+                    Remote:FireServer("EquipRod")
                     task.wait(2)  -- Wait for rod to fully equip and appear
 
                     log("🎣 [Fishing] Step 3/6: Beginning cast charge...")
-                    networkRemote:FireServer("BeginCastCharge")
+                    Remote:FireServer("BeginCastCharge")
                     task.wait(0.5)  -- Small delay before finishing
 
                     log("🎣 [Fishing] Step 4/6: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
-                    networkRemote:FireServer("FinishCastCharge", areaId, center)
+                    Remote:FireServer("FinishCastCharge", areaId, center)
                     task.wait(1)  -- Wait for cast to execute
 
                     log("🎣 [Fishing] Step 5/6: Waiting for fish bite and auto-reel...")
                     task.wait(8)  -- Total 9 seconds for: bobber lands + fish bites + auto-reel minigame
 
                     log("🎣 [Fishing] Step 6/6: Unequipping rod (cleanup)...")
-                    networkRemote:FireServer("UnequipRod")
+                    Remote:FireServer("UnequipRod")
                     task.wait(0.5)
 
                     state.lastFishingAttempt = currentTime
@@ -3140,17 +3141,17 @@ task.spawn(function()
                     local riftData = state.gameRiftData[priorityRiftName]
                     if riftData then
                         if riftData.Type == "Egg" and riftData.Egg then
-                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                            Remote:FireServer("HatchEgg", riftData.Egg, 99)
                             task.defer(stopHatchAnimation)
                         elseif riftData.Type == "Chest" then
                             state.chestFarmActive = true
                             state.currentChestRift = priorityRiftName
-                            networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true)
+                            Remote:FireServer("UnlockRiftChest", priorityRiftName, true)
                         end
                     else
                         -- Fallback
-                        pcall(function() networkRemote:FireServer("HatchEgg", priorityRiftName, 99) end)
-                        pcall(function() networkRemote:FireServer("UnlockRiftChest", priorityRiftName, true) end)
+                        pcall(function() Remote:FireServer("HatchEgg", priorityRiftName, 99) end)
+                        pcall(function() Remote:FireServer("UnlockRiftChest", priorityRiftName, true) end)
                     end
                     handledByPriorityRift = true
                 end
@@ -3179,17 +3180,17 @@ task.spawn(function()
                     local riftData = state.gameRiftData[state.riftPriority]
                     if riftData then
                         if riftData.Type == "Egg" and riftData.Egg then
-                            networkRemote:FireServer("HatchEgg", riftData.Egg, 99)
+                            Remote:FireServer("HatchEgg", riftData.Egg, 99)
                             task.defer(stopHatchAnimation)
                         elseif riftData.Type == "Chest" then
                             state.chestFarmActive = true
                             state.currentChestRift = state.riftPriority
-                            networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true)
+                            Remote:FireServer("UnlockRiftChest", state.riftPriority, true)
                         end
                     else
                         -- Fallback
-                        pcall(function() networkRemote:FireServer("HatchEgg", state.riftPriority, 99) end)
-                        pcall(function() networkRemote:FireServer("UnlockRiftChest", state.riftPriority, true) end)
+                        pcall(function() Remote:FireServer("HatchEgg", state.riftPriority, 99) end)
+                        pcall(function() Remote:FireServer("UnlockRiftChest", state.riftPriority, true) end)
                     end
                 else
                     print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
@@ -3232,7 +3233,7 @@ task.spawn(function()
                         task.wait(0.15)
 
                         -- Hatch the priority egg
-                        networkRemote:FireServer("HatchEgg", priorityEggName, 99)
+                        Remote:FireServer("HatchEgg", priorityEggName, 99)
                         task.defer(stopHatchAnimation)
 
                         handledByPriorityEgg = true
@@ -3278,7 +3279,7 @@ task.spawn(function()
                             tpToModel(egg.instance)
                             task.wait(0.15)
                         end
-                        networkRemote:FireServer("HatchEgg", state.eggPriority, 99)
+                        Remote:FireServer("HatchEgg", state.eggPriority, 99)
                         task.defer(stopHatchAnimation)
                         break
                     end
@@ -3291,13 +3292,13 @@ end)
 -- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (fast chest opening)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+    local Remote = require(RS.Shared.Framework.Network.Remote)
 
     while task.wait(0.5) do
         if state.chestFarmActive and state.currentChestRift and state.autoHatch then
             pcall(function()
                 -- UnlockRiftChest command: FireServer("UnlockRiftChest", chestName, autoOpen)
-                networkRemote:FireServer("UnlockRiftChest", state.currentChestRift, false)
+                Remote:FireServer("UnlockRiftChest", state.currentChestRift, false)
             end)
         else
             -- Stop chest farming if conditions not met
@@ -3313,12 +3314,12 @@ end)
 -- ✅ AUTO-CLAIM PLAYTIME GIFTS: Every 60 seconds
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local networkRemote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+    local Remote = require(RS.Shared.Framework.Network.Remote)
 
     while task.wait(60) do
         if state.autoClaimPlaytime then
             pcall(function()
-                networkRemote:FireServer("ClaimAllPlaytime")
+                Remote:FireServer("ClaimAllPlaytime")
                 print("✅ Claimed playtime gifts")
             end)
         end
