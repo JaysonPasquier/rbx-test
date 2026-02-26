@@ -84,6 +84,9 @@ local state = {
     webhookPingEnabled = false,  -- NEW: Enable Discord user ping
     webhookPingUserId = "",  -- NEW: Discord user ID to ping
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
+    fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
+    fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
+    lastFishingAttempt = 0,  -- NEW: Timestamp of last fishing attempt
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
@@ -424,6 +427,25 @@ end)
 
 -- File path for saving stats message ID (persists across rejoins)
 local STATS_MESSAGE_FILE = "zenith_bgsi_stats_message_id.txt"
+local LOG_FILE = "zenith_bgsi_fishing_log.txt"
+
+-- Logging function (writes to both console and file)
+local function log(message)
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    local logMessage = "[" .. timestamp .. "] " .. message
+    print(logMessage)
+
+    -- Write to file
+    if writefile and readfile and isfile then
+        pcall(function()
+            local existingLog = ""
+            if isfile(LOG_FILE) then
+                existingLog = readfile(LOG_FILE)
+            end
+            writefile(LOG_FILE, existingLog .. logMessage .. "\n")
+        end)
+    end
+end
 
 -- Load stats message ID from file
 local function loadStatsMessageId()
@@ -1558,6 +1580,36 @@ local function scanRifts()
     return newRifts
 end
 
+-- ✅ Fishing island scanner (scans Seven Seas Areas for islands with FishingAreas)
+local function scanFishingIslands()
+    local islands = {}
+
+    pcall(function()
+        local workspace = game:GetService("Workspace")
+        local worlds = workspace:FindFirstChild("Worlds")
+
+        if worlds then
+            local sevenSeas = worlds:FindFirstChild("Seven Seas")
+            if sevenSeas then
+                local areas = sevenSeas:FindFirstChild("Areas")
+                if areas then
+                    -- Scan all children in Areas folder
+                    for _, island in pairs(areas:GetChildren()) do
+                        -- Only include islands that have FishingAreas folder
+                        local fishingAreas = island:FindFirstChild("FishingAreas")
+                        if fishingAreas then
+                            table.insert(islands, island.Name)
+                            log("🎣 [Scan] Found fishing island: " .. island.Name)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    return islands
+end
+
 -- ✅ FIXED: Real-time egg scanner (Chunker folders with proper filtering)
 local function scanEggs()
     local newEggs = {}
@@ -1886,22 +1938,56 @@ FarmTab:CreateLabel("Auto-enchants equipped pet")
 -- === AUTO FISHING ===
 local FishingSection = FarmTab:CreateSection("🎣 Auto Fishing")
 
+local FishingIslandDropdown = FarmTab:CreateDropdown({
+   Name = "Select Fishing Island",
+   Options = {"Scanning..."},
+   CurrentOption = {"Scanning..."},
+   MultipleOptions = false,
+   Flag = "FishingIsland",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "Scanning..." then
+         state.fishingIsland = Option[1]
+         state.fishingTeleported = false  -- Reset teleport flag when island changes
+         log("🎣 [Fishing] Island changed to: " .. state.fishingIsland)
+         Rayfield:Notify({
+            Title = "Fishing Island",
+            Content = "Changed to " .. state.fishingIsland,
+            Duration = 2,
+         })
+      end
+   end,
+})
+
 local AutoFishToggle = FarmTab:CreateToggle({
    Name = "🎣 Auto Fish",
    CurrentValue = false,
    Flag = "AutoFish",
    Callback = function(Value)
       state.autoFishEnabled = Value
-      Rayfield:Notify({
-         Title = "Auto Fishing",
-         Content = Value and "Enabled - Fishing at Fisher's Island" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      if Value then
+         state.fishingTeleported = false  -- Reset on enable
+         local island = state.fishingIsland or "No island selected"
+         log("🎣 [Fishing] Auto fishing ENABLED - Island: " .. island)
+         Rayfield:Notify({
+            Title = "Auto Fishing",
+            Content = "Enabled - " .. (state.fishingIsland and ("Fishing at " .. state.fishingIsland) or "Select an island first"),
+            Duration = 2,
+            Image = 4483362458,
+         })
+      else
+         log("🎣 [Fishing] Auto fishing DISABLED")
+         Rayfield:Notify({
+            Title = "Auto Fishing",
+            Content = "Disabled",
+            Duration = 2,
+            Image = 4483362458,
+         })
+      end
    end,
 })
 
-FarmTab:CreateLabel("Auto-fishes at Fisher's Island")
+FarmTab:CreateLabel("Auto-fishes at selected island")
+FarmTab:CreateLabel("Check fishing_log.txt for debug info")
 
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
@@ -2777,64 +2863,131 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Fishing
+        -- ✅ Auto Fishing (runs every 0.1s but only fishes when cooldown expires)
         if state.autoFishEnabled then
-            pcall(function()
-                -- Teleport to Fisher's Island
-                networkRemote:FireServer("Teleport", "Workspace.Worlds.Seven Seas.Areas.Fisher's Island.IslandTeleport.Spawn")
-                task.wait(0.5)
+            -- Safety check: ensure island is selected
+            if not state.fishingIsland or state.fishingIsland == "" or state.fishingIsland == "Scanning..." then
+                -- Skip fishing if no island selected yet
+                return
+            end
 
-                -- Find fishing areas
-                local fishingAreas = game:GetService("Workspace"):FindFirstChild("Worlds")
-                if fishingAreas then
-                    fishingAreas = fishingAreas:FindFirstChild("Seven Seas")
-                    if fishingAreas then
-                        fishingAreas = fishingAreas:FindFirstChild("Areas")
-                        if fishingAreas then
-                            fishingAreas = fishingAreas:FindFirstChild("Fisher's Island")
-                            if fishingAreas then
-                                fishingAreas = fishingAreas:FindFirstChild("FishingAreas")
-                                if fishingAreas then
-                                    -- Get all fishing areas (UUID named models)
-                                    local areas = fishingAreas:GetChildren()
-                                    if #areas > 0 then
-                                        -- Pick first fishing area
-                                        local area = areas[1]
-                                        if area:IsA("Model") then
-                                            -- Calculate center of fishing area
-                                            local center = area:GetBoundingBox().Position
+            local currentTime = tick()
 
-                                            -- Teleport above center to avoid ground clipping
-                                            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                                            if hrp then
-                                                hrp.CFrame = CFrame.new(center.X, center.Y + 5, center.Z)
-                                                task.wait(0.3)
+            -- Only teleport ONCE when first enabled or when island changes
+            if not state.fishingTeleported then
+                pcall(function()
+                    log("🎣 [Fishing] Initiating teleport to " .. state.fishingIsland)
+                    local teleportPath = "Workspace.Worlds.Seven Seas.Areas." .. state.fishingIsland .. ".IslandTeleport.Spawn"
+                    log("🎣 [Fishing] Teleport path: " .. teleportPath)
 
-                                                -- Fishing sequence
-                                                -- 1. Equip rod
-                                                networkRemote:FireServer("EquipRod")
-                                                task.wait(0.2)
+                    networkRemote:FireServer("Teleport", teleportPath)
+                    state.fishingTeleported = true
+                    log("🎣 [Fishing] Teleport command sent, waiting 2 seconds...")
+                    task.wait(2)  -- Wait for teleport to complete
+                    log("🎣 [Fishing] Teleport completed, ready to fish")
+                end)
+            end
 
-                                                -- 2. Begin cast charge
-                                                networkRemote:FireServer("BeginCastCharge")
-                                                task.wait(1)  -- Charge time
+            -- Fishing cooldown: 5 seconds between attempts
+            if currentTime - state.lastFishingAttempt >= 5 then
+                pcall(function()
+                    log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland)
 
-                                                -- 3. Finish cast with UUID and position
-                                                networkRemote:FireServer("FinishCastCharge", area.Name, center)
-                                                task.wait(2)  -- Wait for fish to bite
+                    -- Find fishing areas
+                    local workspace = game:GetService("Workspace")
+                    local worlds = workspace:FindFirstChild("Worlds")
 
-                                                -- 4. Reel
-                                                networkRemote:FireServer("Reel", true)
-                                                task.wait(0.5)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
+                    if not worlds then
+                        log("❌ [Fishing] ERROR: Worlds not found in Workspace")
+                        return
                     end
-                end
-            end)
+                    log("✅ [Fishing] Found Worlds")
+
+                    local sevenSeas = worlds:FindFirstChild("Seven Seas")
+                    if not sevenSeas then
+                        log("❌ [Fishing] ERROR: Seven Seas not found")
+                        return
+                    end
+                    log("✅ [Fishing] Found Seven Seas")
+
+                    local areas = sevenSeas:FindFirstChild("Areas")
+                    if not areas then
+                        log("❌ [Fishing] ERROR: Areas not found")
+                        return
+                    end
+                    log("✅ [Fishing] Found Areas")
+
+                    local island = areas:FindFirstChild(state.fishingIsland)
+                    if not island then
+                        log("❌ [Fishing] ERROR: Island '" .. state.fishingIsland .. "' not found")
+                        log("Available islands: " .. table.concat(areas:GetChildren(), ", "))
+                        return
+                    end
+                    log("✅ [Fishing] Found island: " .. state.fishingIsland)
+
+                    local fishingAreas = island:FindFirstChild("FishingAreas")
+                    if not fishingAreas then
+                        log("❌ [Fishing] ERROR: FishingAreas not found in " .. state.fishingIsland)
+                        return
+                    end
+                    log("✅ [Fishing] Found FishingAreas")
+
+                    -- Get all fishing areas (UUID named models)
+                    local areaList = fishingAreas:GetChildren()
+                    if #areaList == 0 then
+                        log("❌ [Fishing] ERROR: No fishing areas found")
+                        return
+                    end
+                    log("✅ [Fishing] Found " .. #areaList .. " fishing areas")
+
+                    -- Pick first fishing area
+                    local area = areaList[1]
+                    if not area:IsA("Model") then
+                        log("❌ [Fishing] ERROR: Fishing area is not a Model")
+                        return
+                    end
+                    log("✅ [Fishing] Using fishing area: " .. area.Name)
+
+                    -- Calculate center of fishing area
+                    local center = area:GetBoundingBox().Position
+                    log("✅ [Fishing] Fishing area center: " .. tostring(center))
+
+                    -- Get player character
+                    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    if not hrp then
+                        log("❌ [Fishing] ERROR: HumanoidRootPart not found")
+                        return
+                    end
+                    log("✅ [Fishing] Player position: " .. tostring(hrp.Position))
+
+                    -- Fishing sequence
+                    log("🎣 [Fishing] Step 1/4: Equipping rod...")
+                    networkRemote:FireServer("EquipRod")
+                    task.wait(0.3)
+
+                    log("🎣 [Fishing] Step 2/4: Beginning cast charge...")
+                    networkRemote:FireServer("BeginCastCharge")
+                    task.wait(1.5)  -- Charge time
+
+                    log("🎣 [Fishing] Step 3/4: Finishing cast (UUID: " .. area.Name .. ", Pos: " .. tostring(center) .. ")...")
+                    networkRemote:FireServer("FinishCastCharge", area.Name, center)
+                    task.wait(3)  -- Wait for fish to bite
+
+                    log("🎣 [Fishing] Step 4/4: Reeling...")
+                    networkRemote:FireServer("Reel", true)
+                    task.wait(0.5)
+
+                    state.lastFishingAttempt = currentTime
+                    log("✅ [Fishing] Fishing cycle completed successfully!")
+                    log("⏱️ [Fishing] Next attempt in 5 seconds...")
+                end)
+            end
+        else
+            -- Reset teleport flag when disabled
+            if state.fishingTeleported then
+                state.fishingTeleported = false
+                log("🎣 [Fishing] Teleport flag reset (auto fishing disabled)")
+            end
         end
 
         -- ✅ PRIORITY RIFT AUTO-HATCH (Highest priority - check first)
@@ -3190,6 +3343,27 @@ task.spawn(function()
     end
 end)
 
+-- Initial fishing island scan
+task.spawn(function()
+    task.wait(1)  -- Wait for game to load
+    local islands = scanFishingIslands()
+
+    if #islands > 0 then
+        pcall(function()
+            FishingIslandDropdown:Refresh(islands, true)
+            -- Set first island as default
+            if islands[1] then
+                state.fishingIsland = islands[1]
+            end
+        end)
+        log("✅ [Fishing] Found " .. #islands .. " fishing islands: " .. table.concat(islands, ", "))
+        print("✅ Found " .. #islands .. " fishing islands")
+    else
+        log("⚠️ [Fishing] No fishing islands found")
+        print("⚠️ No fishing islands found yet")
+    end
+end)
+
 -- Load saved configuration
 Rayfield:LoadConfiguration()
 
@@ -3210,7 +3384,7 @@ print("   • Playtime Gifts: Every 60 seconds")
 print("✅ ==========================================")
 print("📋 Tabs:")
 print("   🏠 Main - Live stats (ALL 18 currencies!)")
-print("   🔧 Farm - Auto blow, pickup, event detector, playtime claim")
+print("   🔧 Farm - Auto blow, pickup, fishing, event detector, playtime claim")
 print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
 print("   🌌 Rifts - Auto-scanned rifts + priority mode")
 print("   📊 Webhook - Pet hatches, stats, rarity filter")
@@ -3234,3 +3408,4 @@ Rayfield:Notify({
 print("Zenith (BGSI) loaded successfully!")
 print("💡 Rifts and eggs will auto-refresh every 2 seconds")
 print("💡 Enable webhook for pet hatch notifications!")
+print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
