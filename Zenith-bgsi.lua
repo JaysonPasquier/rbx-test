@@ -87,6 +87,7 @@ local state = {
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
     fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
+    fishingRodEquipped = false,  -- NEW: Track if rod is currently equipped
     lastFishingAttempt = 0,  -- NEW: Timestamp of last fishing attempt
     currentRifts = {},
     currentEggs = {},
@@ -2928,8 +2929,8 @@ task.spawn(function()
                 end)
             end
 
-            -- Fishing cooldown: 5 seconds between attempts
-            if currentTime - state.lastFishingAttempt >= 5 then
+            -- Fishing cooldown: 2 seconds between casts (rod stays equipped)
+            if currentTime - state.lastFishingAttempt >= 2 then
                 pcall(function()
                     log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland .. " (areaId: " .. areaId .. ")")
 
@@ -3031,41 +3032,65 @@ task.spawn(function()
                     hrp.CFrame = CFrame.new(hrp.Position, center)
                     log("✅ [Fishing] Player facing fishing area")
 
-                    -- Fishing sequence (CORRECTED: Much longer waits for server processing)
-                    log("🎣 [Fishing] Step 1/6: Selecting " .. state.fishingRod .. "...")
-                    Remote:FireServer("SetEquippedRod", state.fishingRod, false)
-                    task.wait(1.5)  -- Wait for server to process rod selection
+                    -- Calculate water surface position (raycast down from player)
+                    local castPosition = center
+                    pcall(function()
+                        local rayOrigin = hrp.Position
+                        local rayDirection = Vector3.new(0, -100, 0)  -- Raycast straight down
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterType = Enum.RaycastFilterType.Include
+                        raycastParams.FilterDescendantsInstances = {area}
+                        
+                        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+                        if rayResult then
+                            castPosition = rayResult.Position
+                            log("✅ [Fishing] Raycast hit water at: " .. tostring(castPosition))
+                        else
+                            log("⚠️ [Fishing] Raycast missed, using area center")
+                        end
+                    end)
 
-                    log("🎣 [Fishing] Step 2/6: Equipping rod...")
-                    Remote:FireServer("EquipRod")
-                    task.wait(2)  -- Wait for rod to fully equip and appear
+                    -- Equip rod on first cast only
+                    if not state.fishingRodEquipped then
+                        log("🎣 [Fishing] Step 1: Selecting " .. state.fishingRod .. "...")
+                        Remote:FireServer("SetEquippedRod", state.fishingRod, false)
+                        task.wait(1.5)  -- Wait for server to process rod selection
 
-                    log("🎣 [Fishing] Step 3/6: Beginning cast charge...")
+                        log("🎣 [Fishing] Step 2: Equipping rod...")
+                        Remote:FireServer("EquipRod")
+                        task.wait(2)  -- Wait for rod to fully equip and appear
+                        
+                        state.fishingRodEquipped = true
+                        log("✅ [Fishing] Rod equipped - will stay equipped for continuous fishing")
+                    end
+
+                    -- Cast sequence (runs every cycle)
+                    log("🎣 [Fishing] Beginning cast charge (hold for 0.8s)...")
                     Remote:FireServer("BeginCastCharge")
-                    task.wait(0.5)  -- Small delay before finishing
+                    task.wait(0.8)  -- Hold cast to charge (simulates holding mouse button)
 
-                    log("🎣 [Fishing] Step 4/6: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
-                    Remote:FireServer("FinishCastCharge", areaId, center)
-                    task.wait(1)  -- Wait for cast to execute
+                    log("🎣 [Fishing] Releasing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(castPosition) .. ")...")
+                    Remote:FireServer("FinishCastCharge", areaId, castPosition)
+                    task.wait(1)  -- Wait for bobber to spawn
 
-                    log("🎣 [Fishing] Step 5/6: Waiting for fish bite and auto-reel...")
-                    task.wait(8)  -- Total 9 seconds for: bobber lands + fish bites + auto-reel minigame
-
-                    log("🎣 [Fishing] Step 6/6: Unequipping rod (cleanup)...")
-                    Remote:FireServer("UnequipRod")
-                    task.wait(0.5)
+                    log("🎣 [Fishing] Waiting for fish bite and auto-reel (18s)...")
+                    task.wait(18)  -- Wait for: bobber lands → fish bites → auto-reel minigame → catch
 
                     state.lastFishingAttempt = currentTime
-                    log("✅ [Fishing] Fishing cycle completed successfully!")
-                    log("⏱️ [Fishing] Next attempt in 5 seconds...")
-                    log("📝 [Fishing] Using rod: " .. state.fishingRod .. " | Island: " .. state.fishingIsland)
+                    log("✅ [Fishing] Cast completed! (Rod stays equipped)")
+                    log("⏱️ [Fishing] Next cast in 2 seconds...")
+                    log("📝 [Fishing] Rod: " .. state.fishingRod .. " | Island: " .. state.fishingIsland)
                 end)
             end
         else
-            -- Reset teleport flag when disabled
+            -- Reset flags and unequip rod when disabled
             if state.fishingTeleported then
                 state.fishingTeleported = false
-                log("🎣 [Fishing] Teleport flag reset (auto fishing disabled)")
+                state.fishingRodEquipped = false
+                log("🎣 [Fishing] Auto fishing disabled - unequipping rod")
+                pcall(function()
+                    Remote:FireServer("UnequipRod")
+                end)
             end
         end
 
