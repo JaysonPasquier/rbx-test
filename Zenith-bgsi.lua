@@ -2007,6 +2007,8 @@ local AutoFishToggle = FarmTab:CreateToggle({
 })
 
 FarmTab:CreateLabel("Auto-fishes at selected island")
+FarmTab:CreateLabel("NOTE: You must own the selected rod!")
+FarmTab:CreateLabel("Buy rods from Fishing Shop first")
 FarmTab:CreateLabel("Check fishing_log.txt for debug info")
 
 -- === EGGS TAB ===
@@ -3005,26 +3007,52 @@ task.spawn(function()
 
                     log("✅ [Fishing] Player position AFTER teleport: " .. tostring(hrp.Position))
 
-                    -- Fishing sequence (CORRECTED: Must select rod BEFORE equipping!)
-                    log("🎣 [Fishing] Step 1/5: Selecting " .. state.fishingRod .. "...")
+                    -- Check player's fishing data
+                    pcall(function()
+                        local LocalData = require(RS.Client.Framework.Services.LocalData)
+                        local playerData = LocalData:Get()
+                        if playerData then
+                            log("📊 [Fishing] Player data found")
+                            if playerData.EquippedRod then
+                                log("✅ [Fishing] Currently equipped rod: " .. tostring(playerData.EquippedRod))
+                            else
+                                log("⚠️ [Fishing] WARNING: No rod equipped in player data!")
+                            end
+                            if playerData.EquippedBait then
+                                log("✅ [Fishing] Currently equipped bait: " .. tostring(playerData.EquippedBait))
+                            end
+                        else
+                            log("❌ [Fishing] ERROR: Could not get player data")
+                        end
+                    end)
+
+                    -- Make player face the fishing area (important for raycasting)
+                    hrp.CFrame = CFrame.new(hrp.Position, center)
+                    log("✅ [Fishing] Player facing fishing area")
+
+                    -- Fishing sequence (CORRECTED: Much longer waits for server processing)
+                    log("🎣 [Fishing] Step 1/6: Selecting " .. state.fishingRod .. "...")
                     networkRemote:FireServer("SetEquippedRod", state.fishingRod, false)
-                    task.wait(0.5)
+                    task.wait(1.5)  -- Wait for server to process rod selection
 
-                    log("🎣 [Fishing] Step 2/5: Equipping rod...")
+                    log("🎣 [Fishing] Step 2/6: Equipping rod...")
                     networkRemote:FireServer("EquipRod")
-                    task.wait(1)  -- Wait for rod to visually equip
+                    task.wait(2)  -- Wait for rod to fully equip and appear
 
-                    log("🎣 [Fishing] Step 3/5: Beginning cast charge...")
+                    log("🎣 [Fishing] Step 3/6: Beginning cast charge...")
                     networkRemote:FireServer("BeginCastCharge")
-                    task.wait(2)  -- Longer charge = better precision
+                    task.wait(0.5)  -- Small delay before finishing
 
-                    log("🎣 [Fishing] Step 4/5: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
+                    log("🎣 [Fishing] Step 4/6: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
                     networkRemote:FireServer("FinishCastCharge", areaId, center)
-                    task.wait(6)  -- Wait for: cast animation + bobber lands + fish bites + auto-catch
+                    task.wait(1)  -- Wait for cast to execute
 
-                    log("🎣 [Fishing] Step 5/5: Unequipping rod (cleanup)...")
+                    log("🎣 [Fishing] Step 5/6: Waiting for fish bite and auto-reel...")
+                    task.wait(8)  -- Total 9 seconds for: bobber lands + fish bites + auto-reel minigame
+
+                    log("🎣 [Fishing] Step 6/6: Unequipping rod (cleanup)...")
                     networkRemote:FireServer("UnequipRod")
-                    task.wait(0.3)
+                    task.wait(0.5)
 
                     state.lastFishingAttempt = currentTime
                     log("✅ [Fishing] Fishing cycle completed successfully!")
