@@ -81,6 +81,9 @@ local state = {
     lastStatsSnapshot = nil,  -- NEW: Previous stats for difference calculation
     lastStatsWebhookTime = nil,  -- NEW: Last time stats webhook was sent
     statsMessageId = nil,  -- NEW: Discord message ID for editing stats webhook
+    webhookPingEnabled = false,  -- NEW: Enable Discord user ping
+    webhookPingUserId = "",  -- NEW: Discord user ID to ping
+    autoFishEnabled = false,  -- NEW: Auto fishing toggle
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
@@ -968,11 +971,22 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         print("📤 Sending webhook...")
         print("Files attached: " .. #files)
 
+        -- Add ping content if enabled
+        local pingContent = ""
+        if state.webhookPingEnabled and state.webhookPingUserId ~= "" then
+            pingContent = "<@" .. state.webhookPingUserId .. ">"
+            print("📢 Adding Discord ping for user: " .. state.webhookPingUserId)
+        end
+
         local sendSuccess, sendError = pcall(function()
             if #files > 0 then
                 print("📎 Using multipart/form-data (with images)")
                 local boundary = generateBoundary()
-                local body = buildMultipartBody(boundary, {embeds = {embed}}, files)
+                local payload = {embeds = {embed}}
+                if pingContent ~= "" then
+                    payload.content = pingContent
+                end
+                local body = buildMultipartBody(boundary, payload, files)
 
                 request({
                     Url = state.webhookUrl,
@@ -983,11 +997,15 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             else
                 print("📝 Using JSON (no images)")
                 -- Fallback to simple JSON if no images
+                local payload = {embeds = {embed}}
+                if pingContent ~= "" then
+                    payload.content = pingContent
+                end
                 request({
                     Url = state.webhookUrl,
                     Method = "POST",
                     Headers = {["Content-Type"] = "application/json"},
-                    Body = HttpService:JSONEncode({embeds = {embed}})
+                    Body = HttpService:JSONEncode(payload)
                 })
             end
         end)
@@ -1620,11 +1638,6 @@ state.labels.runtime = MainTab:CreateLabel("Runtime: 00:00:00")
 state.labels.bubbles = MainTab:CreateLabel("Bubbles: 0")
 state.labels.hatches = MainTab:CreateLabel("Hatches: 0")
 
-local CurrencySection = MainTab:CreateSection("💰 All Currencies")
-
--- Single dynamic label for all currencies (no empty space!)
-state.labels.allCurrencies = MainTab:CreateLabel("Loading currencies...")
-
 local TeamSection = MainTab:CreateSection("👥 Custom Team")
 MainTab:CreateLabel("Hatch team / Stats team")
 
@@ -1870,6 +1883,26 @@ local AutoEnchantToggle = FarmTab:CreateToggle({
 
 FarmTab:CreateLabel("Auto-enchants equipped pet")
 
+-- === AUTO FISHING ===
+local FishingSection = FarmTab:CreateSection("🎣 Auto Fishing")
+
+local AutoFishToggle = FarmTab:CreateToggle({
+   Name = "🎣 Auto Fish",
+   CurrentValue = false,
+   Flag = "AutoFish",
+   Callback = function(Value)
+      state.autoFishEnabled = Value
+      Rayfield:Notify({
+         Title = "Auto Fishing",
+         Content = Value and "Enabled - Fishing at Fisher's Island" or "Disabled",
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+FarmTab:CreateLabel("Auto-fishes at Fisher's Island")
+
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
 
@@ -2083,6 +2116,28 @@ local WebhookStatsToggle = WebTab:CreateToggle({
       state.webhookStats = Value
    end,
 })
+
+local PingSection = WebTab:CreateSection("📢 Discord Ping")
+
+local PingToggle = WebTab:CreateToggle({
+   Name = "Enable Discord Ping",
+   CurrentValue = false,
+   Flag = "WebhookPing",
+   Callback = function(Value)
+      state.webhookPingEnabled = Value
+   end,
+})
+
+local PingUserInput = WebTab:CreateInput({
+   Name = "Discord User ID",
+   PlaceholderText = "123456789012345678",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      state.webhookPingUserId = Text
+   end,
+})
+
+WebTab:CreateLabel("Pings the user when legendary+ pet hatches")
 
 local RaritySection = WebTab:CreateSection("🎨 Rarity Filter (Hatch Notifications)")
 
@@ -2581,43 +2636,6 @@ task.spawn(function()
             state.labels.runtime:Set("⏱️ Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
             state.labels.bubbles:Set("🧱 Bubbles: " .. formatNumber(state.stats.bubbles))
             state.labels.hatches:Set("🥚 Hatches: " .. formatNumber(state.stats.hatches))
-
-            -- Build dynamic currency text (only show non-zero and non-$1M values)
-            local currencyLines = {}
-            local currencies = {
-                {emoji="💰", name="Coins", value=state.stats.coins},
-                {emoji="💎", name="Gems", value=state.stats.gems},
-                {emoji="🫧", name="Bubble Stock", value=state.stats.bubbleStock},
-                {emoji="🎫", name="Tokens", value=state.stats.tokens},
-                {emoji="🎟️", name="Tickets", value=state.stats.tickets},
-                {emoji="🐚", name="Seashells", value=state.stats.seashells},
-                {emoji="🎊", name="Festival Coins", value=state.stats.festivalCoins},
-                {emoji="🦪", name="Pearls", value=state.stats.pearls},
-                {emoji="🍂", name="Leaves", value=state.stats.leaves},
-                {emoji="🍬", name="Candycorn", value=state.stats.candycorn},
-                {emoji="⭐", name="OG Points", value=state.stats.ogPoints},
-                {emoji="🦃", name="Thanksgiving Shards", value=state.stats.thanksgivingShards},
-                {emoji="❄️", name="Winter Shards", value=state.stats.winterShards},
-                {emoji="⛄", name="Snowflakes", value=state.stats.snowflakes},
-                {emoji="🎆", name="New Years Shard", value=state.stats.newYearsShard},
-                {emoji="👹", name="Horns", value=state.stats.horns},
-                {emoji="😇", name="Halos", value=state.stats.halos},
-                {emoji="🌙", name="Moon Shards", value=state.stats.moonShards}
-            }
-
-            for _, curr in pairs(currencies) do
-                local val = tostring(curr.value)
-                if val ~= "0" and val ~= "$1,000,000" then
-                    table.insert(currencyLines, curr.emoji .. " " .. curr.name .. ": " .. val)
-                end
-            end
-
-            -- Update single currency label with all active currencies
-            if #currencyLines > 0 then
-                state.labels.allCurrencies:Set(table.concat(currencyLines, "\n"))
-            else
-                state.labels.allCurrencies:Set("No active currencies")
-            end
         end)
 
         updateStats()
@@ -2756,6 +2774,66 @@ task.spawn(function()
         if state.autoSellBubbles then
             pcall(function()
                 networkRemote:FireServer("SellBubble")
+            end)
+        end
+
+        -- ✅ Auto Fishing
+        if state.autoFishEnabled then
+            pcall(function()
+                -- Teleport to Fisher's Island
+                networkRemote:FireServer("Teleport", "Workspace.Worlds.Seven Seas.Areas.Fisher's Island.IslandTeleport.Spawn")
+                task.wait(0.5)
+
+                -- Find fishing areas
+                local fishingAreas = game:GetService("Workspace"):FindFirstChild("Worlds")
+                if fishingAreas then
+                    fishingAreas = fishingAreas:FindFirstChild("Seven Seas")
+                    if fishingAreas then
+                        fishingAreas = fishingAreas:FindFirstChild("Areas")
+                        if fishingAreas then
+                            fishingAreas = fishingAreas:FindFirstChild("Fisher's Island")
+                            if fishingAreas then
+                                fishingAreas = fishingAreas:FindFirstChild("FishingAreas")
+                                if fishingAreas then
+                                    -- Get all fishing areas (UUID named models)
+                                    local areas = fishingAreas:GetChildren()
+                                    if #areas > 0 then
+                                        -- Pick first fishing area
+                                        local area = areas[1]
+                                        if area:IsA("Model") then
+                                            -- Calculate center of fishing area
+                                            local center = area:GetBoundingBox().Position
+
+                                            -- Teleport above center to avoid ground clipping
+                                            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                                            if hrp then
+                                                hrp.CFrame = CFrame.new(center.X, center.Y + 5, center.Z)
+                                                task.wait(0.3)
+
+                                                -- Fishing sequence
+                                                -- 1. Equip rod
+                                                networkRemote:FireServer("EquipRod")
+                                                task.wait(0.2)
+
+                                                -- 2. Begin cast charge
+                                                networkRemote:FireServer("BeginCastCharge")
+                                                task.wait(1)  -- Charge time
+
+                                                -- 3. Finish cast with UUID and position
+                                                networkRemote:FireServer("FinishCastCharge", area.Name, center)
+                                                task.wait(2)  -- Wait for fish to bite
+
+                                                -- 4. Reel
+                                                networkRemote:FireServer("Reel", true)
+                                                task.wait(0.5)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
             end)
         end
 
