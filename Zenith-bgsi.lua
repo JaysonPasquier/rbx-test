@@ -85,6 +85,7 @@ local state = {
     webhookPingUserId = "",  -- NEW: Discord user ID to ping
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
+    fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
     fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
     lastFishingAttempt = 0,  -- NEW: Timestamp of last fishing attempt
     currentRifts = {},
@@ -1958,6 +1959,25 @@ local FishingIslandDropdown = FarmTab:CreateDropdown({
    end,
 })
 
+local FishingRodDropdown = FarmTab:CreateDropdown({
+   Name = "Select Fishing Rod",
+   Options = {"Wooden Rod", "Steel Rod", "Golden Rod", "Blizzard Rod", "Lotus Rod", "Molten Rod", "Trident Rod", "Galaxy Rod", "Abyssal Rod"},
+   CurrentOption = {"Wooden Rod"},
+   MultipleOptions = false,
+   Flag = "FishingRod",
+   Callback = function(Option)
+      if Option and Option[1] then
+         state.fishingRod = Option[1]
+         log("🎣 [Fishing] Rod changed to: " .. state.fishingRod)
+         Rayfield:Notify({
+            Title = "Fishing Rod",
+            Content = "Using " .. state.fishingRod,
+            Duration = 2,
+         })
+      end
+   end,
+})
+
 local AutoFishToggle = FarmTab:CreateToggle({
    Name = "🎣 Auto Fish",
    CurrentValue = false,
@@ -2985,27 +3005,31 @@ task.spawn(function()
 
                     log("✅ [Fishing] Player position AFTER teleport: " .. tostring(hrp.Position))
 
-                    -- Fishing sequence (CORRECTED: Use areaId, not area.Name UUID)
-                    log("🎣 [Fishing] Step 1/4: Equipping rod...")
+                    -- Fishing sequence (CORRECTED: Must select rod BEFORE equipping!)
+                    log("🎣 [Fishing] Step 1/5: Selecting " .. state.fishingRod .. "...")
+                    networkRemote:FireServer("SetEquippedRod", state.fishingRod, false)
+                    task.wait(0.5)
+
+                    log("🎣 [Fishing] Step 2/5: Equipping rod...")
                     networkRemote:FireServer("EquipRod")
-                    task.wait(0.3)
+                    task.wait(1)  -- Wait for rod to visually equip
 
-                    log("🎣 [Fishing] Step 2/4: Beginning cast charge...")
+                    log("🎣 [Fishing] Step 3/5: Beginning cast charge...")
                     networkRemote:FireServer("BeginCastCharge")
-                    task.wait(1.5)  -- Charge time
+                    task.wait(2)  -- Longer charge = better precision
 
-                    log("🎣 [Fishing] Step 3/4: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
+                    log("🎣 [Fishing] Step 4/5: Finishing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(center) .. ")...")
                     networkRemote:FireServer("FinishCastCharge", areaId, center)
-                    task.wait(4.5)  -- Wait for fish to bite and auto-reel minigame to complete
+                    task.wait(6)  -- Wait for: cast animation + bobber lands + fish bites + auto-catch
 
-                    log("🎣 [Fishing] Step 4/4: Unequipping rod (cleanup)...")
+                    log("🎣 [Fishing] Step 5/5: Unequipping rod (cleanup)...")
                     networkRemote:FireServer("UnequipRod")
-                    task.wait(0.2)
+                    task.wait(0.3)
 
                     state.lastFishingAttempt = currentTime
                     log("✅ [Fishing] Fishing cycle completed successfully!")
                     log("⏱️ [Fishing] Next attempt in 5 seconds...")
-                    log("📝 [Fishing] NOTE: Reel is handled automatically by game minigame")
+                    log("📝 [Fishing] Using rod: " .. state.fishingRod .. " | Island: " .. state.fishingIsland)
                 end)
             end
         else
