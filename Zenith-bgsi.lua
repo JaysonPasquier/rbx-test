@@ -1704,7 +1704,7 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "—" then
          state.hatchTeam = Option[1]
          pcall(function()
-            local Remote = require(RS.Shared.Framework.Network.Remote)
+            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("SetHatchTeam", Option[1])
          end)
       else
@@ -1723,7 +1723,7 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "—" then
          state.statsTeam = Option[1]
          pcall(function()
-            local Remote = require(RS.Shared.Framework.Network.Remote)
+            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("SetStatsTeam", Option[1])
          end)
       else
@@ -2568,7 +2568,7 @@ DataTab:CreateButton({
    Callback = function()
       pcall(function()
          local RS = game:GetService("ReplicatedStorage")
-         local Remote = require(RS.Shared.Framework.Network.Remote)
+         local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
          Remote:FireServer("BlowBubble")
          print("✅ Sent BlowBubble command!")
       end)
@@ -2587,7 +2587,7 @@ DataTab:CreateButton({
       if state.eggPriority then
          pcall(function()
             local RS = game:GetService("ReplicatedStorage")
-            local Remote = require(RS.Shared.Framework.Network.Remote)
+            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("HatchEgg", state.eggPriority, 99)
             print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
@@ -2818,7 +2818,7 @@ end)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     -- ✅ FIX: Use Remote MODULE (not RemoteEvent) - this is what the game uses!
-    local Remote = require(RS.Shared.Framework.Network.Remote)
+    local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles
@@ -3292,7 +3292,7 @@ end)
 -- ✅ AUTO-FARM RIFT CHESTS: Every 0.5 seconds (fast chest opening)
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local Remote = require(RS.Shared.Framework.Network.Remote)
+    local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(0.5) do
         if state.chestFarmActive and state.currentChestRift and state.autoHatch then
@@ -3314,7 +3314,7 @@ end)
 -- ✅ AUTO-CLAIM PLAYTIME GIFTS: Every 60 seconds
 task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
-    local Remote = require(RS.Shared.Framework.Network.Remote)
+    local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
 
     while task.wait(60) do
         if state.autoClaimPlaytime then
