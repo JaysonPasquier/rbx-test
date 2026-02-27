@@ -106,6 +106,7 @@ local state = {
     antiAFK = false,  -- NEW: Anti-AFK toggle (prevents Roblox kick)
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     autoCollectFlowers = false,  -- NEW: Auto collect event flowers
+    autoWheelSpin = false,  -- NEW: Auto wheel spin (Spring event)
     springEventActive = false,  -- NEW: Track if Spring event is active
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
@@ -2018,6 +2019,27 @@ if EventTab then
     })
 
     EventTab:CreateLabel("Teleports to each flower location")
+
+    local WheelSection = EventTab:CreateSection("🎰 Auto Wheel Spin")
+    EventTab:CreateLabel("Auto-spins Spring wheel (needs tickets)")
+    EventTab:CreateLabel("Skips animation for instant rewards")
+
+    local AutoWheelToggle = EventTab:CreateToggle({
+        Name = "🎰 Auto Wheel Spin",
+        CurrentValue = false,
+        Flag = "AutoWheel",
+        Callback = function(Value)
+            state.autoWheelSpin = Value
+            Rayfield:Notify({
+                Title = "Auto Wheel Spin",
+                Content = Value and "Enabled - Spinning wheel" or "Disabled",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end,
+    })
+
+    EventTab:CreateLabel("Requires Spring Spin Tickets")
 end
 
 -- === EGGS TAB ===
@@ -2928,6 +2950,21 @@ task.spawn(function()
                         end
                     end
                 end
+            end)
+        end
+
+        -- ✅ Auto Wheel Spin (Spring Event)
+        if state.autoWheelSpin and state.springEventActive then
+            pcall(function()
+                -- Try multiple remote variations for spinning the wheel
+                -- Pattern based on other wheel systems (Lunar, Admin, etc.)
+                pcall(function() Remote:FireServer("SpinSpringWheel") end)
+                pcall(function() Remote:FireServer("UseSpringWheelSpin") end)
+                pcall(function() Remote:FireServer("SpinWheel", "Spring") end)
+
+                -- Immediately skip animation and claim reward
+                task.wait(0.05)
+                pcall(function() Remote:FireServer("ClaimSpringWheelSpinQueue") end)
             end)
         end
 
