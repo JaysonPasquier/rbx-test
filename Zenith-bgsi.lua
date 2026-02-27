@@ -1108,6 +1108,19 @@ task.spawn(function()
     pcall(function()
         local LocalData = require(RS.Client.Framework.Services.LocalData)
 
+        -- INITIALIZE: Mark all existing pets as processed (don't send webhooks for inventory)
+        print("📦 [Init] Scanning existing pet inventory...")
+        local initialData = LocalData:Get()
+        if initialData and initialData.Pets then
+            for uuid, _ in pairs(initialData.Pets) do
+                processedPets[uuid] = true
+                lastPetCount = lastPetCount + 1
+            end
+            print("✅ [Init] Found " .. lastPetCount .. " existing pets - marked as processed")
+        else
+            print("⚠️ [Init] No existing pets found")
+        end
+
         -- Monitor Pets data changes (fires when new pet is hatched)
         LocalData:ConnectDataChanged("Pets", function(data)
             if not data or not data.Pets then return end
@@ -1205,6 +1218,7 @@ task.spawn(function()
         print("   ⚡ INSTANT event-driven detection (no delays!)")
         print("   🎯 Handles multi-egg hatches (3x, 7x) perfectly")
         print("   🔒 Duplicate prevention enabled")
+        print("   📦 Existing inventory ignored (only NEW hatches)")
         print("   🌐 Discord-safe rate limiting (250ms between webhooks)")
     end)
 
