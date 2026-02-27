@@ -2891,24 +2891,6 @@ task.spawn(function()
         if state.autoFishEnabled then
             -- Safety check: ensure island is selected
             if not state.fishingIsland or state.fishingIsland == "" or state.fishingIsland == "Scanning..." then
-                -- Skip fishing if no island selected yet
-                return
-            end
-
-            -- Island display name to area ID mapping
-            local islandToAreaId = {
-                ["Fisher's Island"] = "starter",
-                ["Blizzard Hills"] = "blizzard",
-                ["Poison Jungle"] = "jungle",
-                ["Infernite Volcano"] = "lava",
-                ["Lost Atlantis"] = "atlantis",
-                ["Dream Island"] = "dream",
-                ["Classic Island"] = "classic"
-            }
-
-            local areaId = islandToAreaId[state.fishingIsland]
-            if not areaId then
-                log("❌ [Fishing] ERROR: Unknown island name: " .. state.fishingIsland)
                 return
             end
 
@@ -2917,22 +2899,20 @@ task.spawn(function()
             -- Only teleport ONCE when first enabled or when island changes
             if not state.fishingTeleported then
                 pcall(function()
-                    log("🎣 [Fishing] Initiating teleport to " .. state.fishingIsland .. " (areaId: " .. areaId .. ")")
+                    log("🎣 [Fishing] Initiating teleport to " .. state.fishingIsland)
                     local teleportPath = "Workspace.Worlds.Seven Seas.Areas." .. state.fishingIsland .. ".IslandTeleport.Spawn"
-                    log("🎣 [Fishing] Teleport path: " .. teleportPath)
 
                     Remote:FireServer("Teleport", teleportPath)
                     state.fishingTeleported = true
-                    log("🎣 [Fishing] Teleport command sent, waiting 2 seconds...")
-                    task.wait(2)  -- Wait for teleport to complete
-                    log("🎣 [Fishing] Teleport completed, ready to fish")
+                    log("✅ [Fishing] Teleported to " .. state.fishingIsland)
+                    task.wait(2)
                 end)
             end
 
-            -- Fishing cooldown: 2 seconds between casts (rod stays equipped)
+            -- Fishing cooldown: 2 seconds between casts
             if currentTime - state.lastFishingAttempt >= 2 then
                 pcall(function()
-                    log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland .. " (areaId: " .. areaId .. ")")
+                    log("🎣 [Fishing] Starting fishing attempt at " .. state.fishingIsland)
 
                     -- Find fishing areas
                     local workspace = game:GetService("Workspace")
@@ -2989,6 +2969,18 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Using fishing area: " .. area.Name)
 
+                    -- Get the CORRECT areaId using game's FishingAreas module
+                    local correctAreaId = nil
+                    pcall(function()
+                        local FishingAreas = require(RS.Client.Gui.Frames.Fishing.FishingAreas)
+                        correctAreaId = FishingAreas:GetAreaIdFromRoot(area)
+                    end)
+
+                    if not correctAreaId then
+                        correctAreaId = area.Name  -- Fallback to UUID name
+                    end
+                    log("✅ [Fishing] Area ID: " .. tostring(correctAreaId))
+
                     -- Calculate center of fishing area
                     local center = area:GetBoundingBox().Position
                     log("✅ [Fishing] Fishing area center: " .. tostring(center))
@@ -2999,111 +2991,92 @@ task.spawn(function()
                         log("❌ [Fishing] ERROR: HumanoidRootPart not found")
                         return
                     end
-                    log("✅ [Fishing] Player position BEFORE teleport: " .. tostring(hrp.Position))
 
-                    -- TELEPORT PLAYER TO FISHING AREA CENTER (above water to avoid drowning)
-                    local fishingPosition = CFrame.new(center.X, center.Y + 5, center.Z)
+                    -- TELEPORT PLAYER TO FISHING AREA (on the edge, not center)
+                    local fishingPosition = CFrame.new(center.X, center.Y + 3, center.Z + 15)  -- Stand at edge
                     hrp.CFrame = fishingPosition
-                    log("✅ [Fishing] TELEPORTED player to fishing area: " .. tostring(fishingPosition.Position))
-                    task.wait(0.5)  -- Wait for teleport to settle
+                    task.wait(0.3)
 
-                    log("✅ [Fishing] Player position AFTER teleport: " .. tostring(hrp.Position))
-
-                    -- Check player's fishing data
-                    pcall(function()
-                        local LocalData = require(RS.Client.Framework.Services.LocalData)
-                        local playerData = LocalData:Get()
-                        if playerData then
-                            log("📊 [Fishing] Player data found")
-                            if playerData.EquippedRod then
-                                log("✅ [Fishing] Currently equipped rod: " .. tostring(playerData.EquippedRod))
-                            else
-                                log("⚠️ [Fishing] WARNING: No rod equipped in player data!")
-                            end
-                            if playerData.EquippedBait then
-                                log("✅ [Fishing] Currently equipped bait: " .. tostring(playerData.EquippedBait))
-                            end
-                        else
-                            log("❌ [Fishing] ERROR: Could not get player data")
-                        end
-                    end)
-
-                    -- Make player face the fishing area (important for raycasting)
+                    -- Face the fishing area center
                     hrp.CFrame = CFrame.new(hrp.Position, center)
-                    log("✅ [Fishing] Player facing fishing area")
+                    log("✅ [Fishing] Positioned at edge, facing water")
 
-                    -- Calculate water surface position using GAME'S EXACT RAYCAST METHOD
-                    -- The game raycasts HORIZONTALLY at multiple distances, then DOWN to find water!
-                    local castPosition = center
+                    -- ONE-TIME SETUP: Equip rod
+                    if not state.fishingRodEquipped then
+                        log("🎣 [Fishing] Setting up rod...")
+                        Remote:FireServer("SetEquippedRod", state.fishingRod, false)
+                        task.wait(1)
+                        Remote:FireServer("EquipRod")
+                        task.wait(2)
+                        state.fishingRodEquipped = true
+                        log("✅ [Fishing] Rod equipped: " .. state.fishingRod)
+                    end
+
+                    -- MANUAL FISHING (NO GAMEPASS REQUIRED)
+                    -- Replicate the AutoFish logic from ChargeState
+
+                    -- Calculate cast position using game's raycast method
+                    local castPosition = nil
                     pcall(function()
                         local FishingUtil = require(RS.Shared.Utils.FishingUtil)
-                        local MIN_CAST_DISTANCE = FishingUtil.MIN_CAST_DISTANCE or 10
-                        local MAX_CAST_DISTANCE = FishingUtil.MAX_CAST_DISTANCE or 60
-                        local increment = (MAX_CAST_DISTANCE - MIN_CAST_DISTANCE) / 10
+                        local FishingAreas = require(RS.Client.Gui.Frames.Fishing.FishingAreas)
 
-                        local lookVector = hrp.CFrame.LookVector
-                        local raycastParams = RaycastParams.new()
-                        raycastParams.FilterType = Enum.RaycastFilterType.Include
-                        raycastParams.FilterDescendantsInstances = {area}
+                        local MIN_CAST = FishingUtil.MIN_CAST_DISTANCE or 10
+                        local MAX_CAST = FishingUtil.MAX_CAST_DISTANCE or 60
+                        local increment = (MAX_CAST - MIN_CAST) / 10
 
-                        -- Try 10 horizontal distances (EXACTLY like ChargeState._getClosestRaycast)
+                        local lookVec = hrp.CFrame.LookVector
+                        local rayParams = FishingAreas:GetRaycastParams()
+
+                        -- Try 10 horizontal distances (game's method)
                         for i = 1, 10 do
-                            local horizontalPos = hrp.Position + lookVector * (MIN_CAST_DISTANCE + increment * i)
-                            local downDirection = Vector3.new(0, -50, 0)
-
-                            local rayResult = workspace:Raycast(horizontalPos, downDirection, raycastParams)
+                            local horizPos = hrp.Position + lookVec * (MIN_CAST + increment * i)
+                            local rayResult = workspace:Raycast(horizPos, Vector3.new(0, -50, 0), rayParams)
                             if rayResult then
                                 castPosition = rayResult.Position
-                                log("✅ [Fishing] Found water at distance " .. i .. "/10: " .. tostring(castPosition))
+                                log("✅ [Fishing] Found water at distance " .. i .. "/10")
                                 break
                             end
                         end
-
-                        if castPosition == center then
-                            log("⚠️ [Fishing] Raycast failed all 10 attempts, using area center")
-                        end
                     end)
 
-                    -- Equip rod on first cast only
-                    if not state.fishingRodEquipped then
-                        log("🎣 [Fishing] Step 1: Selecting " .. state.fishingRod .. "...")
-                        Remote:FireServer("SetEquippedRod", state.fishingRod, false)
-                        task.wait(1.5)  -- Wait for server to process rod selection
-
-                        log("🎣 [Fishing] Step 2: Equipping rod...")
-                        Remote:FireServer("EquipRod")
-                        task.wait(2)  -- Wait for rod to fully equip and appear
-
-                        state.fishingRodEquipped = true
-                        log("✅ [Fishing] Rod equipped - will stay equipped for continuous fishing")
+                    if not castPosition then
+                        log("⚠️ [Fishing] Raycast failed, using default position")
+                        castPosition = center
                     end
 
-                    -- Cast sequence (runs every cycle)
-                    log("🎣 [Fishing] Beginning cast charge (hold for 0.8s)...")
+                    -- Start cast
+                    log("🎣 [Fishing] BeginCastCharge...")
                     Remote:FireServer("BeginCastCharge")
-                    task.wait(0.8)  -- Hold cast to charge (simulates holding mouse button)
 
-                    log("🎣 [Fishing] Releasing cast (AreaId: " .. areaId .. ", Pos: " .. tostring(castPosition) .. ")...")
-                    Remote:FireServer("FinishCastCharge", areaId, castPosition)
-                    task.wait(1)  -- Wait for bobber to spawn
+                    -- Wait for PERFECT timing (80% precision)
+                    -- Precision formula: 0.5 + 0.5 * sin((t) * 2*pi)
+                    -- For 0.8 precision: t = asin(0.6) / (2*pi) ≈ 0.1025 seconds
+                    local perfectTiming = math.asin(0.6) / (2 * math.pi)
+                    task.wait(perfectTiming)
 
-                    log("🎣 [Fishing] Waiting for fish bite and auto-reel (18s)...")
-                    task.wait(18)  -- Wait for: bobber lands → fish bites → auto-reel minigame → catch
+                    -- Release cast at perfect precision
+                    log("🎣 [Fishing] FinishCastCharge (Perfect 80% precision, areaId: " .. correctAreaId .. ")...")
+                    Remote:FireServer("FinishCastCharge", correctAreaId, castPosition)
+
+                    -- Wait for fish (game auto-reels with equipped rod)
+                    log("🎣 [Fishing] Waiting for fish... (20s)")
+                    task.wait(20)
 
                     state.lastFishingAttempt = currentTime
-                    log("✅ [Fishing] Cast completed! (Rod stays equipped)")
-                    log("⏱️ [Fishing] Next cast in 2 seconds...")
-                    log("📝 [Fishing] Rod: " .. state.fishingRod .. " | Island: " .. state.fishingIsland)
+                    log("✅ [Fishing] Cast complete!")
                 end)
             end
         else
             -- Reset flags and unequip rod when disabled
-            if state.fishingTeleported then
+            if state.fishingTeleported or state.fishingRodEquipped then
                 state.fishingTeleported = false
                 state.fishingRodEquipped = false
                 log("🎣 [Fishing] Auto fishing disabled - unequipping rod")
+
                 pcall(function()
                     Remote:FireServer("UnequipRod")
+                    log("  ✅ Rod unequipped")
                 end)
             end
         end
