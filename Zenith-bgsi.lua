@@ -14,7 +14,34 @@ local playerGui = player:WaitForChild("PlayerGui")
 print("Zenith (BGSI) - LOADING...")
 
 -- Load Rayfield Library (Mobile-Optimized)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+print("Loading Rayfield UI library...")
+local success, Rayfield = pcall(function()
+    local code = game:HttpGet('https://sirius.menu/rayfield')
+    if not code or code == "" then
+        error("Failed to download Rayfield library (empty response)")
+    end
+    local loadedFunc = loadstring(code)
+    if not loadedFunc then
+        error("Failed to compile Rayfield library (loadstring returned nil)")
+    end
+    return loadedFunc()
+end)
+
+if not success then
+    warn("❌ CRITICAL ERROR: Failed to load Rayfield UI library!")
+    warn("Error: " .. tostring(Rayfield))
+    warn("Please check:")
+    warn("  1. Your executor supports HttpGet")
+    warn("  2. Your executor supports loadstring")
+    warn("  3. The Rayfield library URL is accessible")
+    error("Cannot continue without UI library")
+end
+
+if not Rayfield or type(Rayfield) ~= "table" then
+    error("❌ Rayfield loaded but is invalid (not a table). Got: " .. type(Rayfield))
+end
+
+print("✅ Rayfield UI library loaded successfully!")
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
