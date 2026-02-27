@@ -11,10 +11,7 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-print("Zenith (BGSI) - LOADING...")
-
 -- Load Rayfield Library (Mobile-Optimized)
-print("Loading Rayfield UI library...")
 local success, Rayfield = pcall(function()
     local code = game:HttpGet('https://sirius.menu/rayfield')
     if not code or code == "" then
@@ -28,20 +25,18 @@ local success, Rayfield = pcall(function()
 end)
 
 if not success then
-    warn("❌ CRITICAL ERROR: Failed to load Rayfield UI library!")
-    warn("Error: " .. tostring(Rayfield))
-    warn("Please check:")
-    warn("  1. Your executor supports HttpGet")
-    warn("  2. Your executor supports loadstring")
-    warn("  3. The Rayfield library URL is accessible")
+-- warn("❌ CRITICAL ERROR: Failed to load Rayfield UI library!")
+-- warn("Error: " .. tostring(Rayfield))
+-- warn("Please check:")
+-- warn("  1. Your executor supports HttpGet")
+-- warn("  2. Your executor supports loadstring")
+-- warn("  3. The Rayfield library URL is accessible")
     error("Cannot continue without UI library")
 end
 
 if not Rayfield or type(Rayfield) ~= "table" then
     error("❌ Rayfield loaded but is invalid (not a table). Got: " .. type(Rayfield))
 end
-
-print("✅ Rayfield UI library loaded successfully!")
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
@@ -77,8 +72,6 @@ local Window = Rayfield:CreateWindow({
       Key = {""}
    }
 })
-
-print("Zenith (BGSI) window created")
 
 -- === STATE MANAGEMENT ===
 local state = {
@@ -460,7 +453,6 @@ local DEBUG_LOG_FILE = "zenith_bgsi_webhook_debug.txt"
 local function log(message)
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     local logMessage = "[" .. timestamp .. "] " .. message
-    print(logMessage)
 
     -- Write to file
     if writefile and readfile and isfile then
@@ -478,7 +470,6 @@ end
 local function debugLog(message)
     local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     local logMessage = "[" .. timestamp .. "] " .. message
-    print(logMessage)
 
     -- Write to debug file
     if writefile and readfile and isfile then
@@ -501,7 +492,6 @@ local function loadStatsMessageId()
             content = content:match("^%s*(.-)%s*$") or content
             if content ~= "" then
                 state.statsMessageId = content
-                print("[Webhook] Loaded existing message ID: " .. content)
             end
         end
     end
@@ -511,7 +501,6 @@ end
 local function saveStatsMessageId(messageId)
     if writefile then
         pcall(writefile, STATS_MESSAGE_FILE, messageId)
-        print("[Webhook] Saved message ID: " .. messageId)
     end
 end
 
@@ -987,19 +976,19 @@ task.spawn(function()
                 -- Skip deleted pets (auto-deleted by game)
                 if petInfo.Deleted ~= true then
                     -- Debug: print COMPLETE pet info structure for EVERY pet
-                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
+-- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+-- print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
                     for key, value in pairs(petInfo) do
                         if type(value) == "table" then
-                            print("  " .. tostring(key) .. " = [table]")
+-- print("  " .. tostring(key) .. " = [table]")
                             for subKey, subValue in pairs(value) do
-                                print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
+-- print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
                             end
                         else
-                            print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
+-- print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
                         end
                     end
-                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+-- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
                     -- Extract pet name (top level)
                     local petName = petInfo.Name or "Unknown Pet"
@@ -1210,9 +1199,6 @@ local function SendStatsWebhook()
             -- Edit existing message
             method = "PATCH"
             url = state.webhookUrl .. "/messages/" .. state.statsMessageId
-            print("[Webhook] Editing existing stats message: " .. state.statsMessageId)
-        else
-            print("[Webhook] Creating new stats message (ID: " .. tostring(state.statsMessageId) .. ")")
         end
 
         local success, response = pcall(function()
@@ -1225,20 +1211,12 @@ local function SendStatsWebhook()
         end)
 
         if not success then
-            print("[Webhook] Request failed: " .. tostring(response))
             -- If editing failed, reset message ID and try creating new one next time
             if method == "PATCH" then
-                print("[Webhook] PATCH failed, will try POST next time")
                 state.statsMessageId = nil
                 saveStatsMessageId("")
-                print("[Webhook] Cleared saved message ID due to error")
             end
             return
-        end
-
-        -- Check response status
-        if response and response.StatusCode then
-            print("[Webhook] Response status: " .. response.StatusCode)
         end
 
         -- If this was a new message (POST), save the message ID
@@ -1249,9 +1227,6 @@ local function SendStatsWebhook()
             if decodeSuccess and data and data.id then
                 state.statsMessageId = data.id
                 saveStatsMessageId(data.id)
-                print("[Webhook] Saved new message ID: " .. data.id)
-            else
-                print("[Webhook] Failed to decode response or no message ID in response")
             end
         end
 
@@ -1526,7 +1501,7 @@ local function scanEggs()
             end
 
             if foundEggs > 0 then
-                print("✅ Found " .. foundEggs .. " eggs in Chunker folders")
+-- print("✅ Found " .. foundEggs .. " eggs in Chunker folders")
             end
         end
     end)
@@ -2316,34 +2291,34 @@ WebTab:CreateLabel("Shows: Username, stats, differences, rates/min")
 WebTab:CreateButton({
    Name = "🔍 Diagnose Hatch Detection",
    Callback = function()
-      print("━━━━━━━━━━ HATCH DETECTION DIAGNOSTICS ━━━━━━━━━━")
+-- print("━━━━━━━━━━ HATCH DETECTION DIAGNOSTICS ━━━━━━━━━━")
 
       -- Check PlayerGui
       local screenGui = playerGui:FindFirstChild("ScreenGui")
-      print("PlayerGui.ScreenGui: " .. (screenGui and "✅ EXISTS" or "❌ NOT FOUND"))
+-- print("PlayerGui.ScreenGui: " .. (screenGui and "✅ EXISTS" or "❌ NOT FOUND"))
 
       if screenGui then
          -- List all children
-         print("\n📋 ScreenGui children:")
+-- print("\n📋 ScreenGui children:")
          for _, child in pairs(screenGui:GetChildren()) do
-            print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+-- print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
          end
 
          -- Check for Hatching frame
          local hatchingFrame = screenGui:FindFirstChild("Hatching")
-         print("\nScreenGui.Hatching: " .. (hatchingFrame and "✅ EXISTS" or "❌ NOT FOUND"))
+-- print("\nScreenGui.Hatching: " .. (hatchingFrame and "✅ EXISTS" or "❌ NOT FOUND"))
 
          if hatchingFrame then
-            print("\n📋 Hatching frame children:")
+-- print("\n📋 Hatching frame children:")
             for _, child in pairs(hatchingFrame:GetChildren()) do
-               print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+-- print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
             end
          end
       end
 
-      print("\n💡 If Hatching frame exists, try hatching an egg!")
-      print("   Template frames should appear as children when hatching.")
-      print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+-- print("\n💡 If Hatching frame exists, try hatching an egg!")
+-- print("   Template frames should appear as children when hatching.")
+-- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
       Rayfield:Notify({
          Title = "Diagnostics Complete",
@@ -2469,16 +2444,16 @@ DataTab:CreateButton({
    Callback = function()
       pcall(function()
          local RS = game:GetService("ReplicatedStorage")
-         print("\n🔍 === ALL REMOTES IN GAME ===")
+-- print("\n🔍 === ALL REMOTES IN GAME ===")
          local count = 0
          for _, obj in pairs(RS:GetDescendants()) do
             if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
                count = count + 1
-               print("   📡 [" .. count .. "] " .. obj:GetFullName())
+-- print("   📡 [" .. count .. "] " .. obj:GetFullName())
             end
          end
-         print("\nTotal found: " .. count)
-         print("=== END SCAN ===\n")
+-- print("\nTotal found: " .. count)
+-- print("=== END SCAN ===\n")
       end)
 
       Rayfield:Notify({
@@ -2496,7 +2471,7 @@ DataTab:CreateButton({
          local RS = game:GetService("ReplicatedStorage")
          local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
          Remote:FireServer("BlowBubble")
-         print("✅ Sent BlowBubble command!")
+-- print("✅ Sent BlowBubble command!")
       end)
 
       Rayfield:Notify({
@@ -2515,7 +2490,7 @@ DataTab:CreateButton({
             local RS = game:GetService("ReplicatedStorage")
             local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("HatchEgg", state.eggPriority, 99)
-            print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
+-- print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
 
          Rayfield:Notify({
@@ -2534,13 +2509,13 @@ DataTab:CreateButton({
 })
 
 -- === STARTUP: LOAD ALL CHUNKS AND SCAN EGGS ===
-print("🔍 Loading all game chunks and scanning for eggs...")
+-- print("🔍 Loading all game chunks and scanning for eggs...")
 
 -- Load saved stats message ID (persists across rejoins)
 loadStatsMessageId()
 
 -- Load egg and rift data from game modules (auto-updates with game versions)
-print("📦 Fetching egg, rift, potion, enchant and team data from game...")
+-- print("📦 Fetching egg, rift, potion, enchant and team data from game...")
 loadGameEggData()
 loadGameRiftData()
 loadGamePotionData()
@@ -2556,13 +2531,13 @@ task.spawn(function()
                 if world:IsA("Model") then
                     local primary = world.PrimaryPart or world:FindFirstChildWhichIsA("BasePart")
                     if primary then
-                        print("  Loading chunks for:", world.Name)
+-- print("  Loading chunks for:", world.Name)
                         player:RequestStreamAroundAsync(primary.Position)
                         task.wait(0.5)
                     end
                 end
             end
-            print("✅ All chunks loaded!")
+-- print("✅ All chunks loaded!")
         end
 
         -- Now scan all eggs and build database
@@ -2609,7 +2584,7 @@ task.spawn(function()
                     end
                 end
             end
-            print("✅ Egg database built: " .. eggCount .. " eggs cataloged")
+-- print("✅ Egg database built: " .. eggCount .. " eggs cataloged")
         end
     end)
 end)
@@ -3196,7 +3171,7 @@ task.spawn(function()
                         end
                     end
                     if not stillHere then
-                        print("[Rift] Priority rift '" .. state.farmingPriorityRift .. "' despawned - reverting")
+-- print("[Rift] Priority rift '" .. state.farmingPriorityRift .. "' despawned - reverting")
                         state.chestFarmActive = false
                         state.currentChestRift = nil
                         state.eggPriority = state.previousEggPriority
@@ -3208,7 +3183,7 @@ task.spawn(function()
                                 if egg.name == state.previousEggPriority then
                                     tpToModel(egg.instance)
                                     state.lastEggPosition = egg.instance:GetPivot().Position
-                                    print("[Rift] Teleported back to normal egg: " .. state.previousEggPriority)
+-- print("[Rift] Teleported back to normal egg: " .. state.previousEggPriority)
                                     break
                                 end
                             end
@@ -3219,7 +3194,7 @@ task.spawn(function()
                 -- If we found a priority rift that's spawned, farm it
                 if priorityRiftName and priorityRiftInstance then
                     if not priorityRiftInstance:IsDescendantOf(Workspace) then
-                        print("[Rift] Priority rift instance not in workspace, skipping")
+-- print("[Rift] Priority rift instance not in workspace, skipping")
                         return
                     end
 
@@ -3228,7 +3203,7 @@ task.spawn(function()
                         state.previousEggPriority = state.eggPriority
                         state.previousRiftPriority = state.riftPriority
                         state.farmingPriorityRift = priorityRiftName
-                        print("[Rift] Switching to priority rift: " .. priorityRiftName)
+-- print("[Rift] Switching to priority rift: " .. priorityRiftName)
                     end
 
                     -- Teleport to rift
@@ -3291,7 +3266,7 @@ task.spawn(function()
                         pcall(function() Remote:FireServer("UnlockRiftChest", state.riftPriority, true) end)
                     end
                 else
-                    print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
+-- print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
                 end
             end)
         end
@@ -3322,7 +3297,7 @@ task.spawn(function()
                         if state.previousEggPriority == nil or state.previousEggPriority ~= state.eggPriority then
                             if state.eggPriority and state.eggPriority ~= priorityEggName then
                                 state.previousEggPriority = state.eggPriority
-                                print("[Egg] Switching to priority egg: " .. priorityEggName)
+-- print("[Egg] Switching to priority egg: " .. priorityEggName)
                             end
                         end
 
@@ -3339,7 +3314,7 @@ task.spawn(function()
                 else
                     -- No priority egg found, revert to previous if we had one
                     if state.previousEggPriority and state.previousEggPriority ~= state.eggPriority then
-                        print("[Egg] Priority egg gone, reverting to: " .. state.previousEggPriority)
+-- print("[Egg] Priority egg gone, reverting to: " .. state.previousEggPriority)
                         state.eggPriority = state.previousEggPriority
                         state.previousEggPriority = nil
                         state.lastEggPosition = nil
@@ -3355,7 +3330,7 @@ task.spawn(function()
                     if egg.name == state.eggPriority then
                         -- Validate egg still exists
                         if not egg.instance:IsDescendantOf(Workspace) then
-                            print("[Egg] Normal egg instance not in workspace, rescanning")
+-- print("[Egg] Normal egg instance not in workspace, rescanning")
                             return
                         end
 
@@ -3403,7 +3378,7 @@ task.spawn(function()
             if state.chestFarmActive then
                 state.chestFarmActive = false
                 state.currentChestRift = nil
-                print("📦 Stopped chest farming")
+-- print("📦 Stopped chest farming")
             end
         end
     end
@@ -3418,7 +3393,7 @@ task.spawn(function()
         if state.autoClaimPlaytime then
             pcall(function()
                 Remote:FireServer("ClaimAllPlaytime")
-                print("✅ Claimed playtime gifts")
+-- print("✅ Claimed playtime gifts")
             end)
         end
     end
@@ -3438,7 +3413,7 @@ task.spawn(function()
 end)
 
 -- === INITIAL SETUP ===
-print("✅ Performing initial scans...")
+-- print("✅ Performing initial scans...")
 
 -- Populate priority dropdowns with game data (all eggs/rifts, not just spawned ones)
 task.spawn(function()
@@ -3492,9 +3467,9 @@ task.spawn(function()
         pcall(function()
             EggDropdown:Refresh(eggNames, true)
         end)
-        print("✅ Found " .. #eggNames .. " spawned eggs")
+-- print("✅ Found " .. #eggNames .. " spawned eggs")
     else
-        print("⚠️ No eggs found yet")
+-- print("⚠️ No eggs found yet")
     end
 end)
 
@@ -3511,9 +3486,9 @@ task.spawn(function()
         pcall(function()
             RiftDropdown:Refresh(riftNames, true)
         end)
-        print("✅ Found " .. #riftNames .. " spawned rifts")
+-- print("✅ Found " .. #riftNames .. " spawned rifts")
     else
-        print("⚠️ No rifts spawned yet")
+-- print("⚠️ No rifts spawned yet")
     end
 end)
 
@@ -3531,7 +3506,7 @@ task.spawn(function()
             if bestIsland then
                 state.fishingIsland = bestIsland
                 log("🏆 [Fishing] Auto-selected best island: " .. bestIsland)
-                print("🏆 Auto-selected best fishing island: " .. bestIsland)
+-- print("🏆 Auto-selected best fishing island: " .. bestIsland)
             else
                 -- Fallback: use first island
                 state.fishingIsland = islands[1]
@@ -3539,10 +3514,10 @@ task.spawn(function()
             end
         end)
         log("✅ [Fishing] Found " .. #islands .. " fishing islands: " .. table.concat(islands, ", "))
-        print("✅ Found " .. #islands .. " fishing islands")
+-- print("✅ Found " .. #islands .. " fishing islands")
     else
         log("⚠️ [Fishing] No fishing islands found")
-        print("⚠️ No fishing islands found yet")
+-- print("⚠️ No fishing islands found yet")
     end
 end)
 
@@ -3595,40 +3570,40 @@ end)
 -- Load saved configuration
 Rayfield:LoadConfiguration()
 
-print("✅ ==========================================")
-print("✅ Zenith (BGSI) - READY!")
-print("✅ ==========================================")
-print("📱 Zenith is mobile-optimized (Rayfield)")
-print("   • Single column layout")
-print("   • Auto-resizes to your screen")
-print("   • Touch-friendly buttons")
-print("✅ ==========================================")
-print("🔄 AUTO-SCANNING:")
-print("   • Rifts: Every 2 seconds")
-print("   • Eggs: Every 2 seconds")
-print("   • Stats: Every 1 second")
-print("   • Admin Events: Every 3 seconds")
-print("   • Playtime Gifts: Every 60 seconds")
-print("   • Fishing: Auto-selects best island")
-print("   • Anti-AFK: Every 15-19 minutes")
-print("✅ ==========================================")
-print("📋 Tabs:")
-print("   🏠 Main - Live stats (ALL 18 currencies!)")
-print("   🔧 Farm - Auto blow, pickup, fishing, anti-AFK, event detector")
-print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
-print("   🌌 Rifts - Auto-scanned rifts + priority mode")
-print("   📊 Webhook - Pet hatches, stats, rarity filter")
-print("   📋 Data - Pet information")
-print("✅ ==========================================")
-print("🎉 WEBHOOK FEATURES:")
-print("   ⚡ INSTANT pet hatch detection (event-driven!)")
-print("   🎯 Multi-egg support (3x, 7x hatches)")
-print("   ✨ Shiny/Mythic stat multipliers (x2.5, x10, x25)")
-print("   🎨 Rarity filtering (multi-select)")
-print("   🎲 Chance threshold (only rare pets)")
-print("   📊 User stats webhook (editable, no spam)")
-print("   🔒 No duplicates, no freezing, no missed pets")
-print("✅ ==========================================")
+-- print("✅ ==========================================")
+-- print("✅ Zenith (BGSI) - READY!")
+-- print("✅ ==========================================")
+-- print("📱 Zenith is mobile-optimized (Rayfield)")
+-- print("   • Single column layout")
+-- print("   • Auto-resizes to your screen")
+-- print("   • Touch-friendly buttons")
+-- print("✅ ==========================================")
+-- print("🔄 AUTO-SCANNING:")
+-- print("   • Rifts: Every 2 seconds")
+-- print("   • Eggs: Every 2 seconds")
+-- print("   • Stats: Every 1 second")
+-- print("   • Admin Events: Every 3 seconds")
+-- print("   • Playtime Gifts: Every 60 seconds")
+-- print("   • Fishing: Auto-selects best island")
+-- print("   • Anti-AFK: Every 15-19 minutes")
+-- print("✅ ==========================================")
+-- print("📋 Tabs:")
+-- print("   🏠 Main - Live stats (ALL 18 currencies!)")
+-- print("   🔧 Farm - Auto blow, pickup, fishing, anti-AFK, event detector")
+-- print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
+-- print("   🌌 Rifts - Auto-scanned rifts + priority mode")
+-- print("   📊 Webhook - Pet hatches, stats, rarity filter")
+-- print("   📋 Data - Pet information")
+-- print("✅ ==========================================")
+-- print("🎉 WEBHOOK FEATURES:")
+-- print("   ⚡ INSTANT pet hatch detection (event-driven!)")
+-- print("   🎯 Multi-egg support (3x, 7x hatches)")
+-- print("   ✨ Shiny/Mythic stat multipliers (x2.5, x10, x25)")
+-- print("   🎨 Rarity filtering (multi-select)")
+-- print("   🎲 Chance threshold (only rare pets)")
+-- print("   📊 User stats webhook (editable, no spam)")
+-- print("   🔒 No duplicates, no freezing, no missed pets")
+-- print("✅ ==========================================")
 
 Rayfield:Notify({
    Title = "Zenith (BGSI) Ready!",
@@ -3637,11 +3612,11 @@ Rayfield:Notify({
    Image = 4483362458,
 })
 
-print("Zenith (BGSI) loaded successfully!")
-print("💡 Rifts and eggs will auto-refresh every 2 seconds")
-print("💡 Enable webhook for pet hatch notifications!")
-print("🎣 Fishing: Auto-selects best island + upgrades on level up")
-print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
+-- print("Zenith (BGSI) loaded successfully!")
+-- print("💡 Rifts and eggs will auto-refresh every 2 seconds")
+-- print("💡 Enable webhook for pet hatch notifications!")
+-- print("🎣 Fishing: Auto-selects best island + upgrades on level up")
+-- print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
 
 -- === ANTI-AFK BACKGROUND TASK ===
 task.spawn(function()
@@ -3650,14 +3625,14 @@ task.spawn(function()
     -- Capture controller once at startup
     VirtualUser:CaptureController()
 
-    print("🛡️ [Anti-AFK] System initialized")
+-- print("🛡️ [Anti-AFK] System initialized")
 
     while task.wait(1) do
         if state.antiAFK then
             -- Random interval between 15-19 minutes (900-1140 seconds)
             local interval = math.random(900, 1140)
 
-            print("🛡️ [Anti-AFK] Enabled - Next input in " .. math.floor(interval/60) .. " minutes")
+-- print("🛡️ [Anti-AFK] Enabled - Next input in " .. math.floor(interval/60) .. " minutes")
 
             task.wait(interval)
 
@@ -3667,7 +3642,7 @@ task.spawn(function()
                 task.wait(0.1)
                 VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 
-                print("🛡️ [Anti-AFK] Input simulated - Reset AFK timer")
+-- print("🛡️ [Anti-AFK] Input simulated - Reset AFK timer")
             end
         else
             task.wait(10)  -- Check every 10 seconds when disabled
