@@ -676,13 +676,16 @@ local function buildMultipartBody(boundary, payload, files)
 end
 
 -- Send rich embed webhook for pet hatches (ASYNC - non-blocking)
-local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
+-- displayEgg: The egg being hatched (shown in webhook)
+-- chanceEgg: The original egg containing the pet (used for chance calculation)
+local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
     -- Run webhook in background thread to prevent game freezing
     task.spawn(function()
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🔔 WEBHOOK TRIGGERED (ASYNC)")
         print("Pet: " .. petName)
-        print("Egg: " .. eggName)
+        print("Hatching Egg: " .. displayEgg)
+        print("Chance Egg: " .. chanceEgg)
         print("Rarity: " .. rarityFromGUI)
         print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
 
@@ -794,8 +797,9 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         print(string.format("📊 Pet BASE stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(baseBubbleStat), tostring(baseCoinsStat), tostring(baseGemsStat)))
         print(string.format("📊 Pet FINAL stats (x%s): Bubbles=%s, Coins=%s, Gems=%s", tostring(statMultiplier), tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
 
-        -- Get base pet chance from egg data
-        local baseChance = getPetChanceFromEgg(petName, eggName)
+        -- Get base pet chance from ORIGINAL egg (not the hatching egg)
+        -- This ensures Infinity Egg shows correct base egg chances
+        local baseChance = getPetChanceFromEgg(petName, chanceEgg)
 
         -- Calculate modified chance based on shiny/mythic/XL/super modifiers
         local modifiedChance, modifiers = calculateModifiedChance(baseChance, baseRarity, isShiny, isMythic, isXL, isSuper)
@@ -1013,7 +1017,7 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
                 {
                     name = "🥚 Hatch Info",
                     value = string.format("🥚 Egg: %s\n🎲 Rarity: %s%s\n%s",
-                        eggName,
+                        displayEgg,
                         rarityFromGUI,
                         (isXL and " [XL]" or "") .. (isShiny and " [✨ SHINY]" or "") .. (isSuper and " [⭐ SUPER]" or ""),
                         chanceText
@@ -1158,6 +1162,12 @@ task.spawn(function()
 
             -- Process each pet
             for i, petInfo in ipairs(hatchData.Pets) do
+                -- Skip deleted pets (auto-deleted by game)
+                if petInfo.Deleted == true then
+                    print("⏭️  [" .. eventType .. "] Skipping deleted pet #" .. i)
+                    goto continue
+                end
+
                 -- Debug: print COMPLETE pet info structure for EVERY pet
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
@@ -1214,10 +1224,20 @@ task.spawn(function()
                     i, #hatchData.Pets, petName, rarity,
                     tostring(isXL), tostring(isShiny), tostring(isSuper), tostring(isMythic)))
 
-                -- Send webhook (async task to prevent freezing)
+                -- Find pet's ORIGINAL egg (not the hatching egg)
+                -- This ensures Infinity Egg hatches show the correct base egg
+                local originalEgg = findEggContainingPet(petName) or eggName
+                if originalEgg ~= eggName then
+                    print("🔄 [DEBUG] Using original egg: " .. originalEgg .. " (hatched from: " .. eggName .. ")")
+                end
+
+                -- Send webhook (FULLY async task to prevent ANY freezing)
                 task.spawn(function()
                     local webhookSuccess, webhookError = pcall(function()
-                        SendPetHatchWebhook(petName, eggName, rarity, isXL, isShiny, isSuper, isMythic)
+                        -- Pass BOTH eggs:
+                        -- displayEgg = current hatching egg (shown in webhook)
+                        -- chanceEgg = original egg containing pet (used for chance calc)
+                        SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
                     end)
 
                     if not webhookSuccess then
@@ -1225,10 +1245,12 @@ task.spawn(function()
                     end
                 end)
 
-                -- Delay between webhooks to prevent Discord rate limiting (max 4/sec)
-                if i < #hatchData.Pets then
-                    task.wait(0.25)
-                end
+                ::continue::
+            end
+
+            -- Small delay to prevent rate limiting Discord if many pets hatched
+            if #hatchData.Pets > 1 then
+                task.wait(0.1)
             end
 
             -- Stop hatch animation if enabled
