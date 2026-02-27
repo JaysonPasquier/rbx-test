@@ -279,7 +279,6 @@ end
 -- Find which egg contains a specific pet (searches through egg data)
 local function findEggContainingPet(petName)
     if not eggData then
-        print("⚠️ Egg data not loaded")
         return nil
     end
 
@@ -289,7 +288,6 @@ local function findEggContainingPet(petName)
             -- Check if this egg contains the pet
             for _, petEntry in pairs(eggInfo.Pets) do
                 if petEntry.Name == petName or petEntry == petName then
-                    print("✅ Found pet '" .. petName .. "' in egg: " .. eggName)
                     return eggName
                 end
             end
@@ -318,7 +316,6 @@ local function findEggContainingPet(petName)
                 local eggSection = eggModuleSource:sub(eggNameEnd, buildPos)
                 -- Simple string search - does this section contain our pet?
                 if eggSection:find(petQuoted, 1, true) then
-                    print("✅ Found pet '" .. petName .. "' in egg: " .. eggName .. " (via source search)")
                     return eggName
                 end
                 pos = buildPos + 1
@@ -328,19 +325,16 @@ local function findEggContainingPet(petName)
         end
     end
 
-    print("⚠️ Could not find egg containing pet: " .. petName)
     return nil
 end
 
 -- Get pet chance from egg data
 local function getPetChanceFromEgg(petName, eggName)
     if eggModuleSource == "" then
-        print("⚠️ Egg module source not available")
         return nil
     end
 
     if eggName == "Unknown Egg" then
-        print("⚠️ Cannot get pet chance: Unknown egg name")
         return nil
     end
 
@@ -349,14 +343,12 @@ local function getPetChanceFromEgg(petName, eggName)
     local eggStart = eggModuleSource:find(searchStr, 1, true)
 
     if not eggStart then
-        print("⚠️ Egg definition not found for: " .. eggName)
         return nil
     end
 
     -- Find the Build() that ends this egg's definition
     local buildStart = eggModuleSource:find('Build()', eggStart, true)
     if not buildStart then
-        print("⚠️ No Build() found for egg: " .. eggName)
         return nil
     end
 
@@ -368,7 +360,6 @@ local function getPetChanceFromEgg(petName, eggName)
     local petPos = eggDef:find(petSearch, 1, true)
 
     if not petPos then
-        print("⚠️ Pet not found in egg: " .. petName .. " in " .. eggName)
         return nil
     end
 
@@ -382,7 +373,6 @@ local function getPetChanceFromEgg(petName, eggName)
     end
 
     if not petCallStart then
-        print("⚠️ Could not find :Pet( before pet name")
         return nil
     end
 
@@ -393,12 +383,10 @@ local function getPetChanceFromEgg(petName, eggName)
     if chanceStr then
         local chance = tonumber(chanceStr)
         if chance then
-            print(string.format("✅ Found pet chance: %s in %s = %.8f%%", petName, eggName, chance))
             return chance
         end
     end
 
-    print("⚠️ Could not extract chance value for: " .. petName .. " in " .. eggName)
     return nil
 end
 
@@ -544,17 +532,12 @@ local function loadGameEggData()
                         table.insert(state.gameEggList, eggName)
                     end
 
-                    print("✅ Loaded " .. #state.gameEggList .. " eggs from game data")
                     return true
                 end
             end
         end
         return false
     end)
-
-    if not success then
-        print("⚠️ Failed to load egg data: " .. tostring(result))
-    end
 end
 
 -- Fetch and parse rift data from game (auto-updates with new game versions)
@@ -574,17 +557,12 @@ local function loadGameRiftData()
                         table.insert(state.gameRiftList, riftName)
                     end
 
-                    print("✅ Loaded " .. #state.gameRiftList .. " rifts from game data (all included)")
                     return true
                 end
             end
         end
         return false
     end)
-
-    if not success then
-        print("⚠️ Failed to load rift data: " .. tostring(result))
-    end
 end
 
 -- Load potion data from game (ReplicatedStorage.Shared.Data.Potions)
@@ -600,14 +578,10 @@ local function loadGamePotionData()
             for name, _ in pairs(potionData) do
                 table.insert(state.gamePotionList, name)
             end
-            print("✅ Loaded " .. #state.gamePotionList .. " potions from game data")
             return true
         end
         return false
     end)
-    if not success then
-        print("⚠️ Failed to load potion data: " .. tostring(result))
-    end
 end
 
 -- Load enchant data
@@ -621,9 +595,6 @@ local function loadGameEnchantData()
             state.gameEnchantList = {}
             for name, _ in pairs(enchantData) do
                 table.insert(state.gameEnchantList, name)
-            end
-            if #state.gameEnchantList > 0 then
-                print("✅ Loaded " .. #state.gameEnchantList .. " enchants")
             end
         end
     end)
@@ -639,9 +610,6 @@ local function loadGameTeamData()
             state.gameTeamList = {}
             for name, _ in pairs(teamData) do
                 table.insert(state.gameTeamList, name)
-            end
-            if #state.gameTeamList > 0 then
-                print("✅ Loaded " .. #state.gameTeamList .. " teams")
             end
         end
     end)
@@ -708,17 +676,7 @@ end
 local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
     -- Run webhook in DEFERRED thread (lowest priority - zero game blocking)
     task.defer(function()
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("🔔 WEBHOOK TRIGGERED (ASYNC)")
-        print("Pet: " .. petName)
-        print("Display Egg: " .. displayEgg)
-        print("Chance Egg: " .. chanceEgg)
-        print("Rarity: " .. rarityFromGUI)
-        print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
-
         if state.webhookUrl == "" then
-            print("❌ Webhook BLOCKED: No webhook URL configured!")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             return
         end
 
@@ -741,22 +699,14 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             baseRarity = "Common"
         end
 
-        print("📊 Parsed base rarity: " .. baseRarity)
-        print("📋 Rarity filter enabled for " .. baseRarity .. ": " .. tostring(state.webhookRarities[baseRarity]))
-
         -- Check rarity filter
         if not state.webhookRarities[baseRarity] then
-            print("❌ Webhook BLOCKED: Rarity '" .. baseRarity .. "' not enabled in filter!")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             return
         end
-
-        print("✅ Rarity filter passed!")
 
         -- Get pet data from game
         local pet = petData and petData[petName]
         if not pet then
-            print("⚠️ Pet not found in petData: " .. petName)
             return
         end
 
@@ -801,12 +751,6 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         local coinsStat = baseCoinsStat * statMultiplier
         local gemsStat = baseGemsStat * statMultiplier
 
-        print(string.format("📊 Pet BASE stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(baseBubbleStat), tostring(baseCoinsStat), tostring(baseGemsStat)))
-        if statMultiplier ~= 1 then
-            print(string.format("✨ Multiplier: x%s (%s)", tostring(statMultiplier), isShiny and isMythic and "Shiny + Mythic" or isMythic and "Mythic" or "Shiny"))
-        end
-        print(string.format("📊 Pet FINAL stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
-
         -- Get base pet chance from egg data (use chanceEgg for calculation)
         local baseChance = getPetChanceFromEgg(petName, chanceEgg)
 
@@ -830,22 +774,11 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             modifiedChanceStr = string.format("%.10f", modifiedChance)
         end
 
-        print("🎲 Base chance: " .. baseChanceStr .. "% (1 in " .. baseChanceRatio .. ")")
-        if #modifiers > 0 then
-            print("✨ Modifiers: " .. table.concat(modifiers, ", "))
-            print("🎲 Modified chance: " .. modifiedChanceStr .. "% (1 in " .. modifiedChanceRatio .. ")")
-        end
-        print("🎯 Chance threshold: 1 in " .. formatNumber(state.webhookChanceThreshold))
-
         -- Check chance threshold using modified chance if available
         local checkRatio = modifiedChanceRatio > 0 and modifiedChanceRatio or baseChanceRatio
         if checkRatio > 0 and checkRatio < state.webhookChanceThreshold then
-            print("❌ Webhook BLOCKED: Pet too common (1 in " .. checkRatio .. " < threshold 1 in " .. state.webhookChanceThreshold .. ")")
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             return
         end
-
-        print("✅ Chance threshold passed!")
 
         -- Format chance ratio with commas
         local function formatChance(num)
@@ -882,7 +815,6 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 local data = HttpService:JSONDecode(response.Body)
                 if data and data.data and data.data[1] and data.data[1].imageUrl then
                     petImageUrl = data.data[1].imageUrl
-                    print("✅ Got pet image URL")
                 end
             end
         end
@@ -904,7 +836,6 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             local avatarData = HttpService:JSONDecode(avatarResponse.Body)
             if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
                 avatarUrl = avatarData.data[1].imageUrl
-                print("✅ Got avatar URL")
             end
         end
 
@@ -1002,13 +933,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         }
 
         -- Send webhook with simple JSON (no file attachments)
-        print("📤 Sending webhook...")
-
-        -- Add ping content if enabled
         local pingContent = ""
         if state.webhookPingEnabled and state.webhookPingUserId ~= "" then
             pingContent = "<@" .. state.webhookPingUserId .. ">"
-            print("📢 Adding Discord ping for user: " .. state.webhookPingUserId)
         end
 
         local payload = {embeds = {embed}}
@@ -1019,7 +946,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         -- Small delay before sending webhook to prevent blocking
         task.wait(0.05)
 
-        local sendSuccess, sendError = pcall(function()
+        pcall(function()
             request({
                 Url = state.webhookUrl,
                 Method = "POST",
@@ -1027,19 +954,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 Body = HttpService:JSONEncode(payload)
             })
         end)
-
-        if sendSuccess then
-            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. displayEgg)
-        else
-            print("❌ Webhook send FAILED: " .. tostring(sendError))
-        end
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end)
-
-    if not success then
-        print("❌ WEBHOOK FUNCTION ERROR: " .. tostring(error))
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    end
     end)
 end
 
@@ -1050,40 +965,22 @@ end
 -- ✅ No duplicates (fires once per hatch)
 -- ✅ Detects ALL pets in multi-egg hatches (3x, 7x, etc.)
 task.spawn(function()
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("🔍 [WEBHOOK] Initializing RemoteEvent pet hatch detection...")
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     task.wait(3) -- Wait for game to load
 
-    local success, error = pcall(function()
-        print("📡 [DEBUG] Loading Remote module...")
+    pcall(function()
         local Remote = require(RS.Shared.Framework.Network.Remote)
-        print("✅ [DEBUG] Remote module loaded successfully")
 
         -- Helper function to process hatched pets
         local function processPets(hatchData, eventType)
             if not hatchData then
-                print("⚠️ [" .. eventType .. "] No hatch data")
                 return
             end
 
-            -- Debug: Print ENTIRE hatchData structure
-            print("🔍 [DEBUG] Full hatchData structure:")
-            for key, value in pairs(hatchData) do
-                if type(value) == "table" then
-                    print("  " .. tostring(key) .. " = [table with " .. #value .. " items]")
-                else
-                    print("  " .. tostring(key) .. " = " .. tostring(value))
-                end
-            end
-
             if not hatchData.Pets or #hatchData.Pets == 0 then
-                print("⚠️ [" .. eventType .. "] No pets in hatch data")
                 return
             end
 
             local eggName = hatchData.Name or "Unknown Egg"
-            print("✅ [" .. eventType .. "] Hatched " .. #hatchData.Pets .. " pet(s) from: " .. eggName)
 
             -- Process each pet
             for i, petInfo in ipairs(hatchData.Pets) do
@@ -1126,45 +1023,24 @@ task.spawn(function()
                         isXL = petInfo.Pet.XL == true or petInfo.Pet.xl == true
                         isSuper = petInfo.Pet.Super == true or petInfo.Pet.super == true
                     end
-                    print("  Pet name: " .. tostring(petName))
-                    print("  XL: " .. tostring(isXL))
-                    print("  Shiny: " .. tostring(isShiny))
-                    print("  Super: " .. tostring(isSuper))
-                    print("  Mythic: " .. tostring(isMythic))
 
                     -- Get rarity from pet data
                     local rarity = "Unknown"
                     if petData and petData[petName] and petData[petName].Rarity then
                         rarity = petData[petName].Rarity
-                        print("✅ [DEBUG] Found rarity in petData: " .. rarity)
-                    else
-                        print("❌ [DEBUG] Could not find rarity for: " .. tostring(petName))
                     end
-
-                    print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Super:%s Mythic:%s)",
-                        i, #hatchData.Pets, petName, rarity,
-                        tostring(isXL), tostring(isShiny), tostring(isSuper), tostring(isMythic)))
 
                     -- Find pet's ORIGINAL egg (not the hatching egg)
                     -- This ensures Infinity Egg hatches show the correct base egg
                     local originalEgg = findEggContainingPet(petName) or eggName
-                    if originalEgg ~= eggName then
-                        print("🔄 [DEBUG] Using original egg: " .. originalEgg .. " (hatched from: " .. eggName .. ")")
-                    end
 
                     -- Send webhook (DEFERRED - zero game blocking)
                     -- Pass both eggs: eggName for display, originalEgg for chance calculation
                     task.defer(function()
-                        local webhookSuccess, webhookError = pcall(function()
+                        pcall(function()
                             SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
                         end)
-
-                        if not webhookSuccess then
-                            print("❌ [" .. eventType .. "] Webhook failed for " .. petName .. ": " .. tostring(webhookError))
-                        end
                     end)
-                else
-                    print("⏭️  [" .. eventType .. "] Skipping deleted pet #" .. i)
                 end
             end
 
@@ -1178,44 +1054,15 @@ task.spawn(function()
         end
 
         -- Register handler for REGULAR egg hatches
-        print("🔗 [DEBUG] Registering HatchEgg event handler...")
         Remote.Event("HatchEgg"):Connect(function(hatchData)
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("🥚 [HatchEgg] Event FIRED! Time: " .. os.date("%H:%M:%S"))
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             processPets(hatchData, "HatchEgg")
         end)
-        print("✅ [DEBUG] HatchEgg event handler registered!")
 
         -- Register handler for EXCLUSIVE egg hatches (premium, shop eggs, etc.)
-        print("🔗 [DEBUG] Registering ExclusiveHatch event handler...")
         Remote.Event("ExclusiveHatch"):Connect(function(hatchData, shouldAnimate)
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("🎁 [ExclusiveHatch] Event FIRED! Time: " .. os.date("%H:%M:%S"))
-            print("   Animate: " .. tostring(shouldAnimate))
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             processPets(hatchData, "ExclusiveHatch")
         end)
-        print("✅ [DEBUG] ExclusiveHatch event handler registered!")
-
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ Pet hatch detection initialized successfully!")
-        print("   📡 Using RemoteEvent (game's own hatch events)")
-        print("   ⚡ INSTANT detection (fires before GUI/LocalData)")
-        print("   🎯 Handles multi-egg hatches perfectly")
-        print("   🚫 No auto-delete timing issues")
-        print("   🔒 No duplicates (fires once per hatch)")
-        print("   ⚙️ No freezing (async network events)")
-        print("   🌐 Discord-safe rate limiting (250ms between webhooks)")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end)
-
-    if not success then
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("❌ [DEBUG] INITIALIZATION FAILED!")
-        print("❌ Error: " .. tostring(error))
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    end
 end)
 
 -- Send user stats webhook
@@ -3601,21 +3448,18 @@ task.spawn(function()
         pcall(function()
             PriorityEggDropdown:Refresh(state.gameEggList, true)
         end)
-        print("✅ Priority egg list populated with " .. #state.gameEggList .. " eggs from game data")
     end
 
     if #state.gameRiftList > 0 then
         pcall(function()
             PriorityRiftDropdown:Refresh(state.gameRiftList, true)
         end)
-        print("✅ Priority rift list populated with " .. #state.gameRiftList .. " rifts from game data")
     end
 
     if #state.gamePotionList > 0 then
         pcall(function()
             PotionDropdown:Refresh(state.gamePotionList, true)
         end)
-        print("✅ Potion list populated with " .. #state.gamePotionList .. " potions")
     end
 
     if #state.gameEnchantList > 0 then
