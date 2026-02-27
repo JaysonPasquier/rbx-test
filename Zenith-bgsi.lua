@@ -1114,181 +1114,106 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
     end)
 end
 
--- === OPTIMIZED PET HATCH DETECTION ===
--- ⚡ INSTANT event-driven system (no polling delays!)
--- Detects ALL pets in multi-egg hatches (3x, 7x, etc.)
+-- === REMOTE EVENT PET HATCH DETECTION ===
+-- ⚡ SUPER RELIABLE - Uses game's own hatch events!
+-- ✅ No auto-delete timing issues
+-- ✅ No freezing (async network event)
+-- ✅ No duplicates (fires once per hatch)
+-- ✅ Detects ALL pets in multi-egg hatches (3x, 7x, etc.)
 task.spawn(function()
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("🔍 [WEBHOOK DEBUG] Initializing pet hatch detection...")
+    print("🔍 [WEBHOOK] Initializing RemoteEvent pet hatch detection...")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     task.wait(3) -- Wait for game to load
 
-    local processedPets = {}  -- Track processed pets to prevent duplicates
-    local lastPetCount = 0
-
     local success, error = pcall(function()
-        print("📡 [DEBUG] Loading LocalData module...")
-        local LocalData = require(RS.Client.Framework.Services.LocalData)
-        print("✅ [DEBUG] LocalData module loaded successfully")
+        print("📡 [DEBUG] Loading RemoteEvent module...")
+        local Remote = require(RS.Client.Framework.RemoteEvent)
+        print("✅ [DEBUG] RemoteEvent module loaded successfully")
 
-        -- INITIALIZE: Mark all existing pets as processed (don't send webhooks for inventory)
-        print("📦 [DEBUG] Getting initial data...")
-        local initialData = LocalData:Get()
-        print("📦 [DEBUG] Got initial data: " .. tostring(initialData ~= nil))
-
-        if initialData and initialData.Pets then
-            print("📦 [DEBUG] Scanning existing pets...")
-            for uuid, petEntry in pairs(initialData.Pets) do
-                processedPets[uuid] = true
-                lastPetCount = lastPetCount + 1
-                -- Show first 3 pets
-                if lastPetCount <= 3 then
-                    local uuidStr = tostring(uuid)
-                    local shortUuid = #uuidStr > 8 and uuidStr:sub(1, 8) .. "..." or uuidStr
-                    print("  [" .. lastPetCount .. "] " .. (petEntry.Name or "Unknown") .. " (UUID: " .. shortUuid .. ")")
-                end
-            end
-            print("✅ [DEBUG] Found " .. lastPetCount .. " existing pets - marked as processed")
-        else
-            print("⚠️ [DEBUG] No existing pets found (initialData.Pets is nil)")
-        end
-
-        -- Monitor Pets data changes (fires when new pet is hatched)
-        print("🔗 [DEBUG] Registering LocalData:ConnectDataChanged(\"Pets\") event...")
-        LocalData:ConnectDataChanged("Pets", function(data)
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            print("🔔 [DEBUG] LocalData FIRED! Time: " .. os.date("%H:%M:%S"))
-            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-            if not data then
-                print("❌ [DEBUG] data is nil!")
+        -- Helper function to process hatched pets
+        local function processPets(hatchData, eventType)
+            if not hatchData then
+                print("⚠️ [" .. eventType .. "] No hatch data")
                 return
             end
 
-            if not data.Pets then
-                print("❌ [DEBUG] data.Pets is nil!")
+            if not hatchData.Pets or #hatchData.Pets == 0 then
+                print("⚠️ [" .. eventType .. "] No pets in hatch data")
                 return
             end
 
-            local currentPetCount = 0
-            for _ in pairs(data.Pets) do
-                currentPetCount = currentPetCount + 1
-            end
+            local eggName = hatchData.Name or "Unknown Egg"
+            print("✅ [" .. eventType .. "] Hatched " .. #hatchData.Pets .. " pet(s) from: " .. eggName)
 
-            print("📊 [DEBUG] Pet count: " .. lastPetCount .. " → " .. currentPetCount)
+            -- Process each pet
+            for i, petInfo in ipairs(hatchData.Pets) do
+                local petName = petInfo.Name
+                local isXL = petInfo.XL or false
+                local isShiny = petInfo.Shiny or false
+                local isSuper = petInfo.Super or false
+                local isMythic = petInfo.Mythic or false
 
-            -- Only process if pet count increased (new hatch)
-            if currentPetCount <= lastPetCount then
-                print("⏸️ [DEBUG] Count didn't increase - skipping")
-                lastPetCount = currentPetCount
-                return
-            end
-
-            print("✅ [DEBUG] Count increased! Processing new pets...")
-            print("🥚 [LocalData] Pets changed! Old: " .. lastPetCount .. " → New: " .. currentPetCount)
-            lastPetCount = currentPetCount
-
-            -- Find ALL new pets (not just the newest one!)
-            print("🔍 [DEBUG] Searching for new pets...")
-            local newPets = {}
-
-            for uuid, petDataEntry in pairs(data.Pets) do
-                if not processedPets[uuid] then
-                    local uuidStr = tostring(uuid)
-                    local shortUuid = #uuidStr > 12 and uuidStr:sub(1, 12) .. "..." or uuidStr
-                    print("  🆕 [DEBUG] Found new UUID: " .. shortUuid .. " (" .. (petDataEntry.Name or "Unknown") .. ")")
-                    table.insert(newPets, {uuid = uuid, data = petDataEntry})
-                    -- Mark as processed IMMEDIATELY to prevent duplicates
-                    processedPets[uuid] = true
-                end
-            end
-
-            if #newPets == 0 then
-                print("⚠️ [DEBUG] No new pets found (all UUIDs already processed)")
-                return
-            end
-
-            print("✅ [DEBUG] Found " .. #newPets .. " new pet(s)!")
-            print("✅ [LocalData] Found " .. #newPets .. " new pet(s) - processing all!")
-
-            -- Clean old processed pets (keep memory low)
-            local processedCount = 0
-            for _ in pairs(processedPets) do processedCount = processedCount + 1 end
-            if processedCount > 200 then
-                -- Keep current batch, clear old ones
-                local tempPets = {}
-                for _, newPet in ipairs(newPets) do
-                    tempPets[newPet.uuid] = true
-                end
-                processedPets = tempPets
-            end
-
-            -- Process ALL new pets (handles multi-egg hatches)
-            for i, newPet in ipairs(newPets) do
-                local petDataEntry = newPet.data
-
-                -- Extract pet info
-                local petName = petDataEntry.Name
-                local isXL = petDataEntry.XL or false
-                local isShiny = petDataEntry.Shiny or false
-                local isSuper = petDataEntry.Super or false
-                local isMythic = petDataEntry.Mythic or false
-
-                -- Get rarity
+                -- Get rarity from pet data
                 local rarity = "Unknown"
                 if petData and petData[petName] and petData[petName].Rarity then
                     rarity = petData[petName].Rarity
                 end
 
-                print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Mythic:%s)",
-                    i, #newPets, petName, rarity, tostring(isXL), tostring(isShiny), tostring(isMythic)))
+                print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Super:%s Mythic:%s)",
+                    i, #hatchData.Pets, petName, rarity,
+                    tostring(isXL), tostring(isShiny), tostring(isSuper), tostring(isMythic)))
 
-                -- Auto-detect egg
-                local detectedEgg = findEggContainingPet(petName)
-                local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
+                -- Send webhook (async task to prevent freezing)
+                task.spawn(function()
+                    local webhookSuccess, webhookError = pcall(function()
+                        SendPetHatchWebhook(petName, eggName, rarity, isXL, isShiny, isSuper, isMythic)
+                    end)
 
-                -- Check if hatching from rift
-                if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                    local riftName = state.farmingPriorityRift or state.riftPriority
-                    local riftData = state.gameRiftData[riftName]
-                    if riftData and riftData.Egg then
-                        currentEgg = riftData.Egg
+                    if not webhookSuccess then
+                        print("❌ [" .. eventType .. "] Webhook failed for " .. petName .. ": " .. tostring(webhookError))
                     end
-                end
-
-                -- Send webhook (async, won't block game)
-                print("📞 [DEBUG] Calling SendPetHatchWebhook for: " .. petName)
-                print("   Egg: " .. currentEgg)
-                print("   Rarity: " .. rarity)
-                print("   Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
-
-                -- Small delay between webhooks to prevent rate limiting (Discord allows ~5/sec)
-                if i > 1 then
-                    task.wait(0.25)  -- 250ms between webhooks = max 4/second (safe)
-                end
-
-                local webhookSuccess, webhookError = pcall(function()
-                    SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
                 end)
 
-                if not webhookSuccess then
-                    print("❌ [DEBUG] Webhook call failed: " .. tostring(webhookError))
-                else
-                    print("✅ [DEBUG] Webhook call completed")
+                -- Delay between webhooks to prevent Discord rate limiting (max 4/sec)
+                if i < #hatchData.Pets then
+                    task.wait(0.25)
                 end
             end
 
-            -- Stop animation if enabled
+            -- Stop hatch animation if enabled
             task.defer(stopHatchAnimation)
+        end
+
+        -- Register handler for REGULAR egg hatches
+        print("🔗 [DEBUG] Registering HatchEgg event handler...")
+        Remote.Event("HatchEgg"):Connect(function(hatchData)
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("🥚 [HatchEgg] Event FIRED! Time: " .. os.date("%H:%M:%S"))
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            processPets(hatchData, "HatchEgg")
         end)
+        print("✅ [DEBUG] HatchEgg event handler registered!")
+
+        -- Register handler for EXCLUSIVE egg hatches (premium, shop eggs, etc.)
+        print("🔗 [DEBUG] Registering ExclusiveHatch event handler...")
+        Remote.Event("ExclusiveHatch"):Connect(function(hatchData, shouldAnimate)
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("🎁 [ExclusiveHatch] Event FIRED! Time: " .. os.date("%H:%M:%S"))
+            print("   Animate: " .. tostring(shouldAnimate))
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            processPets(hatchData, "ExclusiveHatch")
+        end)
+        print("✅ [DEBUG] ExclusiveHatch event handler registered!")
 
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("✅ [DEBUG] Event handler registered successfully!")
-        print("✅ Pet hatch detection initialized (LocalData.Pets event)")
-        print("   ⚡ INSTANT event-driven detection (no delays!)")
-        print("   🎯 Handles multi-egg hatches (3x, 7x) perfectly")
-        print("   🔒 Duplicate prevention enabled")
-        print("   📦 Existing inventory ignored (only NEW hatches)")
+        print("✅ Pet hatch detection initialized successfully!")
+        print("   📡 Using RemoteEvent (game's own hatch events)")
+        print("   ⚡ INSTANT detection (fires before GUI/LocalData)")
+        print("   🎯 Handles multi-egg hatches perfectly")
+        print("   🚫 No auto-delete timing issues")
+        print("   🔒 No duplicates (fires once per hatch)")
+        print("   ⚙️ No freezing (async network events)")
         print("   🌐 Discord-safe rate limiting (250ms between webhooks)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end)
@@ -1299,191 +1224,6 @@ task.spawn(function()
         print("❌ Error: " .. tostring(error))
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end
-
-    -- FALLBACK: GUI-based detection (only if LocalData fails)
-    task.wait(2)
-    pcall(function()
-        local screenGui = playerGui:WaitForChild("ScreenGui", 5)
-        if not screenGui then
-            print("❌ ScreenGui not found in PlayerGui!")
-            return
-        end
-        print("✅ Found ScreenGui")
-
-        local hatchingFrame = screenGui:FindFirstChild("Hatching")
-        if not hatchingFrame then
-            print("❌ Hatching frame not found in ScreenGui!")
-            print("📋 Available frames in ScreenGui:")
-            for _, child in pairs(screenGui:GetChildren()) do
-                print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
-            end
-            return
-        end
-        print("✅ Found Hatching frame")
-
-        -- Track processed templates to avoid duplicates
-        local processedTemplates = {}
-
-        --[[ DISABLED: LocalData event system is more reliable and prevents duplicates
-        -- Monitor for Template frame appearing (ChildAdded event)
-        hatchingFrame.ChildAdded:Connect(function(child)
-            print("🔔 Child added to Hatching: " .. child.Name .. " (" .. child.ClassName .. ")")
-
-            if child.Name == "Template" and child:IsA("Frame") then
-                print("✅ Detected Template frame via ChildAdded - processing hatch...")
-                task.wait(0.1) -- Wait for GUI to fully populate
-
-                local success, errorMsg = pcall(function()
-                    -- Extract pet information from GUI
-                    local xlFrame = child:FindFirstChild("XL")
-                    local labelText = child:FindFirstChild("Label")
-                    local rarityText = child:FindFirstChild("Rarity")
-                    local shinyFrame = child:FindFirstChild("Shiny")
-                    local superFrame = child:FindFirstChild("Super")
-                    local mythicFrame = child:FindFirstChild("Mythic")
-
-                    print("🔍 Template contents:")
-                    print("  XL frame: " .. (xlFrame and "Found" or "NOT FOUND"))
-                    print("  Label: " .. (labelText and "Found" or "NOT FOUND"))
-                    print("  Rarity: " .. (rarityText and "Found" or "NOT FOUND"))
-                    print("  Shiny: " .. (shinyFrame and "Found" or "NOT FOUND"))
-                    print("  Super: " .. (superFrame and "Found" or "NOT FOUND"))
-                    print("  Mythic: " .. (mythicFrame and "Found" or "NOT FOUND"))
-
-                    if not labelText or not rarityText then
-                        print("❌ Missing required elements (Label or Rarity)")
-                        return
-                    end
-
-                    local petName = labelText.Text
-                    local rarity = rarityText.Text
-                    local isXL = xlFrame and xlFrame.Visible
-                    local isShiny = shinyFrame and shinyFrame.Visible
-                    local isSuper = superFrame and superFrame.Visible
-                    local isMythic = mythicFrame and mythicFrame.Visible
-
-                    print("✅ Pet detected: " .. petName .. " [" .. rarity .. "]")
-
-                    -- Auto-detect egg by searching for which egg contains this pet
-                    print("🔍 Step 1: Finding egg for pet...")
-                    local detectedEgg = findEggContainingPet(petName)
-                    print("🔍 Step 2: Detected egg = " .. tostring(detectedEgg))
-
-                    -- Determine current egg (priority: rift > detected > manual selection)
-                    print("🔍 Step 3: Determining current egg...")
-                    local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
-                    print("🔍 Step 4: Current egg (before rift check) = " .. currentEgg)
-
-                    if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                        print("🔍 Step 5: Checking rift egg...")
-                        local riftName = state.farmingPriorityRift or state.riftPriority
-                        local riftData = state.gameRiftData[riftName]
-                        if riftData and riftData.Egg then
-                            currentEgg = riftData.Egg
-                        end
-                    end
-
-                    print("🥚 Using Egg: " .. currentEgg .. " (detected: " .. tostring(detectedEgg) .. ", manual: " .. tostring(state.eggPriority) .. ")")
-
-                    -- Send webhook
-                    print("📞 Calling SendPetHatchWebhook...")
-                    local webhookSuccess, webhookError = pcall(function()
-                        SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
-                    end)
-                    if not webhookSuccess then
-                        print("❌ SendPetHatchWebhook ERROR: " .. tostring(webhookError))
-                    end
-                    print("🎉 Hatched: " .. petName .. " (" .. rarity .. ")" .. (isXL and " [XL]" or "") .. (isShiny and " [SHINY]" or ""))
-
-                    -- Stop animation if enabled
-                    task.defer(stopHatchAnimation)
-                end)
-
-                if not success then
-                    print("❌ HATCH PROCESSING ERROR: " .. tostring(errorMsg))
-                end
-            end
-        end)
-        --]]  -- End of disabled GUI ChildAdded handler
-
-        --[[ DISABLED: LocalData event system is more reliable
-        -- BACKUP: Polling method - continuously check for Template frames
-        -- This catches templates even if ChildAdded event doesn't fire
-        task.spawn(function()
-            print("🔄 Starting backup polling method (checks every 0.1s)")
-            while task.wait(0.1) do
-                pcall(function()
-                    for _, child in pairs(hatchingFrame:GetChildren()) do
-                        if child.Name == "Template" and child:IsA("Frame") and not processedTemplates[child] then
-                            print("🔔 [POLL] Found new Template frame!")
-                            processedTemplates[child] = true
-
-                            task.wait(0.05) -- Brief wait for GUI to populate
-
-                            -- Extract pet information
-                            local xlFrame = child:FindFirstChild("XL")
-                            local labelText = child:FindFirstChild("Label")
-                            local rarityText = child:FindFirstChild("Rarity")
-                            local shinyFrame = child:FindFirstChild("Shiny")
-                            local superFrame = child:FindFirstChild("Super")
-
-                            if not labelText or not rarityText then
-                                print("❌ [POLL] Missing Label or Rarity")
-                                return
-                            end
-
-                            local petName = labelText.Text
-                            local rarity = rarityText.Text
-                            local isXL = xlFrame and xlFrame.Visible
-                            local isShiny = shinyFrame and shinyFrame.Visible
-                            local isSuper = superFrame and superFrame.Visible
-                            local mythicFrame = child:FindFirstChild("Mythic")
-                            local isMythic = mythicFrame and mythicFrame.Visible
-
-                            print("✅ [POLL] Pet detected: " .. petName .. " [" .. rarity .. "]")
-
-                            -- Auto-detect egg
-                            print("🔍 [POLL] Step 1: Finding egg...")
-                            local detectedEgg = findEggContainingPet(petName)
-                            print("🔍 [POLL] Step 2: Detected egg = " .. tostring(detectedEgg))
-
-                            local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
-                            print("🔍 [POLL] Step 3: Current egg = " .. currentEgg)
-
-                            if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
-                                local riftName = state.farmingPriorityRift or state.riftPriority
-                                local riftData = state.gameRiftData[riftName]
-                                if riftData and riftData.Egg then
-                                    currentEgg = riftData.Egg
-                                end
-                            end
-
-                            -- Send webhook
-                            print("📞 [POLL] Calling SendPetHatchWebhook...")
-                            local webhookSuccess, webhookError = pcall(function()
-                                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
-                            end)
-                            if not webhookSuccess then
-                                print("❌ [POLL] SendPetHatchWebhook ERROR: " .. tostring(webhookError))
-                            end
-                            print("🎉 [POLL] Hatched: " .. petName .. " (" .. rarity .. ")")
-
-                            -- Stop animation
-                            task.defer(stopHatchAnimation)
-
-                            -- Clean up old templates from tracking
-                            task.delay(2, function()
-                                processedTemplates[child] = nil
-                            end)
-                        end
-                    end
-                end)
-            end
-        end)
-        --]]  -- End of disabled GUI polling backup
-
-        print("✅ GUI fallback monitor initialized (LocalData primary, GUI disabled)")
-    end)
 end)
 
 -- Send user stats webhook
