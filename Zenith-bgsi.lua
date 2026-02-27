@@ -1138,6 +1138,16 @@ task.spawn(function()
                 return
             end
 
+            -- Debug: Print ENTIRE hatchData structure
+            print("🔍 [DEBUG] Full hatchData structure:")
+            for key, value in pairs(hatchData) do
+                if type(value) == "table" then
+                    print("  " .. tostring(key) .. " = [table with " .. #value .. " items]")
+                else
+                    print("  " .. tostring(key) .. " = " .. tostring(value))
+                end
+            end
+
             if not hatchData.Pets or #hatchData.Pets == 0 then
                 print("⚠️ [" .. eventType .. "] No pets in hatch data")
                 return
@@ -1148,24 +1158,44 @@ task.spawn(function()
 
             -- Process each pet
             for i, petInfo in ipairs(hatchData.Pets) do
-                -- Debug: print raw pet info structure
-                if i == 1 then
-                    print("🔍 [DEBUG] First pet structure:")
-                    for key, value in pairs(petInfo) do
-                        print("  " .. tostring(key) .. " = " .. tostring(value))
+                -- Debug: print COMPLETE pet info structure for EVERY pet
+                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
+                for key, value in pairs(petInfo) do
+                    if type(value) == "table" then
+                        print("  " .. tostring(key) .. " = [table]")
+                        for subKey, subValue in pairs(value) do
+                            print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
+                        end
+                    else
+                        print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
                     end
                 end
+                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                local petName = petInfo.Name or petInfo.name or petInfo.PetName or "Unknown Pet"
-                local isXL = petInfo.XL or false
-                local isShiny = petInfo.Shiny or false
-                local isSuper = petInfo.Super or false
-                local isMythic = petInfo.Mythic or false
+                -- Try to extract pet name from various possible fields
+                local petName = petInfo.Name or petInfo.name or petInfo.PetName or petInfo.pet or "Unknown Pet"
+
+                -- Try to extract modifiers from various possible fields
+                local isXL = petInfo.XL or petInfo.xl or petInfo.IsXL or false
+                local isShiny = petInfo.Shiny or petInfo.shiny or petInfo.IsShiny or false
+                local isSuper = petInfo.Super or petInfo.super or petInfo.IsSuper or false
+                local isMythic = petInfo.Mythic or petInfo.mythic or petInfo.IsMythic or petInfo.Mythical or false
+
+                print("📝 [DEBUG] Extracted values:")
+                print("  Pet name: " .. tostring(petName))
+                print("  XL: " .. tostring(isXL))
+                print("  Shiny: " .. tostring(isShiny))
+                print("  Super: " .. tostring(isSuper))
+                print("  Mythic: " .. tostring(isMythic))
 
                 -- Get rarity from pet data
                 local rarity = "Unknown"
                 if petData and petData[petName] and petData[petName].Rarity then
                     rarity = petData[petName].Rarity
+                    print("✅ [DEBUG] Found rarity in petData: " .. rarity)
+                else
+                    print("❌ [DEBUG] Could not find rarity for: " .. tostring(petName))
                 end
 
                 print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Super:%s Mythic:%s)",
