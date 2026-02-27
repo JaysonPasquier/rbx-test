@@ -1173,16 +1173,21 @@ task.spawn(function()
                 end
                 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                -- Try to extract pet name from various possible fields
-                local petName = petInfo.Name or petInfo.name or petInfo.PetName or petInfo.pet or "Unknown Pet"
+                -- Extract pet name (top level)
+                local petName = petInfo.Name or "Unknown Pet"
 
-                -- Try to extract modifiers from various possible fields
-                local isXL = petInfo.XL or petInfo.xl or petInfo.IsXL or false
-                local isShiny = petInfo.Shiny or petInfo.shiny or petInfo.IsShiny or false
-                local isSuper = petInfo.Super or petInfo.super or petInfo.IsSuper or false
-                local isMythic = petInfo.Mythic or petInfo.mythic or petInfo.IsMythic or petInfo.Mythical or false
+                -- Extract modifiers (top level)
+                local isShiny = petInfo.Shiny == true
+                local isMythic = petInfo.Mythic == true
 
-                print("📝 [DEBUG] Extracted values:")
+                -- Check for XL and Super in nested Pet table
+                local isXL = false
+                local isSuper = false
+
+                if petInfo.Pet and type(petInfo.Pet) == "table" then
+                    isXL = petInfo.Pet.XL == true or petInfo.Pet.xl == true
+                    isSuper = petInfo.Pet.Super == true or petInfo.Pet.super == true
+                end
                 print("  Pet name: " .. tostring(petName))
                 print("  XL: " .. tostring(isXL))
                 print("  Shiny: " .. tostring(isShiny))
