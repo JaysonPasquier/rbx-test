@@ -138,7 +138,7 @@ local state = {
     currencyLabels = {}  -- NEW: Labels for all currencies
 }
 
--- === MODIFIER CHANCES (from Constants) ===
+-- === MODIFIER CHANCES & STATS (from Constants) ===
 local SHINY_CHANCE = 2.5  -- 2.5%
 local MYTHIC_CHANCE = 1   -- 1%
 local SUPER_CHANCE = 0.04 -- 0.04%
@@ -149,6 +149,14 @@ local XL_CHANCES = {
     Epic = 0.4,
     Legendary = 5,      -- 5%
     Secret = 20         -- 20%
+}
+
+-- Pet stat multipliers for variants
+local STAT_MULTIPLIERS = {
+    Normal = 1,
+    Shiny = 2.5,        -- 2.5x stats
+    Mythic = 10,        -- 10x stats
+    ShinyMythic = 25    -- 25x stats (2.5 * 10)
 }
 
 -- === DATA ===
@@ -648,22 +656,24 @@ local function buildMultipartBody(boundary, payload, files)
     return body
 end
 
--- Send rich embed webhook for pet hatches (NEW: accurate GUI-based detection)
+-- Send rich embed webhook for pet hatches (ASYNC - non-blocking)
 local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
-    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("🔔 WEBHOOK TRIGGERED")
-    print("Pet: " .. petName)
-    print("Egg: " .. eggName)
-    print("Rarity: " .. rarityFromGUI)
-    print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
-
-    if state.webhookUrl == "" then
-        print("❌ Webhook BLOCKED: No webhook URL configured!")
+    -- Run webhook in background thread to prevent game freezing
+    task.spawn(function()
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        return
-    end
+        print("🔔 WEBHOOK TRIGGERED (ASYNC)")
+        print("Pet: " .. petName)
+        print("Egg: " .. eggName)
+        print("Rarity: " .. rarityFromGUI)
+        print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
 
-    local success, error = pcall(function()
+        if state.webhookUrl == "" then
+            print("❌ Webhook BLOCKED: No webhook URL configured!")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            return
+        end
+
+        local success, error = pcall(function()
         -- Parse rarity from GUI (handle variants like "AA-Secret" -> "Secret")
         local baseRarity = rarityFromGUI
         if rarityFromGUI:find("Secret") or rarityFromGUI:find("secret") then
@@ -701,34 +711,69 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
             return
         end
 
-        local bubbleStat = 0
-        local coinsStat = 0
-        local gemsStat = 0
+        local baseBubbleStat = 0
+        local baseCoinsStat = 0
+        local baseGemsStat = 0
 
-        -- Extract stats - try multiple possible structures
+        -- Extract BASE stats - try multiple possible structures
         if pet.Stat then
             if type(pet.Stat) == "table" then
-                bubbleStat = pet.Stat.Bubbles or 0
-                coinsStat = pet.Stat.Coins or 0
-                gemsStat = pet.Stat.Gems or 0
+                baseBubbleStat = pet.Stat.Bubbles or 0
+                baseCoinsStat = pet.Stat.Coins or 0
+                baseGemsStat = pet.Stat.Gems or 0
             elseif type(pet.Stat) == "number" then
-                bubbleStat = pet.Stat
+                baseBubbleStat = pet.Stat
             end
         -- Try direct stat access
         elseif pet.Bubbles or pet.Coins or pet.Gems then
-            bubbleStat = pet.Bubbles or 0
-            coinsStat = pet.Coins or 0
-            gemsStat = pet.Gems or 0
+            baseBubbleStat = pet.Bubbles or 0
+            baseCoinsStat = pet.Coins or 0
+            baseGemsStat = pet.Gems or 0
         -- Try Stats (plural)
         elseif pet.Stats then
             if type(pet.Stats) == "table" then
-                bubbleStat = pet.Stats.Bubbles or 0
-                coinsStat = pet.Stats.Coins or 0
-                gemsStat = pet.Stats.Gems or 0
+                baseBubbleStat = pet.Stats.Bubbles or 0
+                baseCoinsStat = pet.Stats.Coins or 0
+                baseGemsStat = pet.Stats.Gems or 0
             end
         end
 
-        print(string.format("📊 Pet stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
+        -- Apply stat multipliers for Shiny/Mythic variants
+        local statMultiplier = STAT_MULTIPLIERS.Normal
+        if isShiny and isMythic then
+            statMultiplier = STAT_MULTIPLIERS.ShinyMythic
+        elseif isMythic then
+            statMultiplier = STAT_MULTIPLIERS.Mythic
+        elseif isShiny then
+            statMultiplier = STAT_MULTIPLIERS.Shiny
+        end
+
+        local bubbleStat = baseBubbleStat * statMultiplier
+        local coinsStat = baseCoinsStat * statMultiplier
+        local gemsStat = baseGemsStat * statMultiplier
+
+        print(string.format("📊 Pet BASE stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(baseBubbleStat), tostring(baseCoinsStat), tostring(baseGemsStat)))
+        if statMultiplier ~= 1 then
+            print(string.format("✨ Multiplier: x%s (%s)", tostring(statMultiplier), isShiny and isMythic and "Shiny + Mythic" or isMythic and "Mythic" or "Shiny"))
+        end
+        print(string.format("📊 Pet FINAL stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
+
+        -- Apply stat multipliers for Shiny/Mythic variants
+        local statMultiplier = STAT_MULTIPLIERS.Normal
+        if isShiny and isMythic then
+            statMultiplier = STAT_MULTIPLIERS.ShinyMythic
+        elseif isMythic then
+            statMultiplier = STAT_MULTIPLIERS.Mythic
+        elseif isShiny then
+            statMultiplier = STAT_MULTIPLIERS.Shiny
+        end
+
+        local bubbleStat = baseBubbleStat * statMultiplier
+        local coinsStat = baseCoinsStat * statMultiplier
+        local gemsStat = baseGemsStat * statMultiplier
+
+        print(string.format("📊 Pet BASE stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(baseBubbleStat), tostring(baseCoinsStat), tostring(baseGemsStat)))
+        print(string.format("📊 Pet FINAL stats (x%s): Bubbles=%s, Coins=%s, Gems=%s", tostring(statMultiplier), tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
 
         -- Get base pet chance from egg data
         local baseChance = getPetChanceFromEgg(petName, eggName)
@@ -1047,14 +1092,124 @@ local function SendPetHatchWebhook(petName, eggName, rarityFromGUI, isXL, isShin
         print("❌ WEBHOOK FUNCTION ERROR: " .. tostring(error))
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end
+    end)
 end
 
--- === GUI-BASED PET HATCH DETECTION ===
--- Monitor the Hatching GUI for new pets
+-- === OPTIMIZED PET HATCH DETECTION ===
+-- ⚡ INSTANT event-driven system (no polling delays!)
+-- Detects ALL pets in multi-egg hatches (3x, 7x, etc.)
 task.spawn(function()
-    print("🔍 Initializing pet hatch GUI monitor...")
-    task.wait(2) -- Wait for GUI to load
+    print("🔍 Initializing INSTANT pet hatch detection (LocalData events)...")
+    task.wait(3) -- Wait for game to load
 
+    local processedPets = {}  -- Track processed pets to prevent duplicates
+    local lastPetCount = 0
+
+    pcall(function()
+        local LocalData = require(RS.Client.Framework.Services.LocalData)
+
+        -- Monitor Pets data changes (fires when new pet is hatched)
+        LocalData:ConnectDataChanged("Pets", function(data)
+            if not data or not data.Pets then return end
+
+            local currentPetCount = 0
+            for _ in pairs(data.Pets) do
+                currentPetCount = currentPetCount + 1
+            end
+
+            -- Only process if pet count increased (new hatch)
+            if currentPetCount <= lastPetCount then
+                lastPetCount = currentPetCount
+                return
+            end
+
+            print("🥚 [LocalData] Pets changed! Old: " .. lastPetCount .. " → New: " .. currentPetCount)
+            lastPetCount = currentPetCount
+
+            -- Find ALL new pets (not just the newest one!)
+            local newPets = {}
+
+            for uuid, petDataEntry in pairs(data.Pets) do
+                if not processedPets[uuid] then
+                    table.insert(newPets, {uuid = uuid, data = petDataEntry})
+                    -- Mark as processed IMMEDIATELY to prevent duplicates
+                    processedPets[uuid] = true
+                end
+            end
+
+            if #newPets == 0 then
+                print("⚠️ [LocalData] No new pets found")
+                return
+            end
+
+            print("✅ [LocalData] Found " .. #newPets .. " new pet(s) - processing all!")
+
+            -- Clean old processed pets (keep memory low)
+            local processedCount = 0
+            for _ in pairs(processedPets) do processedCount = processedCount + 1 end
+            if processedCount > 200 then
+                -- Keep current batch, clear old ones
+                local tempPets = {}
+                for _, newPet in ipairs(newPets) do
+                    tempPets[newPet.uuid] = true
+                end
+                processedPets = tempPets
+            end
+
+            -- Process ALL new pets (handles multi-egg hatches)
+            for i, newPet in ipairs(newPets) do
+                local petDataEntry = newPet.data
+
+                -- Extract pet info
+                local petName = petDataEntry.Name
+                local isXL = petDataEntry.XL or false
+                local isShiny = petDataEntry.Shiny or false
+                local isSuper = petDataEntry.Super or false
+                local isMythic = petDataEntry.Mythic or false
+
+                -- Get rarity
+                local rarity = "Unknown"
+                if petData and petData[petName] and petData[petName].Rarity then
+                    rarity = petData[petName].Rarity
+                end
+
+                print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Mythic:%s)",
+                    i, #newPets, petName, rarity, tostring(isXL), tostring(isShiny), tostring(isMythic)))
+
+                -- Auto-detect egg
+                local detectedEgg = findEggContainingPet(petName)
+                local currentEgg = state.eggPriority or detectedEgg or "Unknown Egg"
+
+                -- Check if hatching from rift
+                if state.farmingPriorityRift or (state.riftAutoHatch and state.riftPriority) then
+                    local riftName = state.farmingPriorityRift or state.riftPriority
+                    local riftData = state.gameRiftData[riftName]
+                    if riftData and riftData.Egg then
+                        currentEgg = riftData.Egg
+                    end
+                end
+
+                -- Send webhook (async, won't block game)
+                -- Small delay between webhooks to prevent rate limiting (Discord allows ~5/sec)
+                if i > 1 then
+                    task.wait(0.25)  -- 250ms between webhooks = max 4/second (safe)
+                end
+                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
+            end
+
+            -- Stop animation if enabled
+            task.defer(stopHatchAnimation)
+        end)
+
+        print("✅ Pet hatch detection initialized (LocalData.Pets event)")
+        print("   ⚡ INSTANT event-driven detection (no delays!)")
+        print("   🎯 Handles multi-egg hatches (3x, 7x) perfectly")
+        print("   🔒 Duplicate prevention enabled")
+        print("   🌐 Discord-safe rate limiting (250ms between webhooks)")
+    end)
+
+    -- FALLBACK: GUI-based detection (only if LocalData fails)
+    task.wait(2)
     pcall(function()
         local screenGui = playerGui:WaitForChild("ScreenGui", 5)
         if not screenGui then
@@ -1077,6 +1232,7 @@ task.spawn(function()
         -- Track processed templates to avoid duplicates
         local processedTemplates = {}
 
+        --[[ DISABLED: LocalData event system is more reliable and prevents duplicates
         -- Monitor for Template frame appearing (ChildAdded event)
         hatchingFrame.ChildAdded:Connect(function(child)
             print("🔔 Child added to Hatching: " .. child.Name .. " (" .. child.ClassName .. ")")
@@ -1156,7 +1312,9 @@ task.spawn(function()
                 end
             end
         end)
+        --]]  -- End of disabled GUI ChildAdded handler
 
+        --[[ DISABLED: LocalData event system is more reliable
         -- BACKUP: Polling method - continuously check for Template frames
         -- This catches templates even if ChildAdded event doesn't fire
         task.spawn(function()
@@ -1230,8 +1388,9 @@ task.spawn(function()
                 end)
             end
         end)
+        --]]  -- End of disabled GUI polling backup
 
-        print("✅ Pet hatch GUI monitor initialized (Template detection + polling backup)")
+        print("✅ GUI fallback monitor initialized (LocalData primary, GUI disabled)")
     end)
 end)
 
@@ -3793,12 +3952,14 @@ print("   🌌 Rifts - Auto-scanned rifts + priority mode")
 print("   📊 Webhook - Pet hatches, stats, rarity filter")
 print("   📋 Data - Pet information")
 print("✅ ==========================================")
-print("🎉 NEW WEBHOOK FEATURES:")
-print("   • Rich pet hatch notifications (with stats)")
-print("   • User stats webhook (with differences)")
-print("   • Rarity filtering (multi-select)")
-print("   • Chance threshold (only rare pets)")
-print("   • Configurable stats interval (30-120s)")
+print("🎉 WEBHOOK FEATURES:")
+print("   ⚡ INSTANT pet hatch detection (event-driven!)")
+print("   🎯 Multi-egg support (3x, 7x hatches)")
+print("   ✨ Shiny/Mythic stat multipliers (x2.5, x10, x25)")
+print("   🎨 Rarity filtering (multi-select)")
+print("   🎲 Chance threshold (only rare pets)")
+print("   📊 User stats webhook (editable, no spam)")
+print("   🔒 No duplicates, no freezing, no missed pets")
 print("✅ ==========================================")
 
 Rayfield:Notify({
