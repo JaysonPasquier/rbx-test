@@ -184,6 +184,11 @@ local petData, eggData, _codeData
 local petModuleSource = "" -- Store raw pet module source for parsing images
 local eggModuleSource = "" -- Store raw egg module source for parsing chances
 
+-- === CACHES (Performance optimization) ===
+local petImageCache = {} -- Cache pet images to avoid re-searching decompiled source
+local petEggCache = {} -- Cache which egg contains which pet
+local petChanceCache = {} -- Cache pet chances (format: "petName|eggName" -> chance)
+
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
     _codeData = require(RS.Shared.Data.Codes)
@@ -213,6 +218,11 @@ end)
 
 -- Parse pet images from PetBuilder string (normal, shiny, normal mythical, shiny mythical)
 local function getPetImages(petName)
+    -- Check cache first (MASSIVE performance boost!)
+    if petImageCache[petName] then
+        return petImageCache[petName]
+    end
+
     if petModuleSource == "" then return {} end
 
     -- Search for pet definition using plain text search
@@ -266,11 +276,18 @@ local function getPetImages(petName)
         pos = numEnd
     end
 
+    -- Cache the result before returning
+    petImageCache[petName] = images
     return images
 end
 
 -- Find which egg contains a specific pet (searches through egg data)
 local function findEggContainingPet(petName)
+    -- Check cache first (MASSIVE performance boost!)
+    if petEggCache[petName] then
+        return petEggCache[petName]
+    end
+
     if not eggData then
         return nil
     end
@@ -281,6 +298,8 @@ local function findEggContainingPet(petName)
             -- Check if this egg contains the pet
             for _, petEntry in pairs(eggInfo.Pets) do
                 if petEntry.Name == petName or petEntry == petName then
+                    -- Cache the result before returning
+                    petEggCache[petName] = eggName
                     return eggName
                 end
             end
@@ -309,6 +328,8 @@ local function findEggContainingPet(petName)
                 local eggSection = eggModuleSource:sub(eggNameEnd, buildPos)
                 -- Simple string search - does this section contain our pet?
                 if eggSection:find(petQuoted, 1, true) then
+                    -- Cache the result before returning
+                    petEggCache[petName] = eggName
                     return eggName
                 end
                 pos = buildPos + 1
@@ -323,6 +344,12 @@ end
 
 -- Get pet chance from egg data
 local function getPetChanceFromEgg(petName, eggName)
+    -- Check cache first (MASSIVE performance boost!)
+    local cacheKey = petName .. "|" .. eggName
+    if petChanceCache[cacheKey] then
+        return petChanceCache[cacheKey]
+    end
+
     if eggModuleSource == "" then
         return nil
     end
@@ -376,6 +403,8 @@ local function getPetChanceFromEgg(petName, eggName)
     if chanceStr then
         local chance = tonumber(chanceStr)
         if chance then
+            -- Cache the result before returning
+            petChanceCache[cacheKey] = chance
             return chance
         end
     end
@@ -417,6 +446,65 @@ local function calculateModifiedChance(baseChance, rarity, isShiny, isMythic, is
     end
 
     return modifiedChance, modifiers
+end
+
+-- Pre-cache all pet data at startup (eliminates ALL webhook lag!)
+local function preCacheAllPetData()
+    local startTime = tick()
+    local cachedPets = 0
+    local cachedEggs = 0
+    local cachedChances = 0
+
+    -- 1. Pre-cache all pet images
+    if petData and petModuleSource ~= "" then
+        for petName, _ in pairs(petData) do
+            if not petImageCache[petName] then
+                local images = getPetImages(petName)
+                -- getPetImages already caches, but we call it to populate
+                cachedPets = cachedPets + 1
+            end
+        end
+    end
+
+    -- 2. Pre-cache all pet-to-egg mappings
+    if eggData then
+        for eggName, eggInfo in pairs(eggData) do
+            if eggInfo.Pets then
+                for _, petEntry in pairs(eggInfo.Pets) do
+                    local petName = type(petEntry) == "table" and petEntry.Name or petEntry
+                    if petName and not petEggCache[petName] then
+                        petEggCache[petName] = eggName
+                        cachedEggs = cachedEggs + 1
+                    end
+                end
+            end
+        end
+    end
+
+    -- 3. Pre-cache all pet chances (pet + egg combinations)
+    if eggData and eggModuleSource ~= "" then
+        for eggName, eggInfo in pairs(eggData) do
+            if eggInfo.Pets then
+                for _, petEntry in pairs(eggInfo.Pets) do
+                    local petName = type(petEntry) == "table" and petEntry.Name or petEntry
+                    if petName then
+                        local cacheKey = petName .. "|" .. eggName
+                        if not petChanceCache[cacheKey] then
+                            local chance = getPetChanceFromEgg(petName, eggName)
+                            -- getPetChanceFromEgg already caches, but we call it to populate
+                            if chance then
+                                cachedChances = cachedChances + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local elapsed = tick() - startTime
+    -- Only log if running in development mode (commented out for production)
+    -- print(string.format("✅ Pre-cached: %d pets, %d eggs, %d chances in %.2fs", cachedPets, cachedEggs, cachedChances, elapsed))
 end
 
 -- Stop hatch animation function (simple - just hide Hatching frame)
@@ -2521,6 +2609,12 @@ loadGameRiftData()
 loadGamePotionData()
 loadGameEnchantData()
 loadGameTeamData()
+
+-- Pre-cache all pet data for zero-lag webhooks!
+task.spawn(function()
+    task.wait(1) -- Wait a moment for all data to fully load
+    preCacheAllPetData()
+end)
 
 task.spawn(function()
     pcall(function()
