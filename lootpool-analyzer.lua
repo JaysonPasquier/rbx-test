@@ -29,15 +29,56 @@ end
 -- ========================================
 print("\n📊 ANALYZING LOOTPOOLVIEWER STRUCTURE...")
 
-local lootPoolViewer = player:WaitForChild("PlayerGui"):WaitForChild("HUD"):WaitForChild("LootPoolViewer")
+-- Find LootPoolViewer safely
+local lootPoolViewer = nil
+local playerGui = player:FindFirstChild("PlayerGui")
+
+if playerGui then
+    local hud = playerGui:FindFirstChild("HUD")
+    if hud then
+        lootPoolViewer = hud:FindFirstChild("LootPoolViewer")
+    end
+end
+
+-- If not found, search everywhere in PlayerGui
+if not lootPoolViewer and playerGui then
+    print("⚠️ HUD.LootPoolViewer not found, searching all PlayerGui...")
+    for _, gui in pairs(playerGui:GetDescendants()) do
+        if gui.Name == "LootPoolViewer" then
+            lootPoolViewer = gui
+            print("✅ Found at: " .. gui:GetFullName())
+            break
+        end
+    end
+end
+
 local structureOutput = {}
 
 table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 table.insert(structureOutput, "📊 LOOTPOOLVIEWER FULL STRUCTURE")
 table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 table.insert(structureOutput, "")
-table.insert(structureOutput, "Path: " .. lootPoolViewer:GetFullName())
-table.insert(structureOutput, "Class: " .. lootPoolViewer.ClassName)
+
+if lootPoolViewer then
+    table.insert(structureOutput, "Path: " .. lootPoolViewer:GetFullName())
+    table.insert(structureOutput, "Class: " .. lootPoolViewer.ClassName)
+else
+    table.insert(structureOutput, "❌ LootPoolViewer NOT FOUND!")
+    table.insert(structureOutput, "")
+    table.insert(structureOutput, "This could mean:")
+    table.insert(structureOutput, "  1. You need to be near an egg for it to appear")
+    table.insert(structureOutput, "  2. The GUI loads dynamically")
+    table.insert(structureOutput, "  3. The path has changed")
+    table.insert(structureOutput, "")
+    table.insert(structureOutput, "Available GUIs in PlayerGui.HUD:")
+    if playerGui and playerGui:FindFirstChild("HUD") then
+        for _, child in pairs(playerGui.HUD:GetChildren()) do
+            table.insert(structureOutput, "  • " .. child.Name .. " [" .. child.ClassName .. "]")
+        end
+    else
+        table.insert(structureOutput, "  HUD not found!")
+    end
+end
 table.insert(structureOutput, "")
 
 local function dumpInstance(instance, indent)
@@ -90,15 +131,17 @@ local function dumpInstance(instance, indent)
     return output
 end
 
-local structureLines = dumpInstance(lootPoolViewer, 0)
-for _, line in ipairs(structureLines) do
-    table.insert(structureOutput, line)
-end
+if lootPoolViewer then
+    local structureLines = dumpInstance(lootPoolViewer, 0)
+    for _, line in ipairs(structureLines) do
+        table.insert(structureOutput, line)
+    end
 
-table.insert(structureOutput, "")
-table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-table.insert(structureOutput, "Total descendants: " .. #lootPoolViewer:GetDescendants())
-table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    table.insert(structureOutput, "")
+    table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    table.insert(structureOutput, "Total descendants: " .. #lootPoolViewer:GetDescendants())
+    table.insert(structureOutput, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+end
 
 saveToFile("lootpool_structure.txt", table.concat(structureOutput, "\n"))
 
@@ -287,11 +330,19 @@ local properties = {
     "Size", "Position", "AnchorPoint", "ZIndex"
 }
 
-for _, propName in ipairs(properties) do
-    pcall(function()
-        local value = lootPoolViewer[propName]
-        table.insert(propertyOutput, propName .. ": " .. tostring(value))
-    end)
+if lootPoolViewer then
+    for _, propName in ipairs(properties) do
+        pcall(function()
+            local value = lootPoolViewer[propName]
+            table.insert(propertyOutput, propName .. ": " .. tostring(value))
+        end)
+    end
+else
+    table.insert(propertyOutput, "❌ LootPoolViewer not found - cannot analyze properties")
+    table.insert(propertyOutput, "")
+    table.insert(propertyOutput, "Try:")
+    table.insert(propertyOutput, "  1. Stand near an egg")
+    table.insert(propertyOutput, "  2. Run the script again")
 end
 
 table.insert(propertyOutput, "")
@@ -324,4 +375,12 @@ print("")
 print("🔍 Found " .. #foundScripts .. " scripts that control LootPoolViewer")
 print("📊 Scanned " .. totalScanned .. " total scripts")
 print("")
+
+if not lootPoolViewer then
+    print("⚠️ WARNING: LootPoolViewer GUI was not found!")
+    print("   This is normal if you're not near an egg.")
+    print("   The script analysis still found all related scripts.")
+    print("")
+end
+
 print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
