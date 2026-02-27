@@ -188,6 +188,7 @@ local eggModuleSource = "" -- Store raw egg module source for parsing chances
 local petImageCache = {} -- Cache pet images to avoid re-searching decompiled source
 local petEggCache = {} -- Cache which egg contains which pet
 local petChanceCache = {} -- Cache pet chances (format: "petName|eggName" -> chance)
+local playerAvatarCache = nil -- Cache player avatar URL (fetch once, reuse forever)
 
 pcall(function()
     petData = require(RS.Shared.Data.Pets)
@@ -865,7 +866,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             return formatted
         end
 
-        -- Get pet image URL (DIRECT - no API call needed!)
+        -- Get pet image URL (using Big Games API proxy - no HTTP request!)
         local petImageUrl = nil
         local images = getPetImages(petName)  -- Already cached, instant lookup
 
@@ -876,12 +877,30 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 imageIndex = 2 -- Shiny
             end
 
-            -- Construct direct Roblox thumbnail URL (no HTTP request needed!)
-            petImageUrl = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. images[imageIndex] .. "&width=420&height=420&format=png"
+            -- Use Big Games API proxy (works perfectly for pet images!)
+            petImageUrl = "https://ps99.biggamesapi.io/image/" .. images[imageIndex]
         end
 
-        -- Get user avatar URL (DIRECT - no API call needed!)
-        local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
+        -- Get user avatar URL (fetch once, cache forever)
+        local avatarUrl = playerAvatarCache
+
+        if not avatarUrl then
+            -- First time only: fetch avatar from Roblox API
+            local avatarSuccess, avatarResponse = pcall(function()
+                return request({
+                    Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. player.UserId .. "&size=150x150&format=Png",
+                    Method = "GET"
+                })
+            end)
+
+            if avatarSuccess and avatarResponse.StatusCode == 200 then
+                local avatarData = HttpService:JSONDecode(avatarResponse.Body)
+                if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
+                    avatarUrl = avatarData.data[1].imageUrl
+                    playerAvatarCache = avatarUrl  -- Cache for all future webhooks!
+                end
+            end
+        end
 
         -- Get runtime
         local runtime = tick() - state.startTime
