@@ -439,6 +439,7 @@ end)
 -- File path for saving stats message ID (persists across rejoins)
 local STATS_MESSAGE_FILE = "zenith_bgsi_stats_message_id.txt"
 local LOG_FILE = "zenith_bgsi_fishing_log.txt"
+local WEBHOOK_DEBUG_LOG = "zenith_bgsi_webhook_debug.txt"
 
 -- Logging function (writes to both console and file)
 local function log(message)
@@ -454,6 +455,24 @@ local function log(message)
                 existingLog = readfile(LOG_FILE)
             end
             writefile(LOG_FILE, existingLog .. logMessage .. "\n")
+        end)
+    end
+end
+
+-- Webhook debug logging function (writes to dedicated debug file)
+local function debugLog(message)
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    local logMessage = "[" .. timestamp .. "] " .. message
+    print(logMessage)
+
+    -- Write to debug file
+    if writefile and readfile and isfile then
+        pcall(function()
+            local existingLog = ""
+            if isfile(WEBHOOK_DEBUG_LOG) then
+                existingLog = readfile(WEBHOOK_DEBUG_LOG)
+            end
+            writefile(WEBHOOK_DEBUG_LOG, existingLog .. logMessage .. "\n")
         end)
     end
 end
@@ -1099,51 +1118,81 @@ end
 -- ⚡ INSTANT event-driven system (no polling delays!)
 -- Detects ALL pets in multi-egg hatches (3x, 7x, etc.)
 task.spawn(function()
-    print("🔍 Initializing INSTANT pet hatch detection (LocalData events)...")
+    debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    debugLog("🔍 [WEBHOOK DEBUG] Initializing pet hatch detection...")
+    debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     task.wait(3) -- Wait for game to load
 
     local processedPets = {}  -- Track processed pets to prevent duplicates
     local lastPetCount = 0
 
-    pcall(function()
+    local success, error = pcall(function()
+        debugLog("📡 [DEBUG] Loading LocalData module...")
         local LocalData = require(RS.Client.Framework.Services.LocalData)
+        debugLog("✅ [DEBUG] LocalData module loaded successfully")
 
         -- INITIALIZE: Mark all existing pets as processed (don't send webhooks for inventory)
-        print("📦 [Init] Scanning existing pet inventory...")
+        debugLog("📦 [DEBUG] Getting initial data...")
         local initialData = LocalData:Get()
+        debugLog("📦 [DEBUG] Got initial data: " .. tostring(initialData ~= nil))
+
         if initialData and initialData.Pets then
-            for uuid, _ in pairs(initialData.Pets) do
+            debugLog("📦 [DEBUG] Scanning existing pets...")
+            for uuid, petEntry in pairs(initialData.Pets) do
                 processedPets[uuid] = true
                 lastPetCount = lastPetCount + 1
+                -- Show first 3 pets
+                if lastPetCount <= 3 then
+                    debugLog("  [" .. lastPetCount .. "] " .. (petEntry.Name or "Unknown") .. " (UUID: " .. uuid:sub(1, 8) .. "...)")
+                end
             end
-            print("✅ [Init] Found " .. lastPetCount .. " existing pets - marked as processed")
+            debugLog("✅ [DEBUG] Found " .. lastPetCount .. " existing pets - marked as processed")
         else
-            print("⚠️ [Init] No existing pets found")
+            debugLog("⚠️ [DEBUG] No existing pets found (initialData.Pets is nil)")
         end
 
         -- Monitor Pets data changes (fires when new pet is hatched)
+        debugLog("🔗 [DEBUG] Registering LocalData:ConnectDataChanged(\"Pets\") event...")
         LocalData:ConnectDataChanged("Pets", function(data)
-            if not data or not data.Pets then return end
+            debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            debugLog("🔔 [DEBUG] LocalData FIRED! Time: " .. os.date("%H:%M:%S"))
+            debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+            if not data then
+                debugLog("❌ [DEBUG] data is nil!")
+                return
+            end
+
+            if not data.Pets then
+                debugLog("❌ [DEBUG] data.Pets is nil!")
+                return
+            end
 
             local currentPetCount = 0
             for _ in pairs(data.Pets) do
                 currentPetCount = currentPetCount + 1
             end
 
+            debugLog("📊 [DEBUG] Pet count: " .. lastPetCount .. " → " .. currentPetCount)
+
             -- Only process if pet count increased (new hatch)
             if currentPetCount <= lastPetCount then
+                debugLog("⏸️ [DEBUG] Count didn't increase - skipping")
                 lastPetCount = currentPetCount
                 return
             end
 
-            print("🥚 [LocalData] Pets changed! Old: " .. lastPetCount .. " → New: " .. currentPetCount)
+            debugLog("✅ [DEBUG] Count increased! Processing new pets...")
+            debugLog("🥚 [LocalData] Pets changed! Old: " .. lastPetCount .. " → New: " .. currentPetCount)
             lastPetCount = currentPetCount
 
             -- Find ALL new pets (not just the newest one!)
+            debugLog("🔍 [DEBUG] Searching for new pets...")
             local newPets = {}
 
             for uuid, petDataEntry in pairs(data.Pets) do
                 if not processedPets[uuid] then
+                    debugLog("  🆕 [DEBUG] Found new UUID: " .. uuid:sub(1, 12) .. "... (" .. (petDataEntry.Name or "Unknown") .. ")")
                     table.insert(newPets, {uuid = uuid, data = petDataEntry})
                     -- Mark as processed IMMEDIATELY to prevent duplicates
                     processedPets[uuid] = true
@@ -1151,11 +1200,12 @@ task.spawn(function()
             end
 
             if #newPets == 0 then
-                print("⚠️ [LocalData] No new pets found")
+                debugLog("⚠️ [DEBUG] No new pets found (all UUIDs already processed)")
                 return
             end
 
-            print("✅ [LocalData] Found " .. #newPets .. " new pet(s) - processing all!")
+            debugLog("✅ [DEBUG] Found " .. #newPets .. " new pet(s)!")
+            debugLog("✅ [LocalData] Found " .. #newPets .. " new pet(s) - processing all!")
 
             -- Clean old processed pets (keep memory low)
             local processedCount = 0
@@ -1203,27 +1253,47 @@ task.spawn(function()
                 end
 
                 -- Send webhook (async, won't block game)
+                debugLog("📞 [DEBUG] Calling SendPetHatchWebhook for: " .. petName)
+                debugLog("   Egg: " .. currentEgg)
+                debugLog("   Rarity: " .. rarity)
+                debugLog("   Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
+
                 -- Small delay between webhooks to prevent rate limiting (Discord allows ~5/sec)
                 if i > 1 then
                     task.wait(0.25)  -- 250ms between webhooks = max 4/second (safe)
                 end
-                SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
+
+                local webhookSuccess, webhookError = pcall(function()
+                    SendPetHatchWebhook(petName, currentEgg, rarity, isXL, isShiny, isSuper, isMythic)
+                end)
+
+                if not webhookSuccess then
+                    debugLog("❌ [DEBUG] Webhook call failed: " .. tostring(webhookError))
+                else
+                    debugLog("✅ [DEBUG] Webhook call completed")
+                end
             end
 
             -- Stop animation if enabled
             task.defer(stopHatchAnimation)
         end)
 
-        print("✅ Pet hatch detection initialized (LocalData.Pets event)")
-        print("   ⚡ INSTANT event-driven detection (no delays!)")
-        print("   🎯 Handles multi-egg hatches (3x, 7x) perfectly")
-        print("   🔒 Duplicate prevention enabled")
-        print("   📦 Existing inventory ignored (only NEW hatches)")
-        print("   🌐 Discord-safe rate limiting (250ms between webhooks)")
+        debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        debugLog("✅ [DEBUG] Event handler registered successfully!")
+        debugLog("✅ Pet hatch detection initialized (LocalData.Pets event)")
+        debugLog("   ⚡ INSTANT event-driven detection (no delays!)")
+        debugLog("   🎯 Handles multi-egg hatches (3x, 7x) perfectly")
+        debugLog("   🔒 Duplicate prevention enabled")
+        debugLog("   📦 Existing inventory ignored (only NEW hatches)")
+        debugLog("   🌐 Discord-safe rate limiting (250ms between webhooks)")
+        debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     end)
 
-    -- FALLBACK: GUI-based detection (only if LocalData fails)
-    task.wait(2)
+    if not success then
+        debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        debugLog("❌ [DEBUG] INITIALIZATION FAILED!")
+        debugLog("❌ Error: " .. tostring(error))
+        debugLog("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     pcall(function()
         local screenGui = playerGui:WaitForChild("ScreenGui", 5)
         if not screenGui then
