@@ -865,9 +865,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             return formatted
         end
 
-        -- Get pet image URL (no download - just URL)
+        -- Get pet image URL (DIRECT - no API call needed!)
         local petImageUrl = nil
-        local images = getPetImages(petName)
+        local images = getPetImages(petName)  -- Already cached, instant lookup
 
         if #images > 0 then
             -- Determine which image to use based on shiny/mythical status
@@ -876,45 +876,12 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 imageIndex = 2 -- Shiny
             end
 
-            -- Small delay before HTTP request to prevent blocking
-            task.wait(0.05)
-
-            -- Get thumbnail URL from Roblox API (no download)
-            local thumbUrl = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. images[imageIndex] .. "&size=420x420&format=Png"
-            local success, response = pcall(function()
-                return request({
-                    Url = thumbUrl,
-                    Method = "GET"
-                })
-            end)
-
-            if success and response.StatusCode == 200 then
-                local data = HttpService:JSONDecode(response.Body)
-                if data and data.data and data.data[1] and data.data[1].imageUrl then
-                    petImageUrl = data.data[1].imageUrl
-                end
-            end
+            -- Construct direct Roblox thumbnail URL (no HTTP request needed!)
+            petImageUrl = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. images[imageIndex] .. "&width=420&height=420&format=png"
         end
 
-        -- Get user avatar URL (no download - just URL)
-        local avatarUrl = nil
-
-        -- Small delay before HTTP request to prevent blocking
-        task.wait(0.05)
-
-        local avatarSuccess, avatarResponse = pcall(function()
-            return request({
-                Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. player.UserId .. "&size=150x150&format=Png",
-                Method = "GET"
-            })
-        end)
-
-        if avatarSuccess and avatarResponse.StatusCode == 200 then
-            local avatarData = HttpService:JSONDecode(avatarResponse.Body)
-            if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
-                avatarUrl = avatarData.data[1].imageUrl
-            end
-        end
+        -- Get user avatar URL (DIRECT - no API call needed!)
+        local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=150&height=150&format=png"
 
         -- Get runtime
         local runtime = tick() - state.startTime
@@ -1020,9 +987,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             payload.content = pingContent
         end
 
-        -- Small delay before sending webhook to prevent blocking
-        task.wait(0.05)
-
+        -- Send webhook immediately (only 1 HTTP request, non-blocking via task.defer)
         pcall(function()
             request({
                 Url = state.webhookUrl,
