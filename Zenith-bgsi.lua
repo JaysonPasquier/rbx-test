@@ -3045,22 +3045,44 @@ task.spawn(function()
                         castPosition = center
                     end
 
-                    -- Start cast
-                    log("🎣 [Fishing] BeginCastCharge...")
-                    Remote:FireServer("BeginCastCharge")
+                    -- FIRE THE ACTUAL INPUT EVENTS (triggers state machine + remotes)
+                    log("🎣 [Fishing] Simulating fishing button press...")
 
-                    -- Wait for PERFECT timing (80% precision)
-                    -- Precision formula: 0.5 + 0.5 * sin((t) * 2*pi)
-                    -- For 0.8 precision: t = asin(0.6) / (2*pi) ≈ 0.1025 seconds
-                    local perfectTiming = math.asin(0.6) / (2 * math.pi)
-                    task.wait(perfectTiming)
+                    local success, err = pcall(function()
+                        local FishingInput = require(RS.Client.Gui.Frames.Fishing.FishingInput)
 
-                    -- Release cast at perfect precision
-                    log("🎣 [Fishing] FinishCastCharge (Perfect 80% precision, areaId: " .. correctAreaId .. ")...")
-                    Remote:FireServer("FinishCastCharge", correctAreaId, castPosition)
+                        -- Press button to start charge
+                        log("  → Pressing fishing button (BeginCastCharge)...")
+                        FishingInput.Pressed:Fire()
+
+                        -- Hold for perfect 80% precision timing
+                        -- Precision oscillates: 0.5 + 0.5*sin(t*2π)
+                        -- Starts at 50%, rises to 100% at 0.25s, back to 50% at 0.5s
+                        -- For 80%: sin(t*2π) = 0.6, so t = asin(0.6)/(2π) ≈ 0.102s
+                        local holdTime = math.asin(0.6) / (2 * math.pi)  -- ≈ 0.102 seconds
+                        log("  → Holding for " .. string.format("%.3f", holdTime) .. "s (80% precision)...")
+                        task.wait(holdTime)
+
+                        -- Release button to cast
+                        log("  → Releasing fishing button (FinishCastCharge)...")
+                        FishingInput.Released:Fire()
+
+                        log("✅ [Fishing] Cast input sequence complete!")
+                    end)
+
+                    if not success then
+                        log("❌ [Fishing] Failed to fire input events: " .. tostring(err))
+                        log("  💡 Falling back to direct remote calls...")
+
+                        -- Fallback: direct remote calls
+                        local holdTime = math.asin(0.6) / (2 * math.pi)
+                        Remote:FireServer("BeginCastCharge")
+                        task.wait(holdTime)
+                        Remote:FireServer("FinishCastCharge", correctAreaId, castPosition)
+                    end
 
                     -- Wait for fish (game auto-reels with equipped rod)
-                    log("🎣 [Fishing] Waiting for fish... (20s)")
+                    log("🎣 [Fishing] Waiting for fish bite and auto-reel... (20s)")
                     task.wait(20)
 
                     state.lastFishingAttempt = currentTime
