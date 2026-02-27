@@ -83,6 +83,7 @@ local state = {
     statsMessageId = nil,  -- NEW: Discord message ID for editing stats webhook
     webhookPingEnabled = false,  -- NEW: Enable Discord user ping
     webhookPingUserId = "",  -- NEW: Discord user ID to ping
+    antiAFK = false,  -- NEW: Anti-AFK toggle (prevents Roblox kick)
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
@@ -2086,6 +2087,26 @@ FarmTab:CreateLabel("NOTE: You must own the selected rod!")
 FarmTab:CreateLabel("Buy rods from Fishing Shop first")
 FarmTab:CreateLabel("Check fishing_log.txt for debug info")
 
+-- === ANTI-AFK ===
+local AntiAFKSection = FarmTab:CreateSection("🛡️ Anti-AFK Protection")
+
+local AntiAFKToggle = FarmTab:CreateToggle({
+   Name = "🛡️ Prevent AFK Kick",
+   CurrentValue = false,
+   Flag = "AntiAFK",
+   Callback = function(Value)
+      state.antiAFK = Value
+      Rayfield:Notify({
+         Title = "Anti-AFK",
+         Content = Value and "Enabled - Won't be kicked" or "Disabled",
+         Duration = 2,
+         Image = 4483362458,
+      })
+   end,
+})
+
+FarmTab:CreateLabel("Prevents Roblox from kicking you (every 15-19 min)")
+
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
 
@@ -3762,10 +3783,11 @@ print("   • Stats: Every 1 second")
 print("   • Admin Events: Every 3 seconds")
 print("   • Playtime Gifts: Every 60 seconds")
 print("   • Fishing: Auto-selects best island")
+print("   • Anti-AFK: Every 15-19 minutes")
 print("✅ ==========================================")
 print("📋 Tabs:")
 print("   🏠 Main - Live stats (ALL 18 currencies!)")
-print("   🔧 Farm - Auto blow, pickup, fishing, event detector, playtime claim")
+print("   🔧 Farm - Auto blow, pickup, fishing, anti-AFK, event detector")
 print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
 print("   🌌 Rifts - Auto-scanned rifts + priority mode")
 print("   📊 Webhook - Pet hatches, stats, rarity filter")
@@ -3791,3 +3813,35 @@ print("💡 Rifts and eggs will auto-refresh every 2 seconds")
 print("💡 Enable webhook for pet hatch notifications!")
 print("🎣 Fishing: Auto-selects best island + upgrades on level up")
 print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
+
+-- === ANTI-AFK BACKGROUND TASK ===
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+
+    -- Capture controller once at startup
+    VirtualUser:CaptureController()
+
+    print("🛡️ [Anti-AFK] System initialized")
+
+    while task.wait(1) do
+        if state.antiAFK then
+            -- Random interval between 15-19 minutes (900-1140 seconds)
+            local interval = math.random(900, 1140)
+
+            print("🛡️ [Anti-AFK] Enabled - Next input in " .. math.floor(interval/60) .. " minutes")
+
+            task.wait(interval)
+
+            if state.antiAFK then
+                -- Simulate user input to prevent AFK kick
+                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                task.wait(0.1)
+                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+
+                print("🛡️ [Anti-AFK] Input simulated - Reset AFK timer")
+            end
+        else
+            task.wait(10)  -- Check every 10 seconds when disabled
+        end
+    end
+end)
