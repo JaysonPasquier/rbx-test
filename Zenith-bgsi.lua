@@ -105,6 +105,8 @@ local state = {
     webhookPingUserId = "",  -- NEW: Discord user ID to ping
     antiAFK = false,  -- NEW: Anti-AFK toggle (prevents Roblox kick)
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
+    autoCollectFlowers = false,  -- NEW: Auto collect event flowers
+    springEventActive = false,  -- NEW: Track if Spring event is active
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
     fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
@@ -1984,6 +1986,40 @@ local AntiAFKToggle = FarmTab:CreateToggle({
 
 FarmTab:CreateLabel("Prevents Roblox from kicking you (every 15-19 min)")
 
+-- === EVENT TAB (Spring Event) ===
+-- Only create if Spring event folder exists
+local EventTab = nil
+
+pcall(function()
+    if Workspace:FindFirstChild("Spring") then
+        state.springEventActive = true
+        EventTab = Window:CreateTab("🌸 Spring Event", 4483362458)
+    end
+end)
+
+if EventTab then
+    local FlowerSection = EventTab:CreateSection("🌸 Auto Collect Flowers")
+    EventTab:CreateLabel("Collects petals/flowers every 10s")
+    EventTab:CreateLabel("Mystery Tree: Every 30 minutes")
+
+    local AutoFlowersToggle = EventTab:CreateToggle({
+        Name = "🌸 Auto Collect Flowers",
+        CurrentValue = false,
+        Flag = "AutoFlowers",
+        Callback = function(Value)
+            state.autoCollectFlowers = Value
+            Rayfield:Notify({
+                Title = "Auto Collect Flowers",
+                Content = Value and "Enabled - Collecting flowers" or "Disabled",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end,
+    })
+
+    EventTab:CreateLabel("Teleports to each flower location")
+end
+
 -- === EGGS TAB ===
 local EggsTab = Window:CreateTab("🥚 Eggs", 4483362458)
 
@@ -2862,6 +2898,36 @@ task.spawn(function()
         if state.autoSellBubbles then
             pcall(function()
                 Remote:FireServer("SellBubble")
+            end)
+        end
+
+        -- ✅ Auto Collect Flowers (Spring Event)
+        if state.autoCollectFlowers and state.springEventActive then
+            pcall(function()
+                local spring = Workspace:FindFirstChild("Spring")
+                if spring then
+                    local pickPetals = spring:FindFirstChild("PickPetals")
+                    if pickPetals then
+                        -- Get player character
+                        local character = player.Character
+                        if character then
+                            local hrp = character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                -- Teleport to each flower's Root part
+                                for _, flower in pairs(pickPetals:GetChildren()) do
+                                    if flower:IsA("Model") then
+                                        local root = flower:FindFirstChild("Root")
+                                        if root and root:IsA("BasePart") then
+                                            -- Teleport to Root part
+                                            hrp.CFrame = root.CFrame + Vector3.new(0, 3, 0)
+                                            task.wait(0.5) -- Wait 0.5s before next flower
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
             end)
         end
 
