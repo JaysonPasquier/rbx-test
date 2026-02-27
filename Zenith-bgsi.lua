@@ -2956,15 +2956,18 @@ task.spawn(function()
         -- ✅ Auto Wheel Spin (Spring Event)
         if state.autoWheelSpin and state.springEventActive then
             pcall(function()
-                -- Try multiple remote variations for spinning the wheel
-                -- Pattern based on other wheel systems (Lunar, Admin, etc.)
-                pcall(function() Remote:FireServer("SpinSpringWheel") end)
-                pcall(function() Remote:FireServer("UseSpringWheelSpin") end)
-                pcall(function() Remote:FireServer("SpinWheel", "Spring") end)
+                -- Use InvokeServer (returns winning slot index)
+                local success, result = pcall(function()
+                    return Remote:InvokeServer("SpringWheelSpin")
+                end)
 
-                -- Immediately skip animation and claim reward
-                task.wait(0.05)
-                pcall(function() Remote:FireServer("ClaimSpringWheelSpinQueue") end)
+                -- If spin succeeded, immediately claim reward (skip animation)
+                if success and result then
+                    task.wait(0.1)
+                    pcall(function()
+                        Remote:FireServer("ClaimSpringWheelSpinQueue")
+                    end)
+                end
             end)
         end
 
