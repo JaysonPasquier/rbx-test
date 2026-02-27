@@ -1148,7 +1148,15 @@ task.spawn(function()
 
             -- Process each pet
             for i, petInfo in ipairs(hatchData.Pets) do
-                local petName = petInfo.Name
+                -- Debug: print raw pet info structure
+                if i == 1 then
+                    print("🔍 [DEBUG] First pet structure:")
+                    for key, value in pairs(petInfo) do
+                        print("  " .. tostring(key) .. " = " .. tostring(value))
+                    end
+                end
+
+                local petName = petInfo.Name or petInfo.name or petInfo.PetName or "Unknown Pet"
                 local isXL = petInfo.XL or false
                 local isShiny = petInfo.Shiny or false
                 local isSuper = petInfo.Super or false
