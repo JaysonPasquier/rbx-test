@@ -855,16 +855,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             return formatted
         end
 
-        -- Get pet images and download them
+        -- Get pet image URL (no download - just URL)
+        local petImageUrl = nil
         local images = getPetImages(petName)
-        local petImageData = nil
-
-        print("🖼️ Found " .. #images .. " images for pet: " .. petName)
-        if #images > 0 then
-            for i, imgId in ipairs(images) do
-                print("  Image " .. i .. ": " .. imgId)
-            end
-        end
 
         if #images > 0 then
             -- Determine which image to use based on shiny/mythical status
@@ -873,12 +866,8 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 imageIndex = 2 -- Shiny
             end
 
-            print("🎨 Using image index " .. imageIndex .. " (asset ID: " .. images[imageIndex] .. ")")
-
-            -- Get thumbnail URL from Roblox API
+            -- Get thumbnail URL from Roblox API (no download)
             local thumbUrl = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. images[imageIndex] .. "&size=420x420&format=Png"
-            print("📡 Fetching thumbnail from Roblox API...")
-
             local success, response = pcall(function()
                 return request({
                     Url = thumbUrl,
@@ -889,36 +878,14 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             if success and response.StatusCode == 200 then
                 local data = HttpService:JSONDecode(response.Body)
                 if data and data.data and data.data[1] and data.data[1].imageUrl then
-                    local imageUrl = data.data[1].imageUrl
-                    print("✅ Got thumbnail URL: " .. imageUrl:sub(1, 50) .. "...")
-
-                    -- Download the actual image
-                    local imgSuccess, imgResponse = pcall(function()
-                        return request({
-                            Url = imageUrl,
-                            Method = "GET"
-                        })
-                    end)
-
-                    if imgSuccess and imgResponse.StatusCode == 200 then
-                        petImageData = imgResponse.Body
-                        print("✅ Successfully downloaded pet image (" .. #petImageData .. " bytes)")
-                    else
-                        print("❌ Failed to download pet image: " .. tostring(imgSuccess and imgResponse.StatusCode or "request failed"))
-                    end
-                else
-                    print("❌ No image URL in Roblox API response")
+                    petImageUrl = data.data[1].imageUrl
+                    print("✅ Got pet image URL")
                 end
-            else
-                print("❌ Failed to fetch thumbnail from Roblox API: " .. tostring(success and response.StatusCode or "request failed"))
             end
-        else
-            print("⚠️ No images found for pet: " .. petName)
         end
 
-        -- Download user avatar
-        print("📡 Fetching user avatar...")
-        local avatarImageData = nil
+        -- Get user avatar URL (no download - just URL)
+        local avatarUrl = nil
         local avatarSuccess, avatarResponse = pcall(function()
             return request({
                 Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. player.UserId .. "&size=150x150&format=Png",
@@ -929,28 +896,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         if avatarSuccess and avatarResponse.StatusCode == 200 then
             local avatarData = HttpService:JSONDecode(avatarResponse.Body)
             if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
-                local avatarUrl = avatarData.data[1].imageUrl
+                avatarUrl = avatarData.data[1].imageUrl
                 print("✅ Got avatar URL")
-
-                -- Download the avatar image
-                local avatarImgSuccess, avatarImgResponse = pcall(function()
-                    return request({
-                        Url = avatarUrl,
-                        Method = "GET"
-                    })
-                end)
-
-                if avatarImgSuccess and avatarImgResponse.StatusCode == 200 then
-                    avatarImageData = avatarImgResponse.Body
-                    print("✅ Successfully downloaded avatar image (" .. #avatarImageData .. " bytes)")
-                else
-                    print("❌ Failed to download avatar image")
-                end
-            else
-                print("❌ No avatar URL in response")
             end
-        else
-            print("❌ Failed to fetch avatar from Roblox API")
         end
 
         -- Get runtime
@@ -1002,15 +950,15 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             )
         end
 
-        -- Build embed with attachment references
+        -- Build embed with image URLs (no attachments)
         local embed = {
             title = "🎉 " .. player.Name .. " hatched " .. petTitle .. "!",
             color = colors[baseRarity] or 0xFFFFFF,
-            author = avatarImageData and {
+            author = avatarUrl and {
                 name = player.Name,
-                icon_url = "attachment://avatar.png"
-            } or nil,
-            thumbnail = petImageData and {url = "attachment://pet.png"} or nil,
+                icon_url = avatarUrl
+            } or {name = player.Name},
+            thumbnail = petImageUrl and {url = petImageUrl} or nil,
             fields = {
                 {
                     name = "📊 User Stats",
@@ -1046,32 +994,8 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
         }
 
-        -- Prepare files for attachment
-        local files = {}
-        if petImageData then
-            print("📎 Adding pet image to attachments (" .. #petImageData .. " bytes)")
-            table.insert(files, {
-                name = "pet.png",
-                contentType = "image/png",
-                data = petImageData
-            })
-        else
-            print("⚠️ No pet image data to attach")
-        end
-        if avatarImageData then
-            print("📎 Adding avatar image to attachments (" .. #avatarImageData .. " bytes)")
-            table.insert(files, {
-                name = "avatar.png",
-                contentType = "image/png",
-                data = avatarImageData
-            })
-        else
-            print("⚠️ No avatar image data to attach")
-        end
-
-        -- Send webhook with attachments
+        -- Send webhook with simple JSON (no file attachments)
         print("📤 Sending webhook...")
-        print("Files attached: " .. #files)
 
         -- Add ping content if enabled
         local pingContent = ""
@@ -1080,36 +1004,18 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             print("📢 Adding Discord ping for user: " .. state.webhookPingUserId)
         end
 
-        local sendSuccess, sendError = pcall(function()
-            if #files > 0 then
-                print("📎 Using multipart/form-data (with images)")
-                local boundary = generateBoundary()
-                local payload = {embeds = {embed}}
-                if pingContent ~= "" then
-                    payload.content = pingContent
-                end
-                local body = buildMultipartBody(boundary, payload, files)
+        local payload = {embeds = {embed}}
+        if pingContent ~= "" then
+            payload.content = pingContent
+        end
 
-                request({
-                    Url = state.webhookUrl,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "multipart/form-data; boundary=" .. boundary},
-                    Body = body
-                })
-            else
-                print("📝 Using JSON (no images)")
-                -- Fallback to simple JSON if no images
-                local payload = {embeds = {embed}}
-                if pingContent ~= "" then
-                    payload.content = pingContent
-                end
-                request({
-                    Url = state.webhookUrl,
-                    Method = "POST",
-                    Headers = {["Content-Type"] = "application/json"},
-                    Body = HttpService:JSONEncode(payload)
-                })
-            end
+        local sendSuccess, sendError = pcall(function()
+            request({
+                Url = state.webhookUrl,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(payload)
+            })
         end)
 
         if sendSuccess then
