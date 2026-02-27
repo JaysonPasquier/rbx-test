@@ -706,8 +706,8 @@ end
 -- displayEgg: The egg name to show in the webhook (e.g., "Infinity Egg")
 -- chanceEgg: The egg to use for chance calculation (e.g., "Spikey Egg")
 local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
-    -- Run webhook in background thread to prevent game freezing
-    task.spawn(function()
+    -- Run webhook in DEFERRED thread (lowest priority - zero game blocking)
+    task.defer(function()
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🔔 WEBHOOK TRIGGERED (ASYNC)")
         print("Pet: " .. petName)
@@ -866,6 +866,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 imageIndex = 2 -- Shiny
             end
 
+            -- Small delay before HTTP request to prevent blocking
+            task.wait(0.05)
+
             -- Get thumbnail URL from Roblox API (no download)
             local thumbUrl = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. images[imageIndex] .. "&size=420x420&format=Png"
             local success, response = pcall(function()
@@ -886,6 +889,10 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
 
         -- Get user avatar URL (no download - just URL)
         local avatarUrl = nil
+
+        -- Small delay before HTTP request to prevent blocking
+        task.wait(0.05)
+
         local avatarSuccess, avatarResponse = pcall(function()
             return request({
                 Url = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. player.UserId .. "&size=150x150&format=Png",
@@ -1008,6 +1015,9 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         if pingContent ~= "" then
             payload.content = pingContent
         end
+
+        -- Small delay before sending webhook to prevent blocking
+        task.wait(0.05)
 
         local sendSuccess, sendError = pcall(function()
             request({
@@ -1142,9 +1152,9 @@ task.spawn(function()
                         print("🔄 [DEBUG] Using original egg: " .. originalEgg .. " (hatched from: " .. eggName .. ")")
                     end
 
-                    -- Send webhook (FULLY async task to prevent ANY freezing)
+                    -- Send webhook (DEFERRED - zero game blocking)
                     -- Pass both eggs: eggName for display, originalEgg for chance calculation
-                    task.spawn(function()
+                    task.defer(function()
                         local webhookSuccess, webhookError = pcall(function()
                             SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
                         end)
