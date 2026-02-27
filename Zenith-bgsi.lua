@@ -1172,87 +1172,84 @@ task.spawn(function()
             -- Process each pet
             for i, petInfo in ipairs(hatchData.Pets) do
                 -- Skip deleted pets (auto-deleted by game)
-                if petInfo.Deleted == true then
-                    print("⏭️  [" .. eventType .. "] Skipping deleted pet #" .. i)
-                    goto continue
-                end
-
-                -- Debug: print COMPLETE pet info structure for EVERY pet
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
-                for key, value in pairs(petInfo) do
-                    if type(value) == "table" then
-                        print("  " .. tostring(key) .. " = [table]")
-                        for subKey, subValue in pairs(value) do
-                            print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
+                if petInfo.Deleted ~= true then
+                    -- Debug: print COMPLETE pet info structure for EVERY pet
+                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
+                    for key, value in pairs(petInfo) do
+                        if type(value) == "table" then
+                            print("  " .. tostring(key) .. " = [table]")
+                            for subKey, subValue in pairs(value) do
+                                print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
+                            end
+                        else
+                            print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
                         end
+                    end
+                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                    -- Extract pet name (top level)
+                    local petName = petInfo.Name or "Unknown Pet"
+
+                    -- Extract modifiers (top level)
+                    local isShiny = petInfo.Shiny == true
+                    local isMythic = petInfo.Mythic == true
+
+                    -- Check for XL and Super in nested Pet table
+                    local isXL = false
+                    local isSuper = false
+
+                    -- FIXED: Get pet name and modifiers from nested Pet table
+                    if petInfo.Pet and type(petInfo.Pet) == "table" then
+                        -- Pet name is inside Pet table
+                        petName = petInfo.Pet.Name or "Unknown Pet"
+
+                        -- Modifiers are also inside Pet table
+                        isShiny = petInfo.Pet.Shiny == true
+                        isMythic = petInfo.Pet.Mythic == true
+                        isXL = petInfo.Pet.XL == true or petInfo.Pet.xl == true
+                        isSuper = petInfo.Pet.Super == true or petInfo.Pet.super == true
+                    end
+                    print("  Pet name: " .. tostring(petName))
+                    print("  XL: " .. tostring(isXL))
+                    print("  Shiny: " .. tostring(isShiny))
+                    print("  Super: " .. tostring(isSuper))
+                    print("  Mythic: " .. tostring(isMythic))
+
+                    -- Get rarity from pet data
+                    local rarity = "Unknown"
+                    if petData and petData[petName] and petData[petName].Rarity then
+                        rarity = petData[petName].Rarity
+                        print("✅ [DEBUG] Found rarity in petData: " .. rarity)
                     else
-                        print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
+                        print("❌ [DEBUG] Could not find rarity for: " .. tostring(petName))
                     end
-                end
-                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-                -- Extract pet name (top level)
-                local petName = petInfo.Name or "Unknown Pet"
+                    print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Super:%s Mythic:%s)",
+                        i, #hatchData.Pets, petName, rarity,
+                        tostring(isXL), tostring(isShiny), tostring(isSuper), tostring(isMythic)))
 
-                -- Extract modifiers (top level)
-                local isShiny = petInfo.Shiny == true
-                local isMythic = petInfo.Mythic == true
+                    -- Find pet's ORIGINAL egg (not the hatching egg)
+                    -- This ensures Infinity Egg hatches show the correct base egg
+                    local originalEgg = findEggContainingPet(petName) or eggName
+                    if originalEgg ~= eggName then
+                        print("🔄 [DEBUG] Using original egg: " .. originalEgg .. " (hatched from: " .. eggName .. ")")
+                    end
 
-                -- Check for XL and Super in nested Pet table
-                local isXL = false
-                local isSuper = false
+                    -- Send webhook (FULLY async task to prevent ANY freezing)
+                    -- Pass both eggs: eggName for display, originalEgg for chance calculation
+                    task.spawn(function()
+                        local webhookSuccess, webhookError = pcall(function()
+                            SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
+                        end)
 
-                -- FIXED: Get pet name and modifiers from nested Pet table
-                if petInfo.Pet and type(petInfo.Pet) == "table" then
-                    -- Pet name is inside Pet table
-                    petName = petInfo.Pet.Name or "Unknown Pet"
-
-                    -- Modifiers are also inside Pet table
-                    isShiny = petInfo.Pet.Shiny == true
-                    isMythic = petInfo.Pet.Mythic == true
-                    isXL = petInfo.Pet.XL == true or petInfo.Pet.xl == true
-                    isSuper = petInfo.Pet.Super == true or petInfo.Pet.super == true
-                end
-                print("  Pet name: " .. tostring(petName))
-                print("  XL: " .. tostring(isXL))
-                print("  Shiny: " .. tostring(isShiny))
-                print("  Super: " .. tostring(isSuper))
-                print("  Mythic: " .. tostring(isMythic))
-
-                -- Get rarity from pet data
-                local rarity = "Unknown"
-                if petData and petData[petName] and petData[petName].Rarity then
-                    rarity = petData[petName].Rarity
-                    print("✅ [DEBUG] Found rarity in petData: " .. rarity)
-                else
-                    print("❌ [DEBUG] Could not find rarity for: " .. tostring(petName))
-                end
-
-                print(string.format("  [%d/%d] %s [%s] (XL:%s Shiny:%s Super:%s Mythic:%s)",
-                    i, #hatchData.Pets, petName, rarity,
-                    tostring(isXL), tostring(isShiny), tostring(isSuper), tostring(isMythic)))
-
-                -- Find pet's ORIGINAL egg (not the hatching egg)
-                -- This ensures Infinity Egg hatches show the correct base egg
-                local originalEgg = findEggContainingPet(petName) or eggName
-                if originalEgg ~= eggName then
-                    print("🔄 [DEBUG] Using original egg: " .. originalEgg .. " (hatched from: " .. eggName .. ")")
-                end
-
-                -- Send webhook (FULLY async task to prevent ANY freezing)
-                -- Pass both eggs: eggName for display, originalEgg for chance calculation
-                task.spawn(function()
-                    local webhookSuccess, webhookError = pcall(function()
-                        SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
+                        if not webhookSuccess then
+                            print("❌ [" .. eventType .. "] Webhook failed for " .. petName .. ": " .. tostring(webhookError))
+                        end
                     end)
-
-                    if not webhookSuccess then
-                        print("❌ [" .. eventType .. "] Webhook failed for " .. petName .. ": " .. tostring(webhookError))
-                    end
-                end)
-
-                ::continue::
+                else
+                    print("⏭️  [" .. eventType .. "] Skipping deleted pet #" .. i)
+                end
             end
 
             -- Small delay to prevent rate limiting Discord if many pets hatched
