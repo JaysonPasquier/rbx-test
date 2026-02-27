@@ -439,6 +439,7 @@ end)
 -- File path for saving stats message ID (persists across rejoins)
 local STATS_MESSAGE_FILE = "zenith_bgsi_stats_message_id.txt"
 local LOG_FILE = "zenith_bgsi_fishing_log.txt"
+local DEBUG_LOG_FILE = "zenith_bgsi_webhook_debug.txt"
 
 -- Logging function (writes to both console and file)
 local function log(message)
@@ -454,6 +455,24 @@ local function log(message)
                 existingLog = readfile(LOG_FILE)
             end
             writefile(LOG_FILE, existingLog .. logMessage .. "\n")
+        end)
+    end
+end
+
+-- Debug logging function (writes to debug file)
+local function debugLog(message)
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    local logMessage = "[" .. timestamp .. "] " .. message
+    print(logMessage)
+
+    -- Write to debug file
+    if writefile and readfile and isfile then
+        pcall(function()
+            local existingLog = ""
+            if isfile(DEBUG_LOG_FILE) then
+                existingLog = readfile(DEBUG_LOG_FILE)
+            end
+            writefile(DEBUG_LOG_FILE, existingLog .. logMessage .. "\n")
         end)
     end
 end
@@ -1124,7 +1143,9 @@ task.spawn(function()
                 lastPetCount = lastPetCount + 1
                 -- Show first 3 pets
                 if lastPetCount <= 3 then
-                    print("  [" .. lastPetCount .. "] " .. (petEntry.Name or "Unknown") .. " (UUID: " .. uuid:sub(1, 8) .. "...)")
+                    local uuidStr = tostring(uuid)
+                    local shortUuid = #uuidStr > 8 and uuidStr:sub(1, 8) .. "..." or uuidStr
+                    print("  [" .. lastPetCount .. "] " .. (petEntry.Name or "Unknown") .. " (UUID: " .. shortUuid .. ")")
                 end
             end
             print("✅ [DEBUG] Found " .. lastPetCount .. " existing pets - marked as processed")
@@ -1173,7 +1194,9 @@ task.spawn(function()
 
             for uuid, petDataEntry in pairs(data.Pets) do
                 if not processedPets[uuid] then
-                    print("  🆕 [DEBUG] Found new UUID: " .. uuid:sub(1, 12) .. "... (" .. (petDataEntry.Name or "Unknown") .. ")")
+                    local uuidStr = tostring(uuid)
+                    local shortUuid = #uuidStr > 12 and uuidStr:sub(1, 12) .. "..." or uuidStr
+                    print("  🆕 [DEBUG] Found new UUID: " .. shortUuid .. " (" .. (petDataEntry.Name or "Unknown") .. ")")
                     table.insert(newPets, {uuid = uuid, data = petDataEntry})
                     -- Mark as processed IMMEDIATELY to prevent duplicates
                     processedPets[uuid] = true
