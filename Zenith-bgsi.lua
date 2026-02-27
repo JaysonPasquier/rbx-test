@@ -2856,6 +2856,7 @@ task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     -- ✅ FIX: Use Remote MODULE (not RemoteEvent) - this is what the game uses!
     local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+    local RemoteFunc = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles
@@ -2956,15 +2957,12 @@ task.spawn(function()
         -- ✅ Auto Wheel Spin (Spring Event)
         if state.autoWheelSpin and state.springEventActive then
             pcall(function()
-                -- Use InvokeServer (returns winning slot index)
+                -- Use RemoteFunction for InvokeServer (returns winning slot index)
                 local success, result = pcall(function()
-                    return Remote:InvokeServer("SpringWheelSpin")
+                    return RemoteFunc:InvokeServer("SpringWheelSpin")
                 end)
 
-                -- If spin succeeded, immediately claim reward (skip animation)
-                if success and result then
-                    task.wait(0.1)
-                    pcall(function()
+                -- If spin succeeded, immediately claim reward with RemoteEvent (skip animation)
                         Remote:FireServer("ClaimSpringWheelSpinQueue")
                     end)
                 end
