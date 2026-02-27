@@ -1127,9 +1127,9 @@ task.spawn(function()
     task.wait(3) -- Wait for game to load
 
     local success, error = pcall(function()
-        print("📡 [DEBUG] Loading RemoteEvent module...")
-        local Remote = require(RS.Client.Framework.RemoteEvent)
-        print("✅ [DEBUG] RemoteEvent module loaded successfully")
+        print("📡 [DEBUG] Loading Remote module...")
+        local Remote = require(RS.Shared.Framework.Network.Remote)
+        print("✅ [DEBUG] Remote module loaded successfully")
 
         -- Helper function to process hatched pets
         local function processPets(hatchData, eventType)
