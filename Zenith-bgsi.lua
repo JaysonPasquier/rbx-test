@@ -1184,7 +1184,14 @@ task.spawn(function()
                 local isXL = false
                 local isSuper = false
 
+                -- FIXED: Get pet name and modifiers from nested Pet table
                 if petInfo.Pet and type(petInfo.Pet) == "table" then
+                    -- Pet name is inside Pet table
+                    petName = petInfo.Pet.Name or "Unknown Pet"
+
+                    -- Modifiers are also inside Pet table
+                    isShiny = petInfo.Pet.Shiny == true
+                    isMythic = petInfo.Pet.Mythic == true
                     isXL = petInfo.Pet.XL == true or petInfo.Pet.xl == true
                     isSuper = petInfo.Pet.Super == true or petInfo.Pet.super == true
                 end
