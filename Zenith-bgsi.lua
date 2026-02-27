@@ -3032,21 +3032,35 @@ task.spawn(function()
                     hrp.CFrame = CFrame.new(hrp.Position, center)
                     log("✅ [Fishing] Player facing fishing area")
 
-                    -- Calculate water surface position (raycast down from player)
+                    -- Calculate water surface position using GAME'S EXACT RAYCAST METHOD
+                    -- The game raycasts HORIZONTALLY at multiple distances, then DOWN to find water!
                     local castPosition = center
                     pcall(function()
-                        local rayOrigin = hrp.Position
-                        local rayDirection = Vector3.new(0, -100, 0)  -- Raycast straight down
+                        local FishingUtil = require(RS.Shared.Utils.FishingUtil)
+                        local MIN_CAST_DISTANCE = FishingUtil.MIN_CAST_DISTANCE or 10
+                        local MAX_CAST_DISTANCE = FishingUtil.MAX_CAST_DISTANCE or 60
+                        local increment = (MAX_CAST_DISTANCE - MIN_CAST_DISTANCE) / 10
+
+                        local lookVector = hrp.CFrame.LookVector
                         local raycastParams = RaycastParams.new()
                         raycastParams.FilterType = Enum.RaycastFilterType.Include
                         raycastParams.FilterDescendantsInstances = {area}
-                        
-                        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                        if rayResult then
-                            castPosition = rayResult.Position
-                            log("✅ [Fishing] Raycast hit water at: " .. tostring(castPosition))
-                        else
-                            log("⚠️ [Fishing] Raycast missed, using area center")
+
+                        -- Try 10 horizontal distances (EXACTLY like ChargeState._getClosestRaycast)
+                        for i = 1, 10 do
+                            local horizontalPos = hrp.Position + lookVector * (MIN_CAST_DISTANCE + increment * i)
+                            local downDirection = Vector3.new(0, -50, 0)
+
+                            local rayResult = workspace:Raycast(horizontalPos, downDirection, raycastParams)
+                            if rayResult then
+                                castPosition = rayResult.Position
+                                log("✅ [Fishing] Found water at distance " .. i .. "/10: " .. tostring(castPosition))
+                                break
+                            end
+                        end
+
+                        if castPosition == center then
+                            log("⚠️ [Fishing] Raycast failed all 10 attempts, using area center")
                         end
                     end)
 
@@ -3059,7 +3073,7 @@ task.spawn(function()
                         log("🎣 [Fishing] Step 2: Equipping rod...")
                         Remote:FireServer("EquipRod")
                         task.wait(2)  -- Wait for rod to fully equip and appear
-                        
+
                         state.fishingRodEquipped = true
                         log("✅ [Fishing] Rod equipped - will stay equipped for continuous fishing")
                     end
