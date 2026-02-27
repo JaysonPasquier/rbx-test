@@ -676,15 +676,15 @@ local function buildMultipartBody(boundary, payload, files)
 end
 
 -- Send rich embed webhook for pet hatches (ASYNC - non-blocking)
--- displayEgg: The egg being hatched (shown in webhook)
--- chanceEgg: The original egg containing the pet (used for chance calculation)
+-- displayEgg: The egg name to show in the webhook (e.g., "Infinity Egg")
+-- chanceEgg: The egg to use for chance calculation (e.g., "Spikey Egg")
 local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI, isXL, isShiny, isSuper, isMythic)
     -- Run webhook in background thread to prevent game freezing
     task.spawn(function()
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("🔔 WEBHOOK TRIGGERED (ASYNC)")
         print("Pet: " .. petName)
-        print("Hatching Egg: " .. displayEgg)
+        print("Display Egg: " .. displayEgg)
         print("Chance Egg: " .. chanceEgg)
         print("Rarity: " .. rarityFromGUI)
         print("Webhook URL set: " .. (state.webhookUrl ~= "" and "YES" or "NO"))
@@ -780,25 +780,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         end
         print(string.format("📊 Pet FINAL stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
 
-        -- Apply stat multipliers for Shiny/Mythic variants
-        local statMultiplier = STAT_MULTIPLIERS.Normal
-        if isShiny and isMythic then
-            statMultiplier = STAT_MULTIPLIERS.ShinyMythic
-        elseif isMythic then
-            statMultiplier = STAT_MULTIPLIERS.Mythic
-        elseif isShiny then
-            statMultiplier = STAT_MULTIPLIERS.Shiny
-        end
-
-        local bubbleStat = baseBubbleStat * statMultiplier
-        local coinsStat = baseCoinsStat * statMultiplier
-        local gemsStat = baseGemsStat * statMultiplier
-
-        print(string.format("📊 Pet BASE stats: Bubbles=%s, Coins=%s, Gems=%s", tostring(baseBubbleStat), tostring(baseCoinsStat), tostring(baseGemsStat)))
-        print(string.format("📊 Pet FINAL stats (x%s): Bubbles=%s, Coins=%s, Gems=%s", tostring(statMultiplier), tostring(bubbleStat), tostring(coinsStat), tostring(gemsStat)))
-
-        -- Get base pet chance from ORIGINAL egg (not the hatching egg)
-        -- This ensures Infinity Egg shows correct base egg chances
+        -- Get base pet chance from egg data (use chanceEgg for calculation)
         local baseChance = getPetChanceFromEgg(petName, chanceEgg)
 
         -- Calculate modified chance based on shiny/mythic/XL/super modifiers
@@ -1104,7 +1086,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         end)
 
         if sendSuccess then
-            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. displayEgg)
+            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. eggName)
         else
             print("❌ Webhook send FAILED: " .. tostring(sendError))
         end
@@ -1232,11 +1214,9 @@ task.spawn(function()
                 end
 
                 -- Send webhook (FULLY async task to prevent ANY freezing)
+                -- Pass both eggs: eggName for display, originalEgg for chance calculation
                 task.spawn(function()
                     local webhookSuccess, webhookError = pcall(function()
-                        -- Pass BOTH eggs:
-                        -- displayEgg = current hatching egg (shown in webhook)
-                        -- chanceEgg = original egg containing pet (used for chance calc)
                         SendPetHatchWebhook(petName, eggName, originalEgg, rarity, isXL, isShiny, isSuper, isMythic)
                     end)
 
