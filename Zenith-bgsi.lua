@@ -3001,13 +3001,48 @@ task.spawn(function()
                     hrp.CFrame = CFrame.new(hrp.Position, center)
                     log("✅ [Fishing] Positioned at edge, facing water")
 
-                    -- ONE-TIME SETUP: Equip rod
+                    -- ONE-TIME SETUP: Equip rod, enable AutoFish, and setup event listeners
                     if not state.fishingRodEquipped then
-                        log("🎣 [Fishing] Setting up rod...")
+                        log("🎣 [Fishing] Setting up rod and event listeners...")
                         Remote:FireServer("SetEquippedRod", state.fishingRod, false)
                         task.wait(1)
                         Remote:FireServer("EquipRod")
                         task.wait(2)
+
+                        -- Enable AutoFish (handles reeling minigame automatically)
+                        log("🎣 [Fishing] Enabling AutoFish for automatic reeling...")
+                        pcall(function()
+                            local FishingWorldAutoFish = require(RS.Client.Gui.Frames.Fishing.FishingWorldAutoFish)
+                            FishingWorldAutoFish:SetEnabled(true)
+                            log("  ✅ AutoFish enabled (auto-reels fish)")
+                        end)
+
+                        -- Setup FSM event listeners
+                        log("🎣 [Fishing] Setting up FSM event listeners...")
+                        pcall(function()
+                            local FishingPlayerRods = require(RS.Client.Gui.Frames.Fishing.FishingPlayerRods)
+                            local rodComponent = FishingPlayerRods:GetRodComponent(player)
+
+                            if rodComponent and rodComponent._fsm then
+                                local fsm = rodComponent._fsm
+
+                                -- Store event connections for cleanup
+                                state.fishingEventConnections = state.fishingEventConnections or {}
+
+                                -- Listen for state changes
+                                if fsm.StateChanged then
+                                    local conn = fsm.StateChanged:Connect(function(newState)
+                                        log("🔄 [Fishing] State changed to: " .. tostring(newState))
+                                    end)
+                                    table.insert(state.fishingEventConnections, conn)
+                                end
+
+                                log("  ✅ FSM event listeners connected")
+                            else
+                                log("  ⚠️ RodComponent or FSM not found (may appear after first cast)")
+                            end
+                        end)
+
                         state.fishingRodEquipped = true
                         log("✅ [Fishing] Rod equipped: " .. state.fishingRod)
                     end
@@ -3045,58 +3080,162 @@ task.spawn(function()
                         castPosition = center
                     end
 
-                    -- FIRE THE ACTUAL INPUT EVENTS (triggers state machine + remotes)
-                    log("🎣 [Fishing] Simulating fishing button press...")
+                    -- EVENT-DRIVEN FISHING (waits for actual game events)
+                    log("🎣 [Fishing] Starting event-driven cast...")
 
-                    local success, err = pcall(function()
+                    local castComplete = false
+                    local eventSuccess = pcall(function()
+                        local FishingPlayerRods = require(RS.Client.Gui.Frames.Fishing.FishingPlayerRods)
                         local FishingInput = require(RS.Client.Gui.Frames.Fishing.FishingInput)
+                        local FishingState = require(RS.Client.Gui.Frames.Fishing.FishingPlayerRods.FishingState)
 
-                        -- Press button to start charge
-                        log("  → Pressing fishing button (BeginCastCharge)...")
+                        local rodComponent = FishingPlayerRods:GetRodComponent(player)
+
+                        if not rodComponent then
+                            log("⚠️ [Fishing] RodComponent not found, using fallback timing")
+                            error("No RodComponent")
+                        end
+
+                        local fsm = rodComponent._fsm
+                        if not fsm then
+                            log("⚠️ [Fishing] FSM not found, using fallback timing")
+                            error("No FSM")
+                        end
+
+                        log("  ✅ Found RodComponent and FSM")
+
+                        -- Track current state
+                        local currentState = fsm:GetCurrentState()
+                        log("  📊 Current state: " .. tostring(currentState))
+
+                        -- Wait for Idle state before casting
+                        if currentState ~= FishingState.Idle then
+                            log("  ⏳ Waiting for Idle state...")
+                            local maxWait = 0
+                            while fsm:GetCurrentState() ~= FishingState.Idle and maxWait < 100 do
+                                task.wait(0.1)
+                                maxWait = maxWait + 1
+                            end
+                        end
+
+                        -- Press to start charge
+                        log("  → OnInputBegan (BeginCastCharge)")
                         FishingInput.Pressed:Fire()
+                        task.wait(0.05)
 
-                        -- Hold for perfect 80% precision timing
-                        -- Precision oscillates: 0.5 + 0.5*sin(t*2π)
-                        -- Starts at 50%, rises to 100% at 0.25s, back to 50% at 0.5s
-                        -- For 80%: sin(t*2π) = 0.6, so t = asin(0.6)/(2π) ≈ 0.102s
-                        local holdTime = math.asin(0.6) / (2 * math.pi)  -- ≈ 0.102 seconds
-                        log("  → Holding for " .. string.format("%.3f", holdTime) .. "s (80% precision)...")
-                        task.wait(holdTime)
+                        -- Wait for Charge state
+                        local maxWait = 0
+                        while fsm:GetCurrentState() ~= FishingState.Charge and maxWait < 20 do
+                            task.wait(0.05)
+                            maxWait = maxWait + 1
+                        end
 
-                        -- Release button to cast
-                        log("  → Releasing fishing button (FinishCastCharge)...")
-                        FishingInput.Released:Fire()
+                        if fsm:GetCurrentState() == FishingState.Charge then
+                            log("  ✅ Charge state active")
+                            -- Hold for 80% precision
+                            task.wait(0.4)
 
-                        log("✅ [Fishing] Cast input sequence complete!")
+                            -- Release to cast
+                            log("  → OnInputReleased (FinishCastCharge)")
+                            FishingInput.Released:Fire()
+                            task.wait(0.1)
+
+                            -- Wait for Casting state
+                            maxWait = 0
+                            while fsm:GetCurrentState() ~= FishingState.Casting and maxWait < 20 do
+                                task.wait(0.1)
+                                maxWait = maxWait + 1
+                            end
+                            log("  ✅ Casting state - bobber in water")
+
+                            -- Wait for Waiting state (waiting for fish)
+                            maxWait = 0
+                            while fsm:GetCurrentState() ~= FishingState.Waiting and maxWait < 50 do
+                                task.wait(0.1)
+                                maxWait = maxWait + 1
+                            end
+                            log("  ✅ Waiting state - fish will bite soon")
+
+                            -- Wait for Reeling state (fish bit!)
+                            log("  ⏳ Waiting for fish bite...")
+                            maxWait = 0
+                            while fsm:GetCurrentState() ~= FishingState.Reeling and maxWait < 200 do
+                                task.wait(0.1)
+                                maxWait = maxWait + 1
+                            end
+
+                            if fsm:GetCurrentState() == FishingState.Reeling then
+                                log("  🐟 Fish bit! Reeling... (AutoFish handles this)")
+
+                                -- Wait for Idle state (fish caught, cycle complete)
+                                maxWait = 0
+                                while fsm:GetCurrentState() ~= FishingState.Idle and maxWait < 150 do
+                                    task.wait(0.1)
+                                    maxWait = maxWait + 1
+                                end
+
+                                log("  ✅ Fish caught! Back to Idle state")
+                                castComplete = true
+                            else
+                                log("  ⚠️ Fish didn't bite, timeout")
+                            end
+                        else
+                            log("  ❌ Failed to enter Charge state")
+                        end
                     end)
 
-                    if not success then
-                        log("❌ [Fishing] Failed to fire input events: " .. tostring(err))
-                        log("  💡 Falling back to direct remote calls...")
+                    if not eventSuccess then
+                        log("❌ [Fishing] Event-driven fishing failed, using fallback timing...")
 
-                        -- Fallback: direct remote calls
-                        local holdTime = math.asin(0.6) / (2 * math.pi)
-                        Remote:FireServer("BeginCastCharge")
-                        task.wait(holdTime)
-                        Remote:FireServer("FinishCastCharge", correctAreaId, castPosition)
+                        -- Fallback: Use input events with hardcoded timing
+                        pcall(function()
+                            local FishingInput = require(RS.Client.Gui.Frames.Fishing.FishingInput)
+                            FishingInput.Pressed:Fire()
+                            task.wait(0.4)
+                            FishingInput.Released:Fire()
+                        end)
+
+                        -- Wait with hardcoded time as fallback
+                        log("  ⏳ Waiting 30s (fallback timing)")
+                        task.wait(30)
+                        castComplete = true
                     end
 
-                    -- Wait for fish (game auto-reels with equipped rod)
-                    log("🎣 [Fishing] Waiting for fish bite and auto-reel... (20s)")
-                    task.wait(20)
-
-                    state.lastFishingAttempt = currentTime
-                    log("✅ [Fishing] Cast complete!")
+                    if castComplete then
+                        state.lastFishingAttempt = currentTime
+                        log("✅ [Fishing] Cast cycle complete! Ready for next cast")
+                    else
+                        log("⚠️ [Fishing] Cast cycle incomplete, waiting before retry")
+                        task.wait(5)
+                        state.lastFishingAttempt = currentTime
+                    end
                 end)
             end
         else
-            -- Reset flags and unequip rod when disabled
+            -- Reset flags, disable AutoFish, cleanup events, and unequip rod when disabled
             if state.fishingTeleported or state.fishingRodEquipped then
                 state.fishingTeleported = false
                 state.fishingRodEquipped = false
-                log("🎣 [Fishing] Auto fishing disabled - unequipping rod")
+                log("🎣 [Fishing] Auto fishing disabled - cleaning up...")
 
                 pcall(function()
+                    -- Disconnect event listeners
+                    if state.fishingEventConnections then
+                        for _, conn in ipairs(state.fishingEventConnections) do
+                            pcall(function() conn:Disconnect() end)
+                        end
+                        state.fishingEventConnections = nil
+                        log("  ✅ Event listeners disconnected")
+                    end
+
+                    -- Disable AutoFish
+                    local FishingWorldAutoFish = require(RS.Client.Gui.Frames.Fishing.FishingWorldAutoFish)
+                    if FishingWorldAutoFish:IsEnabled() then
+                        FishingWorldAutoFish:SetEnabled(false)
+                        log("  ✅ AutoFish disabled")
+                    end
+
+                    -- Unequip rod
                     Remote:FireServer("UnequipRod")
                     log("  ✅ Rod unequipped")
                 end)
