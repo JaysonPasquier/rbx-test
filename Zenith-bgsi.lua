@@ -1104,7 +1104,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         end)
 
         if sendSuccess then
-            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. eggName)
+            print("✅ Webhook sent successfully for " .. petTitle .. " from " .. displayEgg)
         else
             print("❌ Webhook send FAILED: " .. tostring(sendError))
         end
