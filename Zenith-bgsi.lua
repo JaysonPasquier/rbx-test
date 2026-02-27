@@ -2963,6 +2963,9 @@ task.spawn(function()
                 end)
 
                 -- If spin succeeded, immediately claim reward with RemoteEvent (skip animation)
+                if success and result then
+                    task.wait(0.1)
+                    pcall(function()
                         Remote:FireServer("ClaimSpringWheelSpinQueue")
                     end)
                 end
