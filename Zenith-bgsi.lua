@@ -1612,6 +1612,56 @@ local function scanFishingIslands()
     return islands
 end
 
+-- Get best fishing island based on player's fishing level
+local function getBestFishingIsland()
+    local bestIsland = nil
+    local highestLevel = -1
+
+    pcall(function()
+        local FishingAreas = require(RS.Shared.Data.FishingAreas)
+        local LocalData = require(RS.Client.Framework.Services.LocalData)
+        local ExperienceUtil = require(RS.Shared.Utils.ExperienceUtil)
+        local FishingUtil = require(RS.Shared.Utils.FishingUtil)
+
+        local playerData = LocalData:Get()
+        if not playerData then
+            log("⚠️ [Fishing] Could not get player data")
+            return
+        end
+
+        local fishingXP = playerData.FishingExperience or 0
+        local playerLevel = ExperienceUtil:GetLevel(fishingXP, FishingUtil.XP_CONFIG)
+        log("🎣 [Fishing] Player fishing level: " .. playerLevel .. " (XP: " .. fishingXP .. ")")
+
+        -- Check all fishing areas
+        for areaId, areaData in pairs(FishingAreas) do
+            local requiredLevel = areaData.RequiredLevel or 0
+            local displayName = areaData.DisplayName
+
+            -- Check if player can access this island
+            if playerLevel >= requiredLevel then
+                log("  ✅ " .. displayName .. " - UNLOCKED (Level " .. requiredLevel .. ")")
+
+                -- Track highest level island the player can access
+                if requiredLevel > highestLevel then
+                    highestLevel = requiredLevel
+                    bestIsland = displayName
+                end
+            else
+                log("  🔒 " .. displayName .. " - LOCKED (Requires Level " .. requiredLevel .. ")")
+            end
+        end
+
+        if bestIsland then
+            log("🏆 [Fishing] Best island: " .. bestIsland .. " (Level " .. highestLevel .. ")")
+        else
+            log("⚠️ [Fishing] No islands unlocked, using first available")
+        end
+    end)
+
+    return bestIsland
+end
+
 -- ✅ FIXED: Real-time egg scanner (Chunker folders with proper filtering)
 local function scanEggs()
     local newEggs = {}
@@ -1974,6 +2024,30 @@ local FishingRodDropdown = FarmTab:CreateDropdown({
             Title = "Fishing Rod",
             Content = "Using " .. state.fishingRod,
             Duration = 2,
+         })
+      end
+   end,
+})
+
+local UpdateBestIslandButton = FarmTab:CreateButton({
+   Name = "🏆 Auto-Select Best Island",
+   Callback = function()
+      local bestIsland = getBestFishingIsland()
+      if bestIsland then
+         state.fishingIsland = bestIsland
+         state.fishingTeleported = false  -- Reset teleport flag
+         log("🏆 [Fishing] Updated to best island: " .. bestIsland)
+         Rayfield:Notify({
+            Title = "Best Island Selected",
+            Content = "Now fishing at " .. bestIsland,
+            Duration = 3,
+            Image = 4483362458,
+         })
+      else
+         Rayfield:Notify({
+            Title = "No Islands Available",
+            Content = "No unlocked fishing islands found",
+            Duration = 3,
          })
       end
    end,
@@ -3603,9 +3677,17 @@ task.spawn(function()
     if #islands > 0 then
         pcall(function()
             FishingIslandDropdown:Refresh(islands, true)
-            -- Set first island as default
-            if islands[1] then
+
+            -- Auto-select best island based on player's fishing level
+            local bestIsland = getBestFishingIsland()
+            if bestIsland then
+                state.fishingIsland = bestIsland
+                log("🏆 [Fishing] Auto-selected best island: " .. bestIsland)
+                print("🏆 Auto-selected best fishing island: " .. bestIsland)
+            else
+                -- Fallback: use first island
                 state.fishingIsland = islands[1]
+                log("📍 [Fishing] Using first island: " .. islands[1])
             end
         end)
         log("✅ [Fishing] Found " .. #islands .. " fishing islands: " .. table.concat(islands, ", "))
@@ -3614,6 +3696,52 @@ task.spawn(function()
         log("⚠️ [Fishing] No fishing islands found")
         print("⚠️ No fishing islands found yet")
     end
+end)
+
+-- Auto-update to best island when player levels up
+task.spawn(function()
+    task.wait(3)  -- Wait for game to fully load
+
+    pcall(function()
+        local LocalData = require(RS.Client.Framework.Services.LocalData)
+        local ExperienceUtil = require(RS.Shared.Utils.ExperienceUtil)
+        local FishingUtil = require(RS.Shared.Utils.FishingUtil)
+
+        local lastLevel = 0
+
+        -- Monitor fishing level changes
+        LocalData:ConnectDataChanged("FishingExperience", function(data)
+            if not data or not data.FishingExperience then return end
+
+            local currentLevel = ExperienceUtil:GetLevel(data.FishingExperience, FishingUtil.XP_CONFIG)
+
+            -- Check if leveled up
+            if currentLevel > lastLevel and lastLevel > 0 then
+                log("🎉 [Fishing] LEVEL UP! New level: " .. currentLevel)
+
+                -- Auto-update to best island when auto-fishing is enabled
+                if state.autoFishEnabled then
+                    local bestIsland = getBestFishingIsland()
+                    if bestIsland and bestIsland ~= state.fishingIsland then
+                        log("🏆 [Fishing] Upgraded to better island: " .. bestIsland)
+                        state.fishingIsland = bestIsland
+                        state.fishingTeleported = false  -- Trigger re-teleport
+
+                        Rayfield:Notify({
+                            Title = "Fishing Island Upgraded!",
+                            Content = "Now fishing at " .. bestIsland,
+                            Duration = 4,
+                            Image = 4483362458,
+                        })
+                    end
+                end
+            end
+
+            lastLevel = currentLevel
+        end)
+
+        log("✅ [Fishing] Auto-upgrade monitor active")
+    end)
 end)
 
 -- Load saved configuration
@@ -3633,6 +3761,7 @@ print("   • Eggs: Every 2 seconds")
 print("   • Stats: Every 1 second")
 print("   • Admin Events: Every 3 seconds")
 print("   • Playtime Gifts: Every 60 seconds")
+print("   • Fishing: Auto-selects best island")
 print("✅ ==========================================")
 print("📋 Tabs:")
 print("   🏠 Main - Live stats (ALL 18 currencies!)")
@@ -3660,4 +3789,5 @@ Rayfield:Notify({
 print("Zenith (BGSI) loaded successfully!")
 print("💡 Rifts and eggs will auto-refresh every 2 seconds")
 print("💡 Enable webhook for pet hatch notifications!")
+print("🎣 Fishing: Auto-selects best island + upgrades on level up")
 print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
