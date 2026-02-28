@@ -107,6 +107,9 @@ local state = {
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     autoCollectFlowers = false,  -- NEW: Auto collect event flowers
     autoWheelSpin = false,  -- NEW: Auto wheel spin (Spring event)
+    autoFlowersEgg = false,  -- NEW: Auto collect flowers + egg hatching combo
+    flowersEggChoice = "Spring Egg",  -- NEW: Which egg to use (Spring Egg or Petal Egg)
+    lastFlowerEggTeleport = 0,  -- NEW: Timestamp for 10-second re-teleport to egg
     springEventActive = false,  -- NEW: Track if Spring event is active
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
@@ -2020,6 +2023,47 @@ if EventTab then
 
     EventTab:CreateLabel("Teleports to each flower location")
 
+    local FlowerEggSection = EventTab:CreateSection("🌸🥚 Auto Flowers + Egg")
+    EventTab:CreateLabel("Teleports you to egg, moves flowers to you")
+    EventTab:CreateLabel("Re-teleports to egg every 10 seconds")
+
+    local FlowerEggDropdown = EventTab:CreateDropdown({
+        Name = "Select Egg to Farm At",
+        Options = {"Spring Egg", "Petal Egg"},
+        CurrentOption = {"Spring Egg"},
+        MultipleOptions = false,
+        Flag = "FlowerEgg",
+        Callback = function(Option)
+            if Option and Option[1] then
+                state.flowersEggChoice = Option[1]
+                Rayfield:Notify({
+                    Title = "Flower + Egg Combo",
+                    Content = "Egg set to: " .. Option[1],
+                    Duration = 2,
+                    Image = 4483362458,
+                })
+            end
+        end,
+    })
+
+    local AutoFlowersEggToggle = EventTab:CreateToggle({
+        Name = "🌸🥚 Auto Flowers + Egg",
+        CurrentValue = false,
+        Flag = "AutoFlowersEgg",
+        Callback = function(Value)
+            state.autoFlowersEgg = Value
+            state.lastFlowerEggTeleport = 0  -- Reset timer
+            Rayfield:Notify({
+                Title = "Auto Flowers + Egg",
+                Content = Value and "Enabled - Farm flowers at egg!" or "Disabled",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end,
+    })
+
+    EventTab:CreateLabel("Combines flower farming with egg hatching")
+
     local WheelSection = EventTab:CreateSection("🎰 Auto Wheel Spin")
     EventTab:CreateLabel("Auto-spins Spring wheel (needs tickets)")
     EventTab:CreateLabel("Skips animation for instant rewards")
@@ -2945,6 +2989,56 @@ task.spawn(function()
                                             hrp.CFrame = root.CFrame + Vector3.new(0, 3, 0)
                                             task.wait(0.5) -- Wait 0.5s before next flower
                                         end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- ✅ Auto Flowers + Egg (Combo: Stay at egg, flowers come to you)
+        if state.autoFlowersEgg and state.springEventActive then
+            pcall(function()
+                local currentTime = tick()
+                local character = player.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+                if hrp then
+                    -- Re-teleport player to egg every 10 seconds
+                    if currentTime - state.lastFlowerEggTeleport >= 10 then
+                        -- Find the selected egg
+                        local egg = nil
+                        for _, eggModel in pairs(state.currentEggs) do
+                            if eggModel.name == state.flowersEggChoice then
+                                egg = eggModel.instance
+                                break
+                            end
+                        end
+
+                        -- If egg found, teleport to its Plate part
+                        if egg then
+                            local plate = egg:FindFirstChild("Plate")
+                            if plate and plate:IsA("BasePart") then
+                                hrp.CFrame = plate.CFrame + Vector3.new(0, 5, 0)
+                                state.lastFlowerEggTeleport = currentTime
+                            end
+                        end
+                    end
+
+                    -- Move all flower Root parts to player position
+                    local spring = Workspace:FindFirstChild("Spring")
+                    if spring then
+                        local pickPetals = spring:FindFirstChild("PickPetals")
+                        if pickPetals then
+                            local playerPos = hrp.CFrame.Position
+                            for _, flower in pairs(pickPetals:GetChildren()) do
+                                if flower:IsA("Model") then
+                                    local root = flower:FindFirstChild("Root")
+                                    if root and root:IsA("BasePart") then
+                                        -- Move flower Root to player (slightly above)
+                                        root.CFrame = CFrame.new(playerPos + Vector3.new(0, 3, 0))
                                     end
                                 end
                             end
