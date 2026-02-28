@@ -2998,7 +2998,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Flowers + Egg (Combo: Stay at egg, flowers come to you)
+        -- ✅ Auto Flowers + Egg (Combo: Stay at egg, flowers come to you ONE AT A TIME)
         if state.autoFlowersEgg and state.springEventActive then
             pcall(function()
                 local currentTime = tick()
@@ -3027,35 +3027,28 @@ task.spawn(function()
                         end
                     end
 
-                    -- Move all flower Root parts to player position (spread in circle)
+                    -- Teleport each flower ROOT under player's feet ONE AT A TIME
                     local spring = Workspace:FindFirstChild("Spring")
                     if spring then
                         local pickPetals = spring:FindFirstChild("PickPetals")
                         if pickPetals then
-                            local flowers = {}
-                            -- Collect all flowers first
+                            -- Loop through each flower sequentially
                             for _, flower in pairs(pickPetals:GetChildren()) do
-                                if flower:IsA("Model") and flower:FindFirstChild("Root") then
-                                    table.insert(flowers, flower)
-                                end
-                            end
+                                if flower:IsA("Model") then
+                                    local root = flower:FindFirstChild("Root")
+                                    if root and root:IsA("BasePart") then
+                                        -- Save original position
+                                        local originalCFrame = root.CFrame
 
-                            -- Spread flowers in a circle around player
-                            local flowerCount = #flowers
-                            for i, flower in ipairs(flowers) do
-                                local root = flower:FindFirstChild("Root")
-                                if root and root:IsA("BasePart") then
-                                    -- Calculate angle for this flower
-                                    local angle = (math.pi * 2 * i) / flowerCount
-                                    local radius = 3 -- 3 studs radius circle
+                                        -- Move flower Root at player's feet level (not underground)
+                                        root.CFrame = hrp.CFrame + Vector3.new(0, -1, 0)
 
-                                    -- Calculate position in circle around player
-                                    local offsetX = math.cos(angle) * radius
-                                    local offsetZ = math.sin(angle) * radius
-                                    local targetPos = hrp.CFrame.Position + Vector3.new(offsetX, 0, offsetZ)
+                                        -- Wait for collection
+                                        task.wait(0.1)
 
-                                    -- Move flower preserving its original rotation
-                                    root.CFrame = CFrame.new(targetPos) * (root.CFrame - root.CFrame.Position)
+                                        -- Move flower back to original position
+                                        root.CFrame = originalCFrame
+                                    end
                                 end
                             end
                         end
