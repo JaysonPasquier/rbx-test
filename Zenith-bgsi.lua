@@ -3027,19 +3027,35 @@ task.spawn(function()
                         end
                     end
 
-                    -- Move all flower Root parts to player position
+                    -- Move all flower Root parts to player position (spread in circle)
                     local spring = Workspace:FindFirstChild("Spring")
                     if spring then
                         local pickPetals = spring:FindFirstChild("PickPetals")
                         if pickPetals then
-                            local playerPos = hrp.CFrame.Position
+                            local flowers = {}
+                            -- Collect all flowers first
                             for _, flower in pairs(pickPetals:GetChildren()) do
-                                if flower:IsA("Model") then
-                                    local root = flower:FindFirstChild("Root")
-                                    if root and root:IsA("BasePart") then
-                                        -- Move flower Root to player (slightly above)
-                                        root.CFrame = CFrame.new(playerPos + Vector3.new(0, 3, 0))
-                                    end
+                                if flower:IsA("Model") and flower:FindFirstChild("Root") then
+                                    table.insert(flowers, flower)
+                                end
+                            end
+
+                            -- Spread flowers in a circle around player
+                            local flowerCount = #flowers
+                            for i, flower in ipairs(flowers) do
+                                local root = flower:FindFirstChild("Root")
+                                if root and root:IsA("BasePart") then
+                                    -- Calculate angle for this flower
+                                    local angle = (math.pi * 2 * i) / flowerCount
+                                    local radius = 3 -- 3 studs radius circle
+
+                                    -- Calculate position in circle around player
+                                    local offsetX = math.cos(angle) * radius
+                                    local offsetZ = math.sin(angle) * radius
+                                    local targetPos = hrp.CFrame.Position + Vector3.new(offsetX, 0, offsetZ)
+
+                                    -- Move flower preserving its original rotation
+                                    root.CFrame = CFrame.new(targetPos) * (root.CFrame - root.CFrame.Position)
                                 end
                             end
                         end
