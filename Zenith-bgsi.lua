@@ -1732,39 +1732,65 @@ local function analyzeTeams()
     local hatchBestScore = -1
     local statsBestScore = -1
 
-    pcall(function()
+    local success, error = pcall(function()
         local LocalData = require(RS.Client.Framework.Services.LocalData)
         local playerData = LocalData:Get()
 
-        if not playerData or not playerData.Teams then
+        print("🔍 [Team Detection] playerData exists:", playerData ~= nil)
+        if not playerData then
+            print("❌ [Team Detection] No playerData")
             return
         end
+
+        print("🔍 [Team Detection] playerData.Teams exists:", playerData.Teams ~= nil)
+        if not playerData.Teams then
+            print("❌ [Team Detection] No Teams in playerData")
+            return
+        end
+
+        print("📊 [Team Detection] Teams count:", #playerData.Teams)
+        print("📊 [Team Detection] Teams type:", type(playerData.Teams))
 
         -- Iterate through teams array (indexed [1], [2], [3], etc.)
         for teamIndex = 1, #playerData.Teams do
             local teamData = playerData.Teams[teamIndex]
+            print("🔍 [Team Detection] Team #" .. teamIndex .. " exists:", teamData ~= nil)
+
             if teamData then
                 -- Team name: custom name or default "Team 1", "Team 2", etc.
                 local teamName = teamData.Name or ("Team " .. teamIndex)
+                print("✅ [Team Detection] Found team: " .. teamName)
+
                 local hatchScore = 0
                 local statsScore = 0
                 local petCount = 0
 
+                -- Check Pets field
+                print("  - Pets exists:", teamData.Pets ~= nil)
+                print("  - Pets type:", type(teamData.Pets))
+
                 -- Analyze pets in this team (teamData.Pets is an array of pet IDs)
                 if teamData.Pets and type(teamData.Pets) == "table" then
-                    for _, petId in ipairs(teamData.Pets) do
+                    print("  - Pets count:", #teamData.Pets)
+
+                    for petIdx, petId in ipairs(teamData.Pets) do
+                        print("    - Pet #" .. petIdx .. " ID:", petId)
+
                         -- Find the pet in player's pet collection
                         if playerData.Pets then
                             for _, pet in pairs(playerData.Pets) do
                                 if pet.Id == petId then
                                     petCount = petCount + 1
+                                    print("      ✅ Found matching pet in collection")
 
                                     -- Check enchants (enchants is an array with .Id and .Level)
                                     if pet.Enchants and type(pet.Enchants) == "table" then
+                                        print("      - Enchants count:", #pet.Enchants)
                                         for _, enchant in ipairs(pet.Enchants) do
                                             if enchant and enchant.Id then
                                                 local enchantName = tostring(enchant.Id):lower()
                                                 local enchantLevel = enchant.Level or 1
+                                                print("        - Enchant:", enchantName, "Level:", enchantLevel)
 
                                                 -- Hatch-focused enchants
                                                 if enchantName:find("luck") or
@@ -1794,6 +1820,8 @@ local function analyzeTeams()
                     end
                 end
 
+                print("  📊 Team stats - Pets:", petCount, "Hatch:", hatchScore, "Stats:", statsScore)
+
                 -- Only add team if it has pets
                 if petCount > 0 then
                     teams[teamName] = {
@@ -1818,6 +1846,11 @@ local function analyzeTeams()
         end
     end)
 
+    if not success then
+        print("❌ [Team Detection] Error:", error)
+    end
+
+    print("✅ [Team Detection] Final teams count:", #teams)
     return teams, hatchBestTeam, statsBestTeam
 end
 
