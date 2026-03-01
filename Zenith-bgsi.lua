@@ -142,6 +142,8 @@ local state = {
     -- Custom teams
     hatchTeam = nil,
     statsTeam = nil,
+    hatchTeamIndex = nil,
+    statsTeamIndex = nil,
     gameTeamList = {},
     -- Auto enchant
     gameEnchantList = {},
@@ -1600,6 +1602,8 @@ local function saveConfig(configName)
         -- Team settings
         hatchTeam = state.hatchTeam,
         statsTeam = state.statsTeam,
+        hatchTeamIndex = state.hatchTeamIndex,
+        statsTeamIndex = state.statsTeamIndex,
 
         -- Potion settings
         selectedPotions = state.selectedPotions,
@@ -1683,6 +1687,8 @@ local function loadConfig(configName)
 
     state.hatchTeam = config.hatchTeam
     state.statsTeam = config.statsTeam
+    state.hatchTeamIndex = config.hatchTeamIndex
+    state.statsTeamIndex = config.statsTeamIndex
 
     state.selectedPotions = config.selectedPotions or {}
     state.autoPotionEnabled = config.autoPotionEnabled or false
@@ -1729,8 +1735,10 @@ local function analyzeTeams()
     local teams = {}
     local hatchBestTeam = nil
     local statsBestTeam = nil
-    local hatchBestScore = -1
-    local statsBestScore = -1
+    local hatchBestIndex = nil
+    local statsBestIndex = nil
+    local hatchBestScore = 0
+    local statsBestScore = 0
 
     local success, error = pcall(function()
         local LocalData = require(RS.Client.Framework.Services.LocalData)
@@ -1880,11 +1888,13 @@ local function analyzeTeams()
                     if hatchScore > hatchBestScore then
                         hatchBestScore = hatchScore
                         hatchBestTeam = teamName
+                        hatchBestIndex = teamIndex
                     end
 
                     if statsScore > statsBestScore then
                         statsBestScore = statsScore
                         statsBestTeam = teamName
+                        statsBestIndex = teamIndex
                     end
                 end
             end
@@ -1902,14 +1912,14 @@ local function analyzeTeams()
     end
 
     print("✅ [Team Detection] Final teams count:", teamCount)
-    print("🏆 [Team Detection] Best Hatch Team:", hatchBestTeam or "None", "Score:", hatchBestScore)
-    print("💰 [Team Detection] Best Stats Team:", statsBestTeam or "None", "Score:", statsBestScore)
+    print("🏆 [Team Detection] Best Hatch Team:", hatchBestTeam or "None", "(Index:", hatchBestIndex or "?", ") Score:", hatchBestScore)
+    print("💰 [Team Detection] Best Stats Team:", statsBestTeam or "None", "(Index:", statsBestIndex or "?", ") Score:", statsBestScore)
 
-    return teams, hatchBestTeam, statsBestTeam
+    return teams, hatchBestTeam, statsBestTeam, hatchBestIndex, statsBestIndex
 end
 
 local function updateTeamDropdowns()
-    local teams, bestHatch, bestStats = analyzeTeams()
+    local teams, bestHatch, bestStats, bestHatchIndex, bestStatsIndex = analyzeTeams()
     local teamNames = {"—"}
 
     for name, _ in pairs(teams) do
@@ -1922,10 +1932,12 @@ local function updateTeamDropdowns()
     -- Auto-select best teams if none selected
     if bestHatch and not state.hatchTeam then
         state.hatchTeam = bestHatch
+        state.hatchTeamIndex = bestHatchIndex
     end
 
     if bestStats and not state.statsTeam then
         state.statsTeam = bestStats
+        state.statsTeamIndex = bestStatsIndex
     end
 
     return teamNames, bestHatch, bestStats
@@ -2043,12 +2055,20 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
    Callback = function(Option)
       if Option and Option[1] and Option[1] ~= "—" then
          state.hatchTeam = Option[1]
-         pcall(function()
-            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            Remote:FireServer("EquipTeam", state.hatchTeam)
-         end)
+
+         -- Find team index
+         local teams = analyzeTeams()
+         if teams[state.hatchTeam] then
+            state.hatchTeamIndex = teams[state.hatchTeam].index
+            pcall(function()
+               local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+               Remote:FireServer("EquipTeam", state.hatchTeamIndex)
+               print("✅ Equipped hatch team:", state.hatchTeam, "(Index:", state.hatchTeamIndex, ")")
+            end)
+         end
       else
          state.hatchTeam = nil
+         state.hatchTeamIndex = nil
       end
    end,
 })
@@ -2062,12 +2082,20 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
    Callback = function(Option)
       if Option and Option[1] and Option[1] ~= "—" then
          state.statsTeam = Option[1]
-         pcall(function()
-            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            Remote:FireServer("EquipTeam", state.statsTeam)
-         end)
+
+         -- Find team index
+         local teams = analyzeTeams()
+         if teams[state.statsTeam] then
+            state.statsTeamIndex = teams[state.statsTeam].index
+            pcall(function()
+               local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+               Remote:FireServer("EquipTeam", state.statsTeamIndex)
+               print("✅ Equipped stats team:", state.statsTeam, "(Index:", state.statsTeamIndex, ")")
+            end)
+         end
       else
          state.statsTeam = nil
+         state.statsTeamIndex = nil
       end
    end,
 })
@@ -2113,6 +2141,16 @@ local AutoBlowToggle = FarmTab:CreateToggle({
    Flag = "AutoBlow",
    Callback = function(Value)
       state.autoBlow = Value
+
+      -- Auto-equip stats team when enabled
+      if Value and state.statsTeamIndex then
+         pcall(function()
+            local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+            Remote:FireServer("EquipTeam", state.statsTeamIndex)
+            print("✅ Auto-equipped stats team:", state.statsTeam, "(Index:", state.statsTeamIndex, ")")
+         end)
+      end
+
       Rayfield:Notify({
          Title = "Auto Blow",
          Content = Value and "Enabled" or "Disabled",
@@ -2569,6 +2607,16 @@ local AutoHatchToggle = EggsTab:CreateToggle({
       state.autoHatch = Value
       if Value then
          state.lastEggPosition = nil
+
+         -- Auto-equip hatch team when enabled
+         if state.hatchTeamIndex then
+            pcall(function()
+               local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+               Remote:FireServer("EquipTeam", state.hatchTeamIndex)
+               print("✅ Auto-equipped hatch team:", state.hatchTeam, "(Index:", state.hatchTeamIndex, ")")
+            end)
+         end
+
          Rayfield:Notify({
             Title = "Auto Hatch Enabled",
             Content = "Hatching eggs from: " .. (state.eggPriority or "Select an egg first!"),
