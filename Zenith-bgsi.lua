@@ -2063,7 +2063,6 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
             pcall(function()
                local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
                Remote:FireServer("EquipTeam", state.hatchTeamIndex)
-               print("✅ Equipped hatch team:", state.hatchTeam, "(Index:", state.hatchTeamIndex, ")")
             end)
          end
       else
@@ -2090,7 +2089,6 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
             pcall(function()
                local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
                Remote:FireServer("EquipTeam", state.statsTeamIndex)
-               print("✅ Equipped stats team:", state.statsTeam, "(Index:", state.statsTeamIndex, ")")
             end)
          end
       else
@@ -2147,7 +2145,6 @@ local AutoBlowToggle = FarmTab:CreateToggle({
          pcall(function()
             local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("EquipTeam", state.statsTeamIndex)
-            print("✅ Auto-equipped stats team:", state.statsTeam, "(Index:", state.statsTeamIndex, ")")
          end)
       end
 
@@ -2287,23 +2284,10 @@ local AutoPotionToggle = FarmTab:CreateToggle({
 
 -- === AUTO ENCHANT ===
 local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
-FarmTab:CreateLabel("Main slot + second slot (can't be same)")
-
-local EnchantTargetTierDropdown = FarmTab:CreateDropdown({
-   Name = "Target Tier (Minimum)",
-   Options = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical"},
-   CurrentOption = {"Rare"},
-   MultipleOptions = false,
-   Flag = "EnchantTargetTier",
-   Callback = function(Option)
-      if Option and Option[1] then
-         state.enchantTargetTier = Option[1]
-      end
-   end,
-})
+FarmTab:CreateLabel("Enchant first pet in equipped team")
 
 local EnchantMainDropdown = FarmTab:CreateDropdown({
-   Name = "Main enchant slot",
+   Name = "Enchant #1 (target)",
    Options = {"Loading..."},
    CurrentOption = {"Loading..."},
    MultipleOptions = false,
@@ -2318,7 +2302,7 @@ local EnchantMainDropdown = FarmTab:CreateDropdown({
 })
 
 local EnchantSecondDropdown = FarmTab:CreateDropdown({
-   Name = "Second enchant slot",
+   Name = "Enchant #2 (optional)",
    Options = {"Loading..."},
    CurrentOption = {"Loading..."},
    MultipleOptions = false,
@@ -2338,7 +2322,7 @@ local EnchantSecondDropdown = FarmTab:CreateDropdown({
 })
 
 local AutoEnchantToggle = FarmTab:CreateToggle({
-   Name = "Auto Enchant equipped pet",
+   Name = "Auto Enchant (first pet in team)",
    CurrentValue = false,
    Flag = "AutoEnchant",
    Callback = function(Value)
@@ -2613,7 +2597,6 @@ local AutoHatchToggle = EggsTab:CreateToggle({
             pcall(function()
                local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
                Remote:FireServer("EquipTeam", state.hatchTeamIndex)
-               print("✅ Auto-equipped hatch team:", state.hatchTeam, "(Index:", state.hatchTeamIndex, ")")
             end)
          end
 
@@ -3606,76 +3589,65 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Enchant (with target tier/level)
+        -- ✅ Auto Enchant (first pet in equipped team)
         if state.autoEnchantEnabled and state.enchantMain then
             pcall(function()
-                -- Get LocalData to access pet info
+                -- Get LocalData to access team and pet info
                 local LocalData = require(RS.Client.Framework.Services.LocalData):Get()
-                if not LocalData or not LocalData.EquippedPets or #LocalData.EquippedPets == 0 then
+                if not LocalData or not LocalData.Teams then
                     return
                 end
 
-                -- Get first equipped pet
-                local equippedPetId = LocalData.EquippedPets[1]
-                if not equippedPetId then return end
+                -- Get currently equipped team index
+                local equippedTeamIndex = LocalData.EquippedTeam
+                if not equippedTeamIndex then return end
+
+                -- Get the team data
+                local team = LocalData.Teams[equippedTeamIndex]
+                if not team or not team.Pets or #team.Pets == 0 then
+                    return
+                end
+
+                -- Get first pet ID from the team
+                local firstPetId = team.Pets[1]
+                if not firstPetId then return end
 
                 -- Get pet data
-                local petData = LocalData.Pets[equippedPetId]
+                local petData = LocalData.Pets[firstPetId]
                 if not petData then return end
-
-                -- Map tier names to minimum levels
-                local tierToLevel = {
-                    Common = 1,
-                    Uncommon = 2,
-                    Rare = 3,
-                    Epic = 4,
-                    Legendary = 5,
-                    Mythical = 5
-                }
-                local minLevel = tierToLevel[state.enchantTargetTier] or 3
 
                 -- Check current enchants
                 local currentEnchants = petData.Enchants or {}
-                local needsReroll = true
-
-                -- Check if pet has desired enchants at desired level
-                local mainSlotOk = false
-                local secondSlotOk = not state.enchantSecond  -- If no second enchant selected, it's ok
+                local hasDesiredEnchant = false
 
                 -- Create safe string versions of target enchants
                 local mainTarget = state.enchantMain and tostring(state.enchantMain):lower() or nil
                 local secondTarget = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
 
+                -- Check if pet has ANY of the desired enchants
                 for _, enchant in ipairs(currentEnchants) do
                     if enchant and enchant.Id then
                         local enchantId = tostring(enchant.Id):lower()
-                        local enchantLevel = enchant.Level or 1
 
-                        -- Check main slot
-                        if mainTarget and enchantId:match(mainTarget) then
-                            if enchantLevel >= minLevel then
-                                mainSlotOk = true
-                            end
+                        -- Check if this enchant matches main target
+                        if mainTarget and enchantId:find(mainTarget) then
+                            hasDesiredEnchant = true
+                            break
                         end
 
-                        -- Check second slot (if specified)
-                        if secondTarget and enchantId:match(secondTarget) then
-                            if enchantLevel >= minLevel then
-                                secondSlotOk = true
-                            end
+                        -- Check if this enchant matches second target
+                        if secondTarget and enchantId:find(secondTarget) then
+                            hasDesiredEnchant = true
+                            break
                         end
                     end
                 end
 
-                -- Only reroll if not meeting requirements
-                if mainSlotOk and secondSlotOk then
-                    needsReroll = false
-                end
-
-                if needsReroll then
+                -- Reroll if we don't have any of the desired enchants
+                if not hasDesiredEnchant then
                     -- Reroll enchants using Gems
                     local success, newPetId, enchants = pcall(function()
-                        return RemoteFunc:InvokeServer("RerollEnchants", equippedPetId, "Gems", nil)
+                        return RemoteFunc:InvokeServer("RerollEnchants", firstPetId, "Gems", nil)
                     end)
 
                     -- Update stats counter
