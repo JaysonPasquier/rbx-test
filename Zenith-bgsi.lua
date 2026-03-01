@@ -724,7 +724,8 @@ end
 
 -- Load team data (now uses smart detection from player data)
 local function loadGameTeamData()
-    updateTeamDropdowns()
+    -- Team data will be loaded when updateTeamDropdowns() is called later
+    -- This function exists for compatibility with the initialization sequence
 end
 
 -- Format numbers with commas (1234567890 -> 1,234,567,890)
