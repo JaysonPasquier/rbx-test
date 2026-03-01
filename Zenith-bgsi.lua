@@ -148,16 +148,25 @@ local state = {
     enchantMain = nil,
     enchantSecond = nil,
     autoEnchantEnabled = false,
+    enchantTargetTier = "Epic",  -- NEW: Target tier for auto-enchant
+    -- Powerups
+    gamePowerupList = {},
+    selectedPowerups = {},
+    autoPowerupEnabled = false,
+    -- Config system
+    currentConfigName = "",
+    savedConfigs = {},
     stats = {
         -- Leaderstats
         bubbles=0, hatches=0,
         -- Main currencies (GUI)
         coins="0", gems="0", bubbleStock="0",
-        -- All 18 currencies from GUI
+        -- All currencies including event currencies
         tokens="0", tickets="0", seashells="0", festivalCoins="0",
         pearls="0", leaves="0", candycorn="0", ogPoints="0",
         thanksgivingShards="0", winterShards="0", snowflakes="0",
-        newYearsShard="0", horns="0", halos="0", moonShards="0"
+        newYearsShard="0", horns="0", halos="0", moonShards="0",
+        petals="0"  -- NEW: Spring event currency
     },
     startTime = tick(),
     labels = {},
@@ -189,6 +198,10 @@ local STAT_MULTIPLIERS = {
 local petData, eggData, _codeData
 local petModuleSource = "" -- Store raw pet module source for parsing images
 local eggModuleSource = "" -- Store raw egg module source for parsing chances
+
+-- Enchant tier order for auto-enchant
+local ENCHANT_TIERS = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical"}
+local ENCHANT_TIER_VALUES = {Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythical=6}
 
 -- === CACHES (Performance optimization) ===
 local petImageCache = {} -- Cache pet images to avoid re-searching decompiled source
@@ -662,6 +675,31 @@ local function loadGamePotionData()
             for name, _ in pairs(potionData) do
                 table.insert(state.gamePotionList, name)
             end
+            -- Always include Flowers even if not in standard potions
+            if not potionData["Flowers"] then
+                table.insert(state.gamePotionList, "Flowers")
+            end
+            return true
+        end
+        return false
+    end)
+end
+
+-- Load powerup data from game (ReplicatedStorage.Shared.Data.Powerups)
+local function loadGamePowerupData()
+    local success, result = pcall(function()
+        local data = RS:FindFirstChild("Shared")
+        if data then data = data:FindFirstChild("Data") end
+        if data then data = data:FindFirstChild("Powerups") end
+        if data and data:IsA("ModuleScript") then
+            local powerupData = require(data)
+            state.gamePowerupList = {}
+            for name, itemData in pairs(powerupData) do
+                -- Filter out special powerups and keep useful ones
+                if type(itemData) == "table" and not name:find("Egg") and not name:find("Chest") then
+                    table.insert(state.gamePowerupList, name)
+                end
+            end
             return true
         end
         return false
@@ -684,19 +722,9 @@ local function loadGameEnchantData()
     end)
 end
 
--- Load team data
+-- Load team data (now uses smart detection from player data)
 local function loadGameTeamData()
-    pcall(function()
-        local data = RS:FindFirstChild("Shared") and RS.Shared:FindFirstChild("Data")
-        if data then data = data:FindFirstChild("Teams") end
-        if data and data:IsA("ModuleScript") then
-            local teamData = require(data)
-            state.gameTeamList = {}
-            for name, _ in pairs(teamData) do
-                table.insert(state.gameTeamList, name)
-            end
-        end
-    end)
+    updateTeamDropdowns()
 end
 
 -- Format numbers with commas (1234567890 -> 1,234,567,890)
@@ -1185,7 +1213,8 @@ local function SendStatsWebhook()
             {name="New Years Shard", value=state.stats.newYearsShard},
             {name="Horns", value=state.stats.horns},
             {name="Halos", value=state.stats.halos},
-            {name="Moon Shards", value=state.stats.moonShards}
+            {name="Moon Shards", value=state.stats.moonShards},
+            {name="Petals", value=state.stats.petals}  -- Spring event currency
         }
 
         for _, curr in pairs(currencies) do
@@ -1383,7 +1412,7 @@ local function updateStats()
                             end
                         end
 
-                        -- All 18 currencies (from diagnostic report)
+                        -- All currencies including event currencies
                         local currencyMap = {
                             {key="tokens", name="Tokens"},
                             {key="tickets", name="Tickets"},
@@ -1399,7 +1428,8 @@ local function updateStats()
                             {key="newYearsShard", name="NewYearsShard"},
                             {key="horns", name="Horns"},
                             {key="halos", name="Halos"},
-                            {key="moonShards", name="MoonShards"}
+                            {key="moonShards", name="MoonShards"},
+                            {key="petals", name="Petals"}  -- Spring event
                         }
 
                         for _, curr in pairs(currencyMap) do
@@ -1546,6 +1576,263 @@ local function getBestFishingIsland()
     return bestIsland
 end
 
+-- === CONFIG SYSTEM ===
+local function saveConfig(configName)
+    if not configName or configName == "" then
+        return false, "Config name cannot be empty"
+    end
+
+    local config = {
+        -- Farm settings
+        autoBlow = state.autoBlow,
+        autoHatch = state.autoHatch,
+        autoPickup = state.autoPickup,
+        autoChest = state.autoChest,
+        autoSellBubbles = state.autoSellBubbles,
+        autoClaimPlaytime = state.autoClaimPlaytime,
+
+        -- Egg/Rift settings
+        eggPriority = state.eggPriority,
+        riftPriority = state.riftPriority,
+        maxEggs = state.maxEggs,
+
+        -- Team settings
+        hatchTeam = state.hatchTeam,
+        statsTeam = state.statsTeam,
+
+        -- Potion settings
+        selectedPotions = state.selectedPotions,
+        autoPotionEnabled = state.autoPotionEnabled,
+
+        -- Powerup settings
+        selectedPowerups = state.selectedPowerups,
+        autoPowerupEnabled = state.autoPowerupEnabled,
+
+        -- Enchant settings
+        enchantMain = state.enchantMain,
+        enchantSecond = state.enchantSecond,
+        autoEnchantEnabled = state.autoEnchantEnabled,
+        enchantTargetTier = state.enchantTargetTier,
+
+        -- Webhook settings
+        webhookUrl = state.webhookUrl,
+        webhookRarities = state.webhookRarities,
+        webhookStatsEnabled = state.webhookStatsEnabled,
+        webhookPingEnabled = state.webhookPingEnabled,
+        webhookPingUserId = state.webhookPingUserId,
+
+        -- Other settings
+        disableHatchAnimation = state.disableHatchAnimation,
+        antiAFK = state.antiAFK,
+        fishingIsland = state.fishingIsland,
+        fishingRod = state.fishingRod
+    }
+
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(config)
+    end)
+
+    if success then
+        writefile("ZenithBGSI_Config_" .. configName .. ".json", encoded)
+        state.savedConfigs[configName] = config
+        return true, "Config saved successfully"
+    else
+        return false, "Failed to encode config: " .. tostring(encoded)
+    end
+end
+
+local function loadConfig(configName)
+    if not configName or configName == "" then
+        return false, "Config name cannot be empty"
+    end
+
+    local fileName = "ZenithBGSI_Config_" .. configName .. ".json"
+
+    if not isfile(fileName) then
+        return false, "Config file not found"
+    end
+
+    local success, content = pcall(function()
+        return readfile(fileName)
+    end)
+
+    if not success then
+        return false, "Failed to read config file"
+    end
+
+    local decodeSuccess, config = pcall(function()
+        return HttpService:JSONDecode(content)
+    end)
+
+    if not decodeSuccess then
+        return false, "Failed to decode config"
+    end
+
+    -- Apply config to state
+    state.autoBlow = config.autoBlow or false
+    state.autoHatch = config.autoHatch or false
+    state.autoPickup = config.autoPickup or false
+    state.autoChest = config.autoChest or false
+    state.autoSellBubbles = config.autoSellBubbles or false
+    state.autoClaimPlaytime = config.autoClaimPlaytime or false
+
+    state.eggPriority = config.eggPriority
+    state.riftPriority = config.riftPriority
+    state.maxEggs = config.maxEggs or 7
+
+    state.hatchTeam = config.hatchTeam
+    state.statsTeam = config.statsTeam
+
+    state.selectedPotions = config.selectedPotions or {}
+    state.autoPotionEnabled = config.autoPotionEnabled or false
+
+    state.selectedPowerups = config.selectedPowerups or {}
+    state.autoPowerupEnabled = config.autoPowerupEnabled or false
+
+    state.enchantMain = config.enchantMain
+    state.enchantSecond = config.enchantSecond
+    state.autoEnchantEnabled = config.autoEnchantEnabled or false
+    state.enchantTargetTier = config.enchantTargetTier or "Epic"
+
+    state.webhookUrl = config.webhookUrl or ""
+    state.webhookRarities = config.webhookRarities or state.webhookRarities
+    state.webhookStatsEnabled = config.webhookStatsEnabled or false
+    state.webhookPingEnabled = config.webhookPingEnabled or false
+    state.webhookPingUserId = config.webhookPingUserId or ""
+
+    state.disableHatchAnimation = config.disableHatchAnimation or false
+    state.antiAFK = config.antiAFK or false
+    state.fishingIsland = config.fishingIsland
+    state.fishingRod = config.fishingRod or "Wooden Rod"
+
+    state.savedConfigs[configName] = config
+    return true, "Config loaded successfully"
+end
+
+local function listConfigs()
+    local configs = {}
+    pcall(function()
+        for _, file in pairs(listfiles()) do
+            local fileName = file:match(".+ ([^/\\]+)$") or file
+            if fileName:match("^ZenithBGSI_Config_(.+)%.json$") then
+                local configName = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
+                table.insert(configs, configName)
+            end
+        end
+    end)
+    return configs
+end
+
+-- === SMART TEAM DETECTION ===
+local function analyzeTeams()
+    local teams = {}
+    local hatchBestTeam = nil
+    local statsBestTeam = nil
+    local hatchBestScore = -1
+    local statsBestScore = -1
+
+    pcall(function()
+        local LocalData = require(RS.Client.Framework.Services.LocalData)
+        local playerData = LocalData:Get()
+
+        if not playerData or not playerData.Teams then
+            return
+        end
+
+        for teamIndex, teamData in pairs(playerData.Teams) do
+            local teamName = teamData.Name or ("Team " .. teamIndex)
+            local hatchScore = 0
+            local statsScore = 0
+
+            -- Analyze pets in this team
+            if teamData.Pets then
+                for _, petId in pairs(teamData.Pets) do
+                    -- Find the pet in player's pet collection
+                    if playerData.Pets then
+                        for _, pet in pairs(playerData.Pets) do
+                            if pet.Id == petId then
+                                -- Check enchants
+                                if pet.Enchants then
+                                    for enchantId, enchantData in pairs(pet.Enchants) do
+                                        local enchantName = enchantId
+                                        local enchantLevel = enchantData.Level or 1
+
+                                        -- Hatch-focused enchants
+                                        if enchantName:lower():find("luck") or
+                                           enchantName:lower():find("boost") or
+                                           enchantName:lower():find("shiny") or
+                                           enchantName:lower():find("egg") then
+                                            hatchScore = hatchScore + (enchantLevel * 10)
+                                        end
+
+                                        -- Stats-focused enchants
+                                        if enchantName:lower():find("rich") or
+                                           enchantName:lower():find("coins") or
+                                           enchantName:lower():find("gems") or
+                                           enchantName:lower():find("power") then
+                                            statsScore = statsScore + (enchantLevel * 10)
+                                        end
+                                    end
+                                end
+
+                                -- Check base stats (coins/gems generation)
+                                if pet.Stat then
+                                    statsScore = statsScore + (pet.Stat.Coins or 0) / 1000
+                                    statsScore = statsScore + (pet.Stat.Gems or 0) / 1000
+                                end
+
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+
+            teams[teamName] = {
+                index = teamIndex,
+                hatchScore = hatchScore,
+                statsScore = statsScore
+            }
+
+            -- Track best teams
+            if hatchScore > hatchBestScore then
+                hatchBestScore = hatchScore
+                hatchBestTeam = teamName
+            end
+
+            if statsScore > statsBestScore then
+                statsBestScore = statsScore
+                statsBestTeam = teamName
+            end
+        end
+    end)
+
+    return teams, hatchBestTeam, statsBestTeam
+end
+
+local function updateTeamDropdowns()
+    local teams, bestHatch, bestStats = analyzeTeams()
+    local teamNames = {\"—\"}
+
+    for name, _ in pairs(teams) do
+        table.insert(teamNames, name)
+    end
+
+    -- Update state
+    state.gameTeamList = teamNames
+
+    -- Auto-select best teams if none selected
+    if bestHatch and not state.hatchTeam then
+        state.hatchTeam = bestHatch
+    end
+
+    if bestStats and not state.statsTeam then
+        state.statsTeam = bestStats
+    end
+
+    return teamNames, bestHatch, bestStats
+end
+
 -- ✅ FIXED: Real-time egg scanner (Chunker folders with proper filtering)
 local function scanEggs()
     local newEggs = {}
@@ -1626,13 +1913,29 @@ state.labels.runtime = MainTab:CreateLabel("Runtime: 00:00:00")
 state.labels.bubbles = MainTab:CreateLabel("Bubbles: 0")
 state.labels.hatches = MainTab:CreateLabel("Hatches: 0")
 
-local TeamSection = MainTab:CreateSection("👥 Custom Team")
-MainTab:CreateLabel("Hatch team / Stats team")
+local TeamSection = MainTab:CreateSection("👥 Smart Teams")
+
+-- Button to refresh team detection
+MainTab:CreateButton({
+   Name = "🔄 Detect Teams",
+   Callback = function()
+      local teamNames, bestHatch, bestStats = updateTeamDropdowns()
+      Rayfield:Notify({
+         Title = "Teams Detected",
+         Content = (#teamNames - 1) .. " teams found",
+         Duration = 2,
+      })
+
+      -- Update dropdowns
+      HatchTeamDropdown:Refresh(teamNames, bestHatch and {bestHatch} or {"—"})
+      StatsTeamDropdown:Refresh(teamNames, bestStats and {bestStats} or {"—"})
+   end,
+})
 
 local HatchTeamDropdown = MainTab:CreateDropdown({
-   Name = "Hatch team",
-   Options = {"—"},
-   CurrentOption = {"—"},
+   Name = "Hatch Team (Luck/Egg enchants)",
+   Options = state.gameTeamList,
+   CurrentOption = {state.hatchTeam or "—"},
    MultipleOptions = false,
    Flag = "HatchTeam",
    Callback = function(Option)
@@ -1640,7 +1943,7 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
          state.hatchTeam = Option[1]
          pcall(function()
             local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            Remote:FireServer("SetHatchTeam", Option[1])
+            Remote:FireServer("EquipTeam", state.hatchTeam)
          end)
       else
          state.hatchTeam = nil
@@ -1649,9 +1952,9 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
 })
 
 local StatsTeamDropdown = MainTab:CreateDropdown({
-   Name = "Stats team",
-   Options = {"—"},
-   CurrentOption = {"—"},
+   Name = "Stats Team (Coins/Gems enchants)",
+   Options = state.gameTeamList,
+   CurrentOption = {state.statsTeam or "—"},
    MultipleOptions = false,
    Flag = "StatsTeam",
    Callback = function(Option)
@@ -1659,11 +1962,41 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
          state.statsTeam = Option[1]
          pcall(function()
             local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-            Remote:FireServer("SetStatsTeam", Option[1])
+            Remote:FireServer("EquipTeam", state.statsTeam)
          end)
       else
          state.statsTeam = nil
       end
+   end,
+})
+
+local OptimizationSection = MainTab:CreateSection("⚡ Performance")
+
+local DisableAnimToggle = MainTab:CreateToggle({
+   Name = "🚫 Disable Egg Animation",
+   CurrentValue = false,
+   Flag = "DisableAnimation",
+   Callback = function(Value)
+      state.disableHatchAnimation = Value
+      Rayfield:Notify({
+         Title = "Egg Animation",
+         Content = Value and "Disabled (faster hatching)" or "Enabled",
+         Duration = 2,
+      })
+   end,
+})
+
+local AntiAFKToggle = MainTab:CreateToggle({
+   Name = "🛡️ Anti-AFK",
+   CurrentValue = false,
+   Flag = "AntiAFK",
+   Callback = function(Value)
+      state.antiAFK = Value
+      Rayfield:Notify({
+         Title = "Anti-AFK",
+         Content = Value and "Enabled" or "Disabled",
+         Duration = 2,
+      })
    end,
 })
 
@@ -1784,8 +2117,6 @@ local AutoClaimToggle = FarmTab:CreateToggle({
    end,
 })
 
-FarmTab:CreateLabel("Claims playtime rewards every 60 seconds")
-
 -- === AUTO POTIONS ===
 local PotionSection = FarmTab:CreateSection("🧪 Auto Potions")
 
@@ -1814,11 +2145,22 @@ local AutoPotionToggle = FarmTab:CreateToggle({
    end,
 })
 
-FarmTab:CreateLabel("Keeps selected potions active")
-
 -- === AUTO ENCHANT ===
 local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
 FarmTab:CreateLabel("Main slot + second slot (can't be same)")
+
+local EnchantTargetTierDropdown = FarmTab:CreateDropdown({
+   Name = "Target Tier (Minimum)",
+   Options = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical"},
+   CurrentOption = {"Rare"},
+   MultipleOptions = false,
+   Flag = "EnchantTargetTier",
+   Callback = function(Option)
+      if Option and Option[1] then
+         state.enchantTargetTier = Option[1]
+      end
+   end,
+})
 
 local EnchantMainDropdown = FarmTab:CreateDropdown({
    Name = "Main enchant slot",
@@ -1868,8 +2210,6 @@ local AutoEnchantToggle = FarmTab:CreateToggle({
       })
    end,
 })
-
-FarmTab:CreateLabel("Auto-enchants equipped pet")
 
 -- === AUTO FISHING ===
 local FishingSection = FarmTab:CreateSection("🎣 Auto Fishing")
@@ -2158,8 +2498,6 @@ local DisableHatchAnimToggle = EggsTab:CreateToggle({
    end,
 })
 
-EggsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
-
 local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
 local PriorityEggDropdown = EggsTab:CreateDropdown({
@@ -2237,8 +2575,6 @@ local RiftAutoHatchToggle = RiftsTab:CreateToggle({
       })
    end,
 })
-
-RiftsTab:CreateLabel("🚧 Disable egg hatching animation (coming soon)")
 
 local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
 
@@ -2591,6 +2927,137 @@ WebTab:CreateButton({
    end,
 })
 
+-- === POWERUPS TAB ===
+local PowerupsTab = Window:CreateTab("⚡ Powerups", 4483362458)
+
+local PowerupSection = PowerupsTab:CreateSection("⚡ Auto Use Powerups")
+
+local PowerupDropdown = PowerupsTab:CreateDropdown({
+   Name = "Powerups to auto-use",
+   Options = {"Loading..."},
+   CurrentOption = {"Loading..."},
+   MultipleOptions = true,
+   Flag = "PowerupSelect",
+   Callback = function(Options)
+      state.selectedPowerups = Options or {}
+   end,
+})
+
+local PowerupToggle = PowerupsTab:CreateToggle({
+   Name = "✨ Enable Auto Powerups",
+   CurrentValue = false,
+   Flag = "AutoPowerups",
+   Callback = function(Value)
+      state.autoPowerupEnabled = Value
+      Rayfield:Notify({
+         Title = "Auto Powerups",
+         Content = Value and "Enabled" or "Disabled",
+         Duration = 2,
+      })
+   end,
+})
+
+PowerupsTab:CreateLabel("Uses selected powerups when available")
+
+-- === CONFIG TAB ===
+local ConfigTab = Window:CreateTab("⚙️ Config", 4483362458)
+
+local ConfigSection = ConfigTab:CreateSection("💾 Save/Load Configuration")
+
+local configNameInput = ""
+
+local ConfigNameInput = ConfigTab:CreateInput({
+   Name = "Config Name",
+   PlaceholderText = "MyConfig",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      configNameInput = Text
+      state.currentConfigName = Text
+   end,
+})
+
+ConfigTab:CreateButton({
+   Name = "💾 Save Config",
+   Callback = function()
+      if configNameInput == "" then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Enter a config name first!",
+            Duration = 3,
+         })
+         return
+      end
+
+      local success, message = saveConfig(configNameInput)
+      Rayfield:Notify({
+         Title = success and "Saved" or "Error",
+         Content = message,
+         Duration = 3,
+      })
+   end,
+})
+
+ConfigTab:CreateButton({
+   Name = "📂 Load Config",
+   Callback = function()
+      if configNameInput == "" then
+         Rayfield:Notify({
+            Title = "Error",
+            Content = "Enter a config name first!",
+            Duration = 3,
+         })
+         return
+      end
+
+      local success, message = loadConfig(configNameInput)
+      Rayfield:Notify({
+         Title = success and "Loaded" or "Error",
+         Content = message,
+         Duration = 3,
+      })
+
+      if success then
+         -- Refresh all UI elements
+         Window:LoadConfiguration()
+      end
+   end,
+})
+
+local ConfigListSection = ConfigTab:CreateSection("📋 Saved Configs")
+
+ConfigTab:CreateButton({
+   Name = "🔄 Refresh Config List",
+   Callback = function()
+      local configs = listConfigs()
+      local message = #configs > 0 and table.concat(configs, ", ") or "No configs found"
+      Rayfield:Notify({
+         Title = "Saved Configs",
+         Content = message,
+         Duration = 5,
+      })
+   end,
+})
+
+local AutoLoadSection = ConfigTab:CreateSection("🚀 Auto-Load")
+
+local AutoLoadInput = ConfigTab:CreateInput({
+   Name = "Auto-load config on startup",
+   PlaceholderText = "ConfigName",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      if Text ~= "" then
+         writefile("ZenithBGSI_AutoLoad.txt", Text)
+         Rayfield:Notify({
+            Title = "Auto-load Set",
+            Content = "Will load '" .. Text .. "' on next startup",
+            Duration = 3,
+         })
+      end
+   end,
+})
+
+ConfigTab:CreateLabel("Config auto-loads when script starts")
+
 -- === DATA TAB ===
 local DataTab = Window:CreateTab("📋 Data", 4483362458)
 
@@ -2688,11 +3155,32 @@ DataTab:CreateButton({
 -- Load saved stats message ID (persists across rejoins)
 loadStatsMessageId()
 
+-- Try to auto-load config if set
+task.spawn(function()
+    task.wait(2)  -- Wait for UI to fully load
+    pcall(function()
+        if isfile("ZenithBGSI_AutoLoad.txt") then
+            local configName = readfile("ZenithBGSI_AutoLoad.txt")
+            if configName and configName ~= "" then
+                local success, message = loadConfig(configName)
+                if success then
+                    Rayfield:Notify({
+                        Title = "Config Auto-Loaded",
+                        Content = configName,
+                        Duration = 3,
+                    })
+                end
+            end
+        end
+    end)
+end)
+
 -- Load egg and rift data from game modules (auto-updates with game versions)
--- print("📦 Fetching egg, rift, potion, enchant and team data from game...")
+-- print("📦 Fetching egg, rift, potion, powerup, enchant and team data from game...")
 loadGameEggData()
 loadGameRiftData()
 loadGamePotionData()
+loadGamePowerupData()
 loadGameEnchantData()
 loadGameTeamData()
 
@@ -2968,6 +3456,79 @@ task.spawn(function()
             end)
         end
 
+        -- ✅ Auto Enchant (with target tier/level)
+        if state.autoEnchantEnabled and state.enchantMain then
+            pcall(function()
+                -- Get LocalData to access pet info
+                local LocalData = require(RS.Client.Framework.Services.LocalData):Get()
+                if not LocalData or not LocalData.EquippedPets or #LocalData.EquippedPets == 0 then
+                    return
+                end
+
+                -- Get first equipped pet
+                local equippedPetId = LocalData.EquippedPets[1]
+                if not equippedPetId then return end
+
+                -- Get pet data
+                local petData = LocalData.Pets[equippedPetId]
+                if not petData then return end
+
+                -- Map tier names to minimum levels
+                local tierToLevel = {
+                    Common = 1,
+                    Uncommon = 2,
+                    Rare = 3,
+                    Epic = 4,
+                    Legendary = 5,
+                    Mythical = 5
+                }
+                local minLevel = tierToLevel[state.enchantTargetTier] or 3
+
+                -- Check current enchants
+                local currentEnchants = petData.Enchants or {}
+                local needsReroll = true
+
+                -- Check if pet has desired enchants at desired level
+                local mainSlotOk = false
+                local secondSlotOk = not state.enchantSecond  -- If no second enchant selected, it's ok
+
+                for _, enchant in ipairs(currentEnchants) do
+                    if enchant.Id then
+                        -- Check main slot
+                        if state.enchantMain and enchant.Id:lower():match(state.enchantMain:lower()) then
+                            if (enchant.Level or 1) >= minLevel then
+                                mainSlotOk = true
+                            end
+                        end
+
+                        -- Check second slot (if specified)
+                        if state.enchantSecond and enchant.Id:lower():match(state.enchantSecond:lower()) then
+                            if (enchant.Level or 1) >= minLevel then
+                                secondSlotOk = true
+                            end
+                        end
+                    end
+                end
+
+                -- Only reroll if not meeting requirements
+                if mainSlotOk and secondSlotOk then
+                    needsReroll = false
+                end
+
+                if needsReroll then
+                    -- Reroll enchants using Gems
+                    local success, newPetId, enchants = pcall(function()
+                        return RemoteFunc:InvokeServer("RerollEnchants", equippedPetId, "Gems", nil)
+                    end)
+
+                    -- Update stats counter
+                    if success then
+                        state.stats.enchants = (state.stats.enchants or 0) + 1
+                    end
+                end
+            end)
+        end
+
         -- ✅ Auto Collect Flowers (Spring Event)
         if state.autoCollectFlowers and state.springEventActive then
             pcall(function()
@@ -3052,6 +3613,71 @@ task.spawn(function()
                                 end
                             end
                         end
+                    end
+                end
+            end)
+        end
+
+        -- ✅ Auto Use Potions
+        if state.autoPotionEnabled and #state.selectedPotions > 0 then
+            pcall(function()
+                for _, potionName in ipairs(state.selectedPotions) do
+                    -- Extract level from potion name if it has one (e.g., "Coin Potion VII" -> 7)
+                    local level = nil
+                    local romanNumerals = {I=1, II=2, III=3, IV=4, V=5, VI=6, VII=7, VIII=8, IX=9, X=10}
+
+                    for roman, num in pairs(romanNumerals) do
+                        if potionName:match(roman .. "$") then
+                            level = num
+                            break
+                        end
+                    end
+
+                    -- Use the potion (game will check if player has it)
+                    Remote:FireServer("UsePotion", potionName, level)
+                end
+            end)
+        end
+
+        -- ✅ Auto Use Powerups
+        if state.autoPowerupEnabled and #state.selectedPowerups > 0 then
+            pcall(function()
+                for _, powerupName in ipairs(state.selectedPowerups) do
+                    -- Different powerups use different remotes
+                    if powerupName:match("Golden Orb") then
+                        Remote:FireServer("UseGoldenOrb")
+                    elseif powerupName:match("Power Orb") then
+                        -- Power Orb needs a pet ID - use first pet from best team
+                        local teams = analyzeTeams()
+                        if teams and teams.bestHatchTeam then
+                            local teamData = teams.teams[teams.bestHatchTeam]
+                            if teamData and teamData.pets and #teamData.pets > 0 then
+                                Remote:FireServer("UsePowerOrb", teamData.pets[1].Id)
+                            end
+                        end
+                    elseif powerupName:match("Fragment") then
+                        -- Extract fragment type (e.g., "Fire Fragment" -> "Fire")
+                        local fragType = powerupName:match("(%w+)%s+Fragment")
+                        if fragType then
+                            Remote:FireServer("UseFragment", fragType)
+                        end
+                    elseif powerupName:match("Rune") then
+                        -- Extract rune name and tier (e.g., "Strength Rune I" -> "Strength", 1)
+                        local runeName = powerupName:match("^(%w+)%s+Rune")
+                        local tier = 1
+                        if powerupName:match("II$") then tier = 2
+                        elseif powerupName:match("III$") then tier = 3 end
+
+                        if runeName then
+                            Remote:FireServer("UseRune", runeName, tier, 1)
+                        end
+                    elseif powerupName:match("Gift") or powerupName:match("Box") then
+                        Remote:FireServer("UseGift", powerupName, 1)
+                    elseif powerupName:match("Shadow Crystal") then
+                        Remote:FireServer("UseShadowCrystal")
+                    else
+                        -- Generic powerup - try UseGift as fallback
+                        Remote:FireServer("UseGift", powerupName, 1)
                     end
                 end
             end)
@@ -3722,6 +4348,12 @@ task.spawn(function()
     if #state.gamePotionList > 0 then
         pcall(function()
             PotionDropdown:Refresh(state.gamePotionList, true)
+        end)
+    end
+
+    if #state.gamePowerupList > 0 then
+        pcall(function()
+            PowerupDropdown:Refresh(state.gamePowerupList, true)
         end)
     end
 
