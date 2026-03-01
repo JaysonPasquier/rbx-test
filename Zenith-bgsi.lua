@@ -1740,70 +1740,80 @@ local function analyzeTeams()
             return
         end
 
-        for teamIndex, teamData in pairs(playerData.Teams) do
-            local teamName = teamData.Name or ("Team " .. teamIndex)
-            local hatchScore = 0
-            local statsScore = 0
+        -- Iterate through teams array (indexed [1], [2], [3], etc.)
+        for teamIndex = 1, #playerData.Teams do
+            local teamData = playerData.Teams[teamIndex]
+            if teamData then
+                -- Team name: custom name or default "Team 1", "Team 2", etc.
+                local teamName = teamData.Name or ("Team " .. teamIndex)
+                local hatchScore = 0
+                local statsScore = 0
+                local petCount = 0
 
-            -- Analyze pets in this team
-            if teamData.Pets then
-                for _, petId in pairs(teamData.Pets) do
-                    -- Find the pet in player's pet collection
-                    if playerData.Pets then
-                        for _, pet in pairs(playerData.Pets) do
-                            if pet.Id == petId then
-                                -- Check enchants
-                                if pet.Enchants then
-                                    for enchantId, enchantData in pairs(pet.Enchants) do
-                                        local enchantName = enchantId
-                                        local enchantLevel = enchantData.Level or 1
+                -- Analyze pets in this team (teamData.Pets is an array of pet IDs)
+                if teamData.Pets and type(teamData.Pets) == "table" then
+                    for _, petId in ipairs(teamData.Pets) do
+                        -- Find the pet in player's pet collection
+                        if playerData.Pets then
+                            for _, pet in pairs(playerData.Pets) do
+                                if pet.Id == petId then
+                                    petCount = petCount + 1
 
-                                        -- Hatch-focused enchants
-                                        if enchantName:lower():find("luck") or
-                                           enchantName:lower():find("boost") or
-                                           enchantName:lower():find("shiny") or
-                                           enchantName:lower():find("egg") then
-                                            hatchScore = hatchScore + (enchantLevel * 10)
-                                        end
+                                    -- Check enchants (enchants is an array with .Id and .Level)
+                                    if pet.Enchants and type(pet.Enchants) == "table" then
+                                        for _, enchant in ipairs(pet.Enchants) do
+                                            if enchant and enchant.Id then
+                                                local enchantName = tostring(enchant.Id):lower()
+                                                local enchantLevel = enchant.Level or 1
 
-                                        -- Stats-focused enchants
-                                        if enchantName:lower():find("rich") or
-                                           enchantName:lower():find("coins") or
-                                           enchantName:lower():find("gems") or
-                                           enchantName:lower():find("power") then
-                                            statsScore = statsScore + (enchantLevel * 10)
+                                                -- Hatch-focused enchants
+                                                if enchantName:find("luck") or
+                                                   enchantName:find("boost") or
+                                                   enchantName:find("shiny") or
+                                                   enchantName:find("egg") then
+                                                    hatchScore = hatchScore + (enchantLevel * 10)
+                                                end
+
+                                                -- Stats-focused enchants
+                                                if enchantName:find("rich") or
+                                                   enchantName:find("coins") or
+                                                   enchantName:find("gems") or
+                                                   enchantName:find("power") or
+                                                   enchantName:find("bubble") or
+                                                   enchantName:find("petal") then
+                                                    statsScore = statsScore + (enchantLevel * 10)
+                                                end
+                                            end
                                         end
                                     end
-                                end
 
-                                -- Check base stats (coins/gems generation)
-                                if pet.Stat then
-                                    statsScore = statsScore + (pet.Stat.Coins or 0) / 1000
-                                    statsScore = statsScore + (pet.Stat.Gems or 0) / 1000
+                                    break
                                 end
-
-                                break
                             end
                         end
                     end
                 end
-            end
 
-            teams[teamName] = {
-                index = teamIndex,
-                hatchScore = hatchScore,
-                statsScore = statsScore
-            }
+                -- Only add team if it has pets
+                if petCount > 0 then
+                    teams[teamName] = {
+                        index = teamIndex,
+                        hatchScore = hatchScore,
+                        statsScore = statsScore,
+                        pets = petCount
+                    }
 
-            -- Track best teams
-            if hatchScore > hatchBestScore then
-                hatchBestScore = hatchScore
-                hatchBestTeam = teamName
-            end
+                    -- Track best teams
+                    if hatchScore > hatchBestScore then
+                        hatchBestScore = hatchScore
+                        hatchBestTeam = teamName
+                    end
 
-            if statsScore > statsBestScore then
-                statsBestScore = statsScore
-                statsBestTeam = teamName
+                    if statsScore > statsBestScore then
+                        statsBestScore = statsScore
+                        statsBestTeam = teamName
+                    end
+                end
             end
         end
     end)
