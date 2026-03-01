@@ -1764,6 +1764,9 @@ local function analyzeTeams()
                 local hatchScore = 0
                 local statsScore = 0
                 local petCount = 0
+                local totalCoins = 0
+                local totalGems = 0
+                local totalBubbles = 0
 
                 -- Check Pets field
                 print("  - Pets exists:", teamData.Pets ~= nil)
@@ -1783,31 +1786,66 @@ local function analyzeTeams()
                                     petCount = petCount + 1
                                     print("      ✅ Found matching pet in collection")
 
+                                    -- Add base stats to team total
+                                    if pet.Stat then
+                                        totalCoins = totalCoins + (pet.Stat.Coins or 0)
+                                        totalGems = totalGems + (pet.Stat.Gems or 0)
+                                        totalBubbles = totalBubbles + (pet.Stat.Bubbles or 0)
+                                    end
+
                                     -- Check enchants (enchants is an array with .Id and .Level)
                                     if pet.Enchants and type(pet.Enchants) == "table" then
                                         print("      - Enchants count:", #pet.Enchants)
                                         for _, enchant in ipairs(pet.Enchants) do
                                             if enchant and enchant.Id then
-                                                local enchantName = tostring(enchant.Id):lower()
+                                                local enchantId = tostring(enchant.Id):lower()
                                                 local enchantLevel = enchant.Level or 1
-                                                print("        - Enchant:", enchantName, "Level:", enchantLevel)
+                                                print("        - Enchant:", enchantId, "Level:", enchantLevel)
 
-                                                -- Hatch-focused enchants
-                                                if enchantName:find("luck") or
-                                                   enchantName:find("boost") or
-                                                   enchantName:find("shiny") or
-                                                   enchantName:find("egg") then
-                                                    hatchScore = hatchScore + (enchantLevel * 10)
+                                                -- HATCH-FOCUSED ENCHANTS (Luck/Egg enchants)
+                                                if enchantId:find("high%-roller") then
+                                                    hatchScore = hatchScore + 100  -- High Roller: +10% luck
+                                                elseif enchantId:find("ultra%-roller") then
+                                                    hatchScore = hatchScore + 200  -- Ultra Roller: +20% luck (Special)
+                                                elseif enchantId:find("shiny%-seeker") then
+                                                    hatchScore = hatchScore + 150  -- Shiny Seeker: +1% shiny (Special)
+                                                elseif enchantId:find("secret%-hunter") then
+                                                    hatchScore = hatchScore + 200  -- Secret Hunter: +5% secret (Special)
+                                                elseif enchantId:find("super%-luck") then
+                                                    hatchScore = hatchScore + 250  -- Super Luck: +100% luck
+                                                elseif enchantId:find("super%-burst") then
+                                                    hatchScore = hatchScore + 150  -- Super Burst: 10x luck every 100 eggs
+                                                elseif enchantId:find("super%-speed") then
+                                                    hatchScore = hatchScore + 100  -- Super Speed: +75% hatch speed
+                                                elseif enchantId:find("super%-infinity") then
+                                                    hatchScore = hatchScore + 300  -- Super Infinity: +2.5% infinity chance
+                                                elseif enchantId:find("super%-duplication") then
+                                                    hatchScore = hatchScore + 400  -- Super Duplication: duplicate secret pets
+                                                elseif enchantId:find("infinity") and not enchantId:find("super") then
+                                                    hatchScore = hatchScore + 50   -- Infinity: reduces infinity egg cost
                                                 end
 
-                                                -- Stats-focused enchants
-                                                if enchantName:find("rich") or
-                                                   enchantName:find("coins") or
-                                                   enchantName:find("gems") or
-                                                   enchantName:find("power") or
-                                                   enchantName:find("bubble") or
-                                                   enchantName:find("petal") then
-                                                    statsScore = statsScore + (enchantLevel * 10)
+                                                -- STATS-FOCUSED ENCHANTS (Coin/Gem/Bubble generation)
+                                                if enchantId:find("looter") then
+                                                    -- Looter: +5-50% coin multiplier (levels 1-5)
+                                                    local bonus = ({5, 10, 25, 35, 50})[enchantLevel] or 50
+                                                    statsScore = statsScore + (bonus * 2)  -- x2 weight
+                                                elseif enchantId:find("bubbler") then
+                                                    -- Bubbler: +5-50% bubble (levels 1-5)
+                                                    local bonus = ({5, 10, 25, 35, 50})[enchantLevel] or 50
+                                                    statsScore = statsScore + (bonus * 2)  -- x2 weight
+                                                elseif enchantId:find("gleaming") then
+                                                    -- Gleaming: 5-35% chance to drop gems (levels 1-3)
+                                                    local bonus = ({5, 15, 35})[enchantLevel] or 35
+                                                    statsScore = statsScore + (bonus * 3)  -- x3 weight (gems valuable)
+                                                elseif enchantId:find("team%-up") then
+                                                    -- Team Up: +5-25% stats (levels 1-5)
+                                                    local bonus = ({5, 10, 15, 20, 25})[enchantLevel] or 25
+                                                    statsScore = statsScore + (bonus * 2)
+                                                elseif enchantId:find("determination") then
+                                                    statsScore = statsScore + 150  -- Determination: +50% stats (Special)
+                                                elseif enchantId:find("super%-bubble") then
+                                                    statsScore = statsScore + 300  -- Super Bubble: +150% bubble stats
                                                 end
                                             end
                                         end
@@ -1820,7 +1858,11 @@ local function analyzeTeams()
                     end
                 end
 
-                print("  📊 Team stats - Pets:", petCount, "Hatch:", hatchScore, "Stats:", statsScore)
+                -- Add base stats to score (scaled down to not overwhelm enchant scores)
+                statsScore = statsScore + (totalCoins / 10000) + (totalGems / 1000) + (totalBubbles / 10000)
+
+                print("  📊 Team stats - Pets:", petCount, "Hatch Score:", hatchScore, "Stats Score:", statsScore)
+                print("  💰 Base Stats - Coins:", totalCoins, "Gems:", totalGems, "Bubbles:", totalBubbles)
 
                 -- Only add team if it has pets
                 if petCount > 0 then
@@ -1828,7 +1870,10 @@ local function analyzeTeams()
                         index = teamIndex,
                         hatchScore = hatchScore,
                         statsScore = statsScore,
-                        pets = petCount
+                        pets = petCount,
+                        coins = totalCoins,
+                        gems = totalGems,
+                        bubbles = totalBubbles
                     }
 
                     -- Track best teams
@@ -1850,7 +1895,16 @@ local function analyzeTeams()
         print("❌ [Team Detection] Error:", error)
     end
 
-    print("✅ [Team Detection] Final teams count:", #teams)
+    -- Count teams properly (it's a dictionary, not an array)
+    local teamCount = 0
+    for _ in pairs(teams) do
+        teamCount = teamCount + 1
+    end
+
+    print("✅ [Team Detection] Final teams count:", teamCount)
+    print("🏆 [Team Detection] Best Hatch Team:", hatchBestTeam or "None", "Score:", hatchBestScore)
+    print("💰 [Team Detection] Best Stats Team:", statsBestTeam or "None", "Score:", statsBestScore)
+
     return teams, hatchBestTeam, statsBestTeam
 end
 
