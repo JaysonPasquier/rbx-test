@@ -1812,7 +1812,7 @@ end
 
 local function updateTeamDropdowns()
     local teams, bestHatch, bestStats = analyzeTeams()
-    local teamNames = {\"—\"}
+    local teamNames = {"—"}
 
     for name, _ in pairs(teams) do
         table.insert(teamNames, name)
