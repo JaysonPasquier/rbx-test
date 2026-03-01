@@ -1927,9 +1927,13 @@ MainTab:CreateButton({
          Duration = 2,
       })
 
-      -- Update dropdowns
-      HatchTeamDropdown:Refresh(teamNames, bestHatch and {bestHatch} or {"—"})
-      StatsTeamDropdown:Refresh(teamNames, bestStats and {bestStats} or {"—"})
+      -- Update dropdowns (only if they exist)
+      if HatchTeamDropdown then
+         HatchTeamDropdown:Refresh(teamNames, bestHatch and {bestHatch} or {"—"})
+      end
+      if StatsTeamDropdown then
+         StatsTeamDropdown:Refresh(teamNames, bestStats and {bestStats} or {"—"})
+      end
    end,
 })
 
