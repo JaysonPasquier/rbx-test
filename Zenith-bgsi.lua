@@ -3492,20 +3492,24 @@ task.spawn(function()
                 local mainSlotOk = false
                 local secondSlotOk = not state.enchantSecond  -- If no second enchant selected, it's ok
 
+                -- Create safe string versions of target enchants
+                local mainTarget = state.enchantMain and tostring(state.enchantMain):lower() or nil
+                local secondTarget = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
+
                 for _, enchant in ipairs(currentEnchants) do
                     if enchant and enchant.Id then
                         local enchantId = tostring(enchant.Id):lower()
                         local enchantLevel = enchant.Level or 1
 
                         -- Check main slot
-                        if state.enchantMain and enchantId:match(tostring(state.enchantMain):lower()) then
+                        if mainTarget and enchantId:match(mainTarget) then
                             if enchantLevel >= minLevel then
                                 mainSlotOk = true
                             end
                         end
 
                         -- Check second slot (if specified)
-                        if state.enchantSecond and enchantId:match(tostring(state.enchantSecond):lower()) then
+                        if secondTarget and enchantId:match(secondTarget) then
                             if enchantLevel >= minLevel then
                                 secondSlotOk = true
                             end
