@@ -3493,17 +3493,20 @@ task.spawn(function()
                 local secondSlotOk = not state.enchantSecond  -- If no second enchant selected, it's ok
 
                 for _, enchant in ipairs(currentEnchants) do
-                    if enchant.Id then
+                    if enchant and enchant.Id then
+                        local enchantId = tostring(enchant.Id):lower()
+                        local enchantLevel = enchant.Level or 1
+
                         -- Check main slot
-                        if state.enchantMain and enchant.Id:lower():match(state.enchantMain:lower()) then
-                            if (enchant.Level or 1) >= minLevel then
+                        if state.enchantMain and enchantId:match(state.enchantMain:lower()) then
+                            if enchantLevel >= minLevel then
                                 mainSlotOk = true
                             end
                         end
 
                         -- Check second slot (if specified)
-                        if state.enchantSecond and enchant.Id:lower():match(state.enchantSecond:lower()) then
-                            if (enchant.Level or 1) >= minLevel then
+                        if state.enchantSecond and enchantId:match(state.enchantSecond:lower()) then
+                            if enchantLevel >= minLevel then
                                 secondSlotOk = true
                             end
                         end
@@ -3622,19 +3625,21 @@ task.spawn(function()
         if state.autoPotionEnabled and #state.selectedPotions > 0 then
             pcall(function()
                 for _, potionName in ipairs(state.selectedPotions) do
-                    -- Extract level from potion name if it has one (e.g., "Coin Potion VII" -> 7)
-                    local level = nil
-                    local romanNumerals = {I=1, II=2, III=3, IV=4, V=5, VI=6, VII=7, VIII=8, IX=9, X=10}
+                    if potionName and type(potionName) == "string" then
+                        -- Extract level from potion name if it has one (e.g., "Coin Potion VII" -> 7)
+                        local level = nil
+                        local romanNumerals = {I=1, II=2, III=3, IV=4, V=5, VI=6, VII=7, VIII=8, IX=9, X=10}
 
-                    for roman, num in pairs(romanNumerals) do
-                        if potionName:match(roman .. "$") then
-                            level = num
-                            break
+                        for roman, num in pairs(romanNumerals) do
+                            if potionName:match(roman .. "$") then
+                                level = num
+                                break
+                            end
                         end
-                    end
 
-                    -- Use the potion (game will check if player has it)
-                    Remote:FireServer("UsePotion", potionName, level)
+                        -- Use the potion (game will check if player has it)
+                        Remote:FireServer("UsePotion", potionName, level)
+                    end
                 end
             end)
         end
@@ -3643,41 +3648,43 @@ task.spawn(function()
         if state.autoPowerupEnabled and #state.selectedPowerups > 0 then
             pcall(function()
                 for _, powerupName in ipairs(state.selectedPowerups) do
-                    -- Different powerups use different remotes
-                    if powerupName:match("Golden Orb") then
-                        Remote:FireServer("UseGoldenOrb")
-                    elseif powerupName:match("Power Orb") then
-                        -- Power Orb needs a pet ID - use first pet from best team
-                        local teams = analyzeTeams()
-                        if teams and teams.bestHatchTeam then
-                            local teamData = teams.teams[teams.bestHatchTeam]
-                            if teamData and teamData.pets and #teamData.pets > 0 then
-                                Remote:FireServer("UsePowerOrb", teamData.pets[1].Id)
+                    if powerupName and type(powerupName) == "string" then
+                        -- Different powerups use different remotes
+                        if powerupName:match("Golden Orb") then
+                            Remote:FireServer("UseGoldenOrb")
+                        elseif powerupName:match("Power Orb") then
+                            -- Power Orb needs a pet ID - use first pet from best team
+                            local teams = analyzeTeams()
+                            if teams and teams.bestHatchTeam then
+                                local teamData = teams.teams[teams.bestHatchTeam]
+                                if teamData and teamData.pets and #teamData.pets > 0 then
+                                    Remote:FireServer("UsePowerOrb", teamData.pets[1].Id)
+                                end
                             end
-                        end
-                    elseif powerupName:match("Fragment") then
-                        -- Extract fragment type (e.g., "Fire Fragment" -> "Fire")
-                        local fragType = powerupName:match("(%w+)%s+Fragment")
-                        if fragType then
-                            Remote:FireServer("UseFragment", fragType)
-                        end
-                    elseif powerupName:match("Rune") then
-                        -- Extract rune name and tier (e.g., "Strength Rune I" -> "Strength", 1)
-                        local runeName = powerupName:match("^(%w+)%s+Rune")
-                        local tier = 1
-                        if powerupName:match("II$") then tier = 2
-                        elseif powerupName:match("III$") then tier = 3 end
+                        elseif powerupName:match("Fragment") then
+                            -- Extract fragment type (e.g., "Fire Fragment" -> "Fire")
+                            local fragType = powerupName:match("(%w+)%s+Fragment")
+                            if fragType then
+                                Remote:FireServer("UseFragment", fragType)
+                            end
+                        elseif powerupName:match("Rune") then
+                            -- Extract rune name and tier (e.g., "Strength Rune I" -> "Strength", 1)
+                            local runeName = powerupName:match("^(%w+)%s+Rune")
+                            local tier = 1
+                            if powerupName:match("II$") then tier = 2
+                            elseif powerupName:match("III$") then tier = 3 end
 
-                        if runeName then
-                            Remote:FireServer("UseRune", runeName, tier, 1)
+                            if runeName then
+                                Remote:FireServer("UseRune", runeName, tier, 1)
+                            end
+                        elseif powerupName:match("Gift") or powerupName:match("Box") then
+                            Remote:FireServer("UseGift", powerupName, 1)
+                        elseif powerupName:match("Shadow Crystal") then
+                            Remote:FireServer("UseShadowCrystal")
+                        else
+                            -- Generic powerup - try UseGift as fallback
+                            Remote:FireServer("UseGift", powerupName, 1)
                         end
-                    elseif powerupName:match("Gift") or powerupName:match("Box") then
-                        Remote:FireServer("UseGift", powerupName, 1)
-                    elseif powerupName:match("Shadow Crystal") then
-                        Remote:FireServer("UseShadowCrystal")
-                    else
-                        -- Generic powerup - try UseGift as fallback
-                        Remote:FireServer("UseGift", powerupName, 1)
                     end
                 end
             end)
