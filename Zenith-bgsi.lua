@@ -3645,15 +3645,11 @@ task.spawn(function()
 
                 -- Reroll if we don't have any of the desired enchants
                 if not hasDesiredEnchant then
-                    -- Reroll enchants using Gems
-                    local success, newPetId, enchants = pcall(function()
-                        return RemoteFunc:InvokeServer("RerollEnchants", firstPetId, "Gems", nil)
+                    -- Reroll all enchants using Gems
+                    pcall(function()
+                        local RemoteFunction = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
+                        RemoteFunction:InvokeServer("RerollEnchants", firstPetId, "Gems")
                     end)
-
-                    -- Update stats counter
-                    if success then
-                        state.stats.enchants = (state.stats.enchants or 0) + 1
-                    end
                 end
             end)
         end
