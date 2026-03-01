@@ -3594,49 +3594,83 @@ task.spawn(function()
             pcall(function()
                 -- Get LocalData to access team and pet info
                 local LocalData = require(RS.Client.Framework.Services.LocalData):Get()
-                if not LocalData or not LocalData.Teams then
+                if not LocalData then
+                    print("❌ [Auto Enchant] LocalData is nil")
+                    return
+                end
+
+                if not LocalData.Teams then
+                    print("❌ [Auto Enchant] LocalData.Teams is nil")
                     return
                 end
 
                 -- Get currently equipped team index
                 local equippedTeamIndex = LocalData.EquippedTeam
-                if not equippedTeamIndex then return end
-
-                -- Get the team data
-                local team = LocalData.Teams[equippedTeamIndex]
-                if not team or not team.Pets or #team.Pets == 0 then
+                if not equippedTeamIndex then
+                    print("❌ [Auto Enchant] No equipped team")
                     return
                 end
 
+                print("✅ [Auto Enchant] Equipped team index:", equippedTeamIndex)
+
+                -- Get the team data
+                local team = LocalData.Teams[equippedTeamIndex]
+                if not team then
+                    print("❌ [Auto Enchant] Team data is nil for index", equippedTeamIndex)
+                    return
+                end
+
+                if not team.Pets or #team.Pets == 0 then
+                    print("❌ [Auto Enchant] No pets in team")
+                    return
+                end
+
+                print("✅ [Auto Enchant] Team has", #team.Pets, "pets")
+
                 -- Get first pet ID from the team
                 local firstPetId = team.Pets[1]
-                if not firstPetId then return end
+                if not firstPetId then
+                    print("❌ [Auto Enchant] First pet ID is nil")
+                    return
+                end
+
+                print("✅ [Auto Enchant] First pet ID:", firstPetId)
 
                 -- Get pet data
                 local petData = LocalData.Pets[firstPetId]
-                if not petData then return end
+                if not petData then
+                    print("❌ [Auto Enchant] Pet data is nil for ID", firstPetId)
+                    return
+                end
 
                 -- Check current enchants
                 local currentEnchants = petData.Enchants or {}
+                print("✅ [Auto Enchant] Current enchants count:", #currentEnchants)
+
                 local hasDesiredEnchant = false
 
                 -- Create safe string versions of target enchants
                 local mainTarget = state.enchantMain and tostring(state.enchantMain):lower() or nil
                 local secondTarget = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
 
+                print("✅ [Auto Enchant] Looking for:", mainTarget, "or", secondTarget)
+
                 -- Check if pet has ANY of the desired enchants
-                for _, enchant in ipairs(currentEnchants) do
+                for i, enchant in ipairs(currentEnchants) do
                     if enchant and enchant.Id then
                         local enchantId = tostring(enchant.Id):lower()
+                        print("  Enchant slot " .. i .. ":", enchantId)
 
                         -- Check if this enchant matches main target
                         if mainTarget and enchantId:find(mainTarget) then
+                            print("✅ [Auto Enchant] Found main target:", enchantId)
                             hasDesiredEnchant = true
                             break
                         end
 
                         -- Check if this enchant matches second target
                         if secondTarget and enchantId:find(secondTarget) then
+                            print("✅ [Auto Enchant] Found second target:", enchantId)
                             hasDesiredEnchant = true
                             break
                         end
@@ -3645,11 +3679,20 @@ task.spawn(function()
 
                 -- Reroll if we don't have any of the desired enchants
                 if not hasDesiredEnchant then
+                    print("🔄 [Auto Enchant] Rerolling enchants for pet:", firstPetId)
                     -- Reroll all enchants using Gems
-                    pcall(function()
+                    local success, result = pcall(function()
                         local RemoteFunction = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
-                        RemoteFunction:InvokeServer("RerollEnchants", firstPetId, "Gems")
+                        return RemoteFunction:InvokeServer("RerollEnchants", firstPetId, "Gems")
                     end)
+
+                    if success then
+                        print("✅ [Auto Enchant] Reroll successful")
+                    else
+                        print("❌ [Auto Enchant] Reroll failed:", result)
+                    end
+                else
+                    print("✅ [Auto Enchant] Pet already has desired enchant!")
                 end
             end)
         end
