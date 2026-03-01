@@ -3498,14 +3498,14 @@ task.spawn(function()
                         local enchantLevel = enchant.Level or 1
 
                         -- Check main slot
-                        if state.enchantMain and enchantId:match(state.enchantMain:lower()) then
+                        if state.enchantMain and enchantId:match(tostring(state.enchantMain):lower()) then
                             if enchantLevel >= minLevel then
                                 mainSlotOk = true
                             end
                         end
 
                         -- Check second slot (if specified)
-                        if state.enchantSecond and enchantId:match(state.enchantSecond:lower()) then
+                        if state.enchantSecond and enchantId:match(tostring(state.enchantSecond):lower()) then
                             if enchantLevel >= minLevel then
                                 secondSlotOk = true
                             end
