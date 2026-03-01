@@ -151,6 +151,7 @@ local state = {
     enchantSecond = nil,
     autoEnchantEnabled = false,
     enchantTargetTier = "Epic",  -- NEW: Target tier for auto-enchant
+    currentEnchantPetIndex = 1,  -- Track which pet in team we're currently enchanting
     -- Powerups
     gamePowerupList = {},
     selectedPowerups = {},
@@ -2284,7 +2285,7 @@ local AutoPotionToggle = FarmTab:CreateToggle({
 
 -- === AUTO ENCHANT ===
 local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
-FarmTab:CreateLabel("Enchant first pet in equipped team")
+FarmTab:CreateLabel("Enchants all pets in team (one at a time)")
 
 local EnchantMainDropdown = FarmTab:CreateDropdown({
    Name = "Enchant #1 (target)",
@@ -2322,7 +2323,7 @@ local EnchantSecondDropdown = FarmTab:CreateDropdown({
 })
 
 local AutoEnchantToggle = FarmTab:CreateToggle({
-   Name = "Auto Enchant (first pet in team)",
+   Name = "Auto Enchant (all pets in team)",
    CurrentValue = false,
    Flag = "AutoEnchant",
    Callback = function(Value)
@@ -3589,110 +3590,86 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Enchant (first pet in equipped team)
+        -- ✅ Auto Enchant (all pets in equipped team, one at a time)
         if state.autoEnchantEnabled and state.enchantMain then
             pcall(function()
                 -- Get LocalData to access team and pet info
                 local LocalData = require(RS.Client.Framework.Services.LocalData):Get()
                 if not LocalData then
-                    print("❌ [Auto Enchant] LocalData is nil")
                     return
                 end
 
                 if not LocalData.Teams then
-                    print("❌ [Auto Enchant] LocalData.Teams is nil")
                     return
                 end
 
-                -- Get currently equipped team index
-                local equippedTeamIndex = LocalData.EquippedTeam
-                if not equippedTeamIndex then
-                    print("❌ [Auto Enchant] No equipped team")
-                    return
+                -- Try multiple methods to find equipped team
+                local equippedTeamIndex = nil
+                local team = nil
+
+                -- Method 1: Check LocalData.EquippedTeam
+                if LocalData.EquippedTeam then
+                    equippedTeamIndex = LocalData.EquippedTeam
+                    team = LocalData.Teams[equippedTeamIndex]
                 end
 
-                print("✅ [Auto Enchant] Equipped team index:", equippedTeamIndex)
-
-                -- Get the team data
-                local team = LocalData.Teams[equippedTeamIndex]
+                -- Method 2: Find team with Equipped = true
                 if not team then
-                    print("❌ [Auto Enchant] Team data is nil for index", equippedTeamIndex)
-                    return
+                    for idx, t in pairs(LocalData.Teams) do
+                        if t.Equipped == true then
+                            equippedTeamIndex = idx
+                            team = t
+                            break
+                        end
+                    end
                 end
 
-                if not team.Pets or #team.Pets == 0 then
-                    print("❌ [Auto Enchant] No pets in team")
-                    return
-                end
 
-                print("✅ [Auto Enchant] Team has", #team.Pets, "pets")
-
-                -- Get first pet ID from the team
-                local firstPetId = team.Pets[1]
-                if not firstPetId then
-                    print("❌ [Auto Enchant] First pet ID is nil")
-                    return
-                end
-
-                print("✅ [Auto Enchant] First pet ID:", firstPetId)
-
-                -- Get pet data
-                local petData = LocalData.Pets[firstPetId]
+                local petData = LocalData.Pets[currentPetId]
                 if not petData then
-                    print("❌ [Auto Enchant] Pet data is nil for ID", firstPetId)
+                    state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
                     return
                 end
 
                 -- Check current enchants
                 local currentEnchants = petData.Enchants or {}
-                print("✅ [Auto Enchant] Current enchants count:", #currentEnchants)
-
                 local hasDesiredEnchant = false
 
                 -- Create safe string versions of target enchants
                 local mainTarget = state.enchantMain and tostring(state.enchantMain):lower() or nil
                 local secondTarget = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
 
-                print("✅ [Auto Enchant] Looking for:", mainTarget, "or", secondTarget)
-
                 -- Check if pet has ANY of the desired enchants
-                for i, enchant in ipairs(currentEnchants) do
+                for _, enchant in ipairs(currentEnchants) do
                     if enchant and enchant.Id then
                         local enchantId = tostring(enchant.Id):lower()
-                        print("  Enchant slot " .. i .. ":", enchantId)
 
                         -- Check if this enchant matches main target
                         if mainTarget and enchantId:find(mainTarget) then
-                            print("✅ [Auto Enchant] Found main target:", enchantId)
                             hasDesiredEnchant = true
                             break
                         end
 
                         -- Check if this enchant matches second target
                         if secondTarget and enchantId:find(secondTarget) then
-                            print("✅ [Auto Enchant] Found second target:", enchantId)
                             hasDesiredEnchant = true
                             break
                         end
                     end
                 end
 
-                -- Reroll if we don't have any of the desired enchants
-                if not hasDesiredEnchant then
-                    print("🔄 [Auto Enchant] Rerolling enchants for pet:", firstPetId)
-                    -- Reroll all enchants using Gems
-                    local success, result = pcall(function()
-                        local RemoteFunction = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
-                        return RemoteFunction:InvokeServer("RerollEnchants", firstPetId, "Gems")
-                    end)
-
-                    if success then
-                        print("✅ [Auto Enchant] Reroll successful")
-                    else
-                        print("❌ [Auto Enchant] Reroll failed:", result)
+                -- If pet has desired enchant, move to next pet
+                if hasDesiredEnchant then
+                    state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
+                    if state.currentEnchantPetIndex > #team.Pets then
+                        state.currentEnchantPetIndex = 1
                     end
                 else
-                    print("✅ [Auto Enchant] Pet already has desired enchant!")
+                    -- Reroll current pet's enchants
+                    pcall(function()
+                        local RemoteFunction = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
+                        RemoteFunction:InvokeServer("RerollEnchants", currentPetId, "Gems")
+                    end)
                 end
             end)
         end
