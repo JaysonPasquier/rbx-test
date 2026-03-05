@@ -50,7 +50,7 @@ local Window = Rayfield:CreateWindow({
    DisableBuildWarnings = true,
 
    ConfigurationSaving = {
-      Enabled = true,
+      Enabled = false,  -- Disabled: Using custom JSON config system instead
       FolderName = nil,
       FileName = "Zenith_BGSI"
    },
@@ -116,6 +116,9 @@ local state = {
     fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
     fishingRodEquipped = false,  -- NEW: Track if rod is currently equipped
     lastFishingAttempt = 0,  -- NEW: Timestamp of last fishing attempt
+    fishingAreaIndex = 1,  -- NEW: Current fishing area index (cycles through spots if stuck)
+    lastSuccessfulCast = 0,  -- NEW: Timestamp of last successful cast (to detect stuck spots)
+    fishingStuckCheckTime = 0,  -- NEW: Time when we started checking if stuck
     currentRifts = {},
     currentEggs = {},
     currentChests = {},
@@ -148,9 +151,12 @@ local state = {
     -- Auto enchant
     gameEnchantList = {},
     enchantMain = nil,
+    enchantMainTier = 1,  -- 1-5 for I-V
+    enchantMainEnabled = true,  -- Enable slot 1 checking
     enchantSecond = nil,
+    enchantSecondTier = 1,  -- 1-5 for I-V
+    enchantSecondEnabled = true,  -- Enable slot 2 checking
     autoEnchantEnabled = false,
-    enchantTargetTier = "Epic",  -- NEW: Target tier for auto-enchant
     currentEnchantPetIndex = 1,  -- Track which pet in team we're currently enchanting
     -- Powerups
     gamePowerupList = {},
@@ -173,7 +179,8 @@ local state = {
     },
     startTime = tick(),
     labels = {},
-    currencyLabels = {}  -- NEW: Labels for all currencies
+    currencyLabels = {},  -- NEW: Labels for all currencies
+    uiElements = {}  -- NEW: Store UI element references for updating when loading configs
 }
 
 -- === MODIFIER CHANCES & STATS (from Constants) ===
@@ -718,9 +725,21 @@ local function loadGameEnchantData()
         if data and data:IsA("ModuleScript") then
             local enchantData = require(data)
             state.gameEnchantList = {}
+            local addedEnchants = {}  -- Track unique base names
+
             for name, _ in pairs(enchantData) do
-                table.insert(state.gameEnchantList, name)
+                -- Remove tier suffix (I, II, III, IV, V) to get base name
+                local baseName = name:gsub("%s+[IVX]+$", "")  -- Remove Roman numerals at end
+
+                -- Only add if we haven't seen this base name before
+                if not addedEnchants[baseName] then
+                    table.insert(state.gameEnchantList, baseName)
+                    addedEnchants[baseName] = true
+                end
             end
+
+            -- Sort alphabetically
+            table.sort(state.gameEnchantList)
         end
     end)
 end
@@ -1586,6 +1605,12 @@ local function saveConfig(configName)
         return false, "Config name cannot be empty"
     end
 
+    -- Debug: Print current state values before saving
+    print("📝 Preparing to save config: " .. configName)
+    print("🔍 Current state.webhookUrl: " .. tostring(state.webhookUrl))
+    print("🔍 Current state.webhookPingUserId: " .. tostring(state.webhookPingUserId))
+    print("🔍 Current state.fishingIsland: " .. tostring(state.fishingIsland))
+
     local config = {
         -- Farm settings
         autoBlow = state.autoBlow,
@@ -1616,10 +1641,12 @@ local function saveConfig(configName)
 
         -- Enchant settings
         enchantMain = state.enchantMain,
-        enchantSecond = state.enchantSecond,
-        autoEnchantEnabled = state.autoEnchantEnabled,
-        enchantTargetTier = state.enchantTargetTier,
-
+      enchantMainTier = state.enchantMainTier,
+      enchantMainEnabled = state.enchantMainEnabled,
+      enchantSecond = state.enchantSecond,
+      enchantSecondTier = state.enchantSecondTier,
+      enchantSecondEnabled = state.enchantSecondEnabled,
+      autoEnchantEnabled = state.autoEnchantEnabled,
         -- Webhook settings
         webhookUrl = state.webhookUrl,
         webhookRarities = state.webhookRarities,
@@ -1639,8 +1666,14 @@ local function saveConfig(configName)
     end)
 
     if success then
-        writefile("ZenithBGSI_Config_" .. configName .. ".json", encoded)
+        local fileName = "ZenithBGSI_Config_" .. configName .. ".json"
+        writefile(fileName, encoded)
         state.savedConfigs[configName] = config
+        print("💾 Config saved to: " .. fileName)
+        print("📊 Config size: " .. #encoded .. " bytes")
+        print("🔍 Webhook URL saved: " .. tostring(config.webhookUrl ~= "" and "Yes (" .. #config.webhookUrl .. " chars)" or "Empty"))
+        print("🔍 Webhook Ping User ID saved: " .. tostring(config.webhookPingUserId ~= "" and "Yes (" .. config.webhookPingUserId .. ")" or "Empty"))
+        print("🔍 Fishing Island saved: " .. tostring(config.fishingIsland or "nil"))
         return true, "Config saved successfully"
     else
         return false, "Failed to encode config: " .. tostring(encoded)
@@ -1698,9 +1731,12 @@ local function loadConfig(configName)
     state.autoPowerupEnabled = config.autoPowerupEnabled or false
 
     state.enchantMain = config.enchantMain
+    state.enchantMainTier = config.enchantMainTier or 1
+    state.enchantMainEnabled = config.enchantMainEnabled ~= false  -- Default true
     state.enchantSecond = config.enchantSecond
+    state.enchantSecondTier = config.enchantSecondTier or 1
+    state.enchantSecondEnabled = config.enchantSecondEnabled ~= false  -- Default true
     state.autoEnchantEnabled = config.autoEnchantEnabled or false
-    state.enchantTargetTier = config.enchantTargetTier or "Epic"
 
     state.webhookUrl = config.webhookUrl or ""
     state.webhookRarities = config.webhookRarities or state.webhookRarities
@@ -1714,20 +1750,102 @@ local function loadConfig(configName)
     state.fishingRod = config.fishingRod or "Wooden Rod"
 
     state.savedConfigs[configName] = config
+
+    print("✅ Config loaded from: " .. fileName)
+    print("🔍 Webhook URL loaded: " .. (state.webhookUrl ~= "" and "Yes (" .. #state.webhookUrl .. " chars)" or "Empty"))
+    print("🔍 Webhook Ping User ID loaded: " .. (state.webhookPingUserId ~= "" and "Yes (" .. state.webhookPingUserId .. ")" or "Empty"))
+    print("🔍 Fishing Island loaded: " .. tostring(state.fishingIsland or "nil"))
+
+    -- Update UI elements to match loaded config values
+    print("🔄 Updating UI elements...")
+    local ui = state.uiElements
+
+    -- Update toggles (if they exist)
+    if ui.DisableAnimToggle then pcall(function() ui.DisableAnimToggle:Set(state.disableHatchAnimation) end) end
+    if ui.AutoBlowToggle then pcall(function() ui.AutoBlowToggle:Set(state.autoBlow) end) end
+    if ui.AutoPickupToggle then pcall(function() ui.AutoPickupToggle:Set(state.autoPickup) end) end
+    if ui.AutoHatchToggle then pcall(function() ui.AutoHatchToggle:Set(state.autoHatch) end) end
+    if ui.AutoChestToggle then pcall(function() ui.AutoChestToggle:Set(state.autoChest) end) end
+    if ui.AutoSellBubblesToggle then pcall(function() ui.AutoSellBubblesToggle:Set(state.autoSellBubbles) end) end
+    if ui.AutoClaimEventPrizesToggle then pcall(function() ui.AutoClaimEventPrizesToggle:Set(state.autoClaimEventPrizes) end) end
+    if ui.AutoClaimPlaytimeToggle then pcall(function() ui.AutoClaimPlaytimeToggle:Set(state.autoClaimPlaytime) end) end
+    if ui.AntiAFKToggle then pcall(function() ui.AntiAFKToggle:Set(state.antiAFK) end) end
+    if ui.AutoFishToggle then pcall(function() ui.AutoFishToggle:Set(state.autoFishEnabled) end) end
+    if ui.AutoPotionToggle then pcall(function() ui.AutoPotionToggle:Set(state.autoPotionEnabled) end) end
+    if ui.AutoPowerupToggle then pcall(function() ui.AutoPowerupToggle:Set(state.autoPowerupEnabled) end) end
+    if ui.AutoEnchantToggle then pcall(function() ui.AutoEnchantToggle:Set(state.autoEnchantEnabled) end) end
+    if ui.EnchantMainToggle then pcall(function() ui.EnchantMainToggle:Set(state.enchantMainEnabled) end) end
+    if ui.EnchantSecondToggle then pcall(function() ui.EnchantSecondToggle:Set(state.enchantSecondEnabled) end) end
+    if ui.PriorityEggModeToggle then pcall(function() ui.PriorityEggModeToggle:Set(state.priorityEggMode) end) end
+    if ui.RiftPriorityModeToggle then pcall(function() ui.RiftPriorityModeToggle:Set(state.riftPriorityMode) end) end
+    if ui.RiftAutoHatchToggle then pcall(function() ui.RiftAutoHatchToggle:Set(state.riftAutoHatch) end) end
+    if ui.WebhookStatsToggle then pcall(function() ui.WebhookStatsToggle:Set(state.webhookStatsEnabled) end) end
+    if ui.WebhookPingToggle then pcall(function() ui.WebhookPingToggle:Set(state.webhookPingEnabled) end) end
+
+    -- Update inputs (if they exist)
+    if ui.WebhookInput then pcall(function() ui.WebhookInput:Set(state.webhookUrl) end) end
+    if ui.PingUserInput then pcall(function() ui.PingUserInput:Set(state.webhookPingUserId) end) end
+    if ui.ChanceThresholdInput then pcall(function() ui.ChanceThresholdInput:Set(tostring(state.webhookChanceThreshold)) end) end
+
+    -- Update dropdowns (if they exist)
+    if ui.FishingIslandDropdown and state.fishingIsland then pcall(function() ui.FishingIslandDropdown:Set(state.fishingIsland) end) end
+    if ui.FishingRodDropdown then pcall(function() ui.FishingRodDropdown:Set(state.fishingRod) end) end
+    if ui.HatchTeamDropdown and state.hatchTeam then pcall(function() ui.HatchTeamDropdown:Set(state.hatchTeam) end) end
+    if ui.StatsTeamDropdown and state.statsTeam then pcall(function() ui.StatsTeamDropdown:Set(state.statsTeam) end) end
+    if ui.EnchantMainDropdown and state.enchantMain then pcall(function() ui.EnchantMainDropdown:Set(state.enchantMain) end) end
+    if ui.EnchantSecondDropdown and state.enchantSecond then pcall(function() ui.EnchantSecondDropdown:Set(state.enchantSecond) end) end
+
+    -- Update sliders (if they exist)
+    if ui.EnchantMainSlider then pcall(function() ui.EnchantMainSlider:Set(state.enchantMainTier) end) end
+    if ui.EnchantSecondSlider then pcall(function() ui.EnchantSecondSlider:Set(state.enchantSecondTier) end) end
+    if ui.MaxEggsSlider then pcall(function() ui.MaxEggsSlider:Set(state.maxEggs) end) end
+
+    print("✅ UI elements updated successfully")
+
     return true, "Config loaded successfully"
 end
 
 local function listConfigs()
     local configs = {}
-    pcall(function()
-        for _, file in pairs(listfiles()) do
-            local fileName = file:match(".+ ([^/\\]+)$") or file
-            if fileName:match("^ZenithBGSI_Config_(.+)%.json$") then
-                local configName = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
-                table.insert(configs, configName)
+    local success, err = pcall(function()
+        -- Delta executor requires folder path for listfiles()
+        local allFiles = listfiles(".") or listfiles() or {}
+        for i, file in pairs(allFiles) do
+            -- Print full path for debugging (first 10 files)
+            if i <= 10 or file:lower():find("zenithbgsi") then
+                print("  📄 File " .. i .. ": " .. file)
+
+                -- Extract filename from path (handle both / and \ separators)
+                local fileName = file:match("([^/\\]+)$") or file
+                print("    → Extracted: '" .. fileName .. "'")
+
+                -- Test pattern match
+                local matches = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
+                print("    → Pattern match result: " .. tostring(matches))
+
+                -- Check if it matches our config pattern
+                if fileName:match("^ZenithBGSI_Config_(.+)%.json$") then
+                    local configName = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
+                    table.insert(configs, configName)
+                    print("    ✅ FOUND CONFIG: " .. configName)
+                end
+            end
+        end
+
+        -- Also try case-insensitive search
+        print("\n🔍 Trying case-insensitive search for 'zenith'...")
+        for _, file in pairs(allFiles) do
+            if file:lower():find("zenith") then
+                print("  🔎 Found file with 'zenith': " .. file)
             end
         end
     end)
+
+    if not success then
+        print("❌ Error listing config files: " .. tostring(err))
+    end
+
+    print("\n📋 Total configs found: " .. #configs)
     return configs
 end
 
@@ -2031,11 +2149,11 @@ MainTab:CreateButton({
    Name = "🔄 Detect Teams",
    Callback = function()
       local teamNames, bestHatch, bestStats = updateTeamDropdowns()
-      Rayfield:Notify({
-         Title = "Teams Detected",
-         Content = (#teamNames - 1) .. " teams found",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Teams Detected",
+      -- Content = (#teamNames - 1) .. " teams found",
+      -- Duration = 2,
+      -- })
 
       -- Update dropdowns (only if they exist)
       if HatchTeamDropdown then
@@ -2072,6 +2190,7 @@ local HatchTeamDropdown = MainTab:CreateDropdown({
       end
    end,
 })
+state.uiElements.HatchTeamDropdown = HatchTeamDropdown
 
 local StatsTeamDropdown = MainTab:CreateDropdown({
    Name = "Stats Team (Coins/Gems enchants)",
@@ -2098,6 +2217,7 @@ local StatsTeamDropdown = MainTab:CreateDropdown({
       end
    end,
 })
+state.uiElements.StatsTeamDropdown = StatsTeamDropdown
 
 local OptimizationSection = MainTab:CreateSection("⚡ Performance")
 
@@ -2107,13 +2227,14 @@ local DisableAnimToggle = MainTab:CreateToggle({
    Flag = "DisableAnimation",
    Callback = function(Value)
       state.disableHatchAnimation = Value
-      Rayfield:Notify({
-         Title = "Egg Animation",
-         Content = Value and "Disabled (faster hatching)" or "Enabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Egg Animation",
+      -- Content = Value and "Disabled (faster hatching)" or "Enabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.DisableAnimToggle = DisableAnimToggle
 
 local AntiAFKToggle = MainTab:CreateToggle({
    Name = "🛡️ Anti-AFK",
@@ -2121,13 +2242,14 @@ local AntiAFKToggle = MainTab:CreateToggle({
    Flag = "AntiAFK",
    Callback = function(Value)
       state.antiAFK = Value
-      Rayfield:Notify({
-         Title = "Anti-AFK",
-         Content = Value and "Enabled" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Anti-AFK",
+      -- Content = Value and "Enabled" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.AntiAFKToggle = AntiAFKToggle
 
 -- === FARM TAB ===
 local FarmTab = Window:CreateTab("🔧 Farm", 4483362458)
@@ -2149,14 +2271,15 @@ local AutoBlowToggle = FarmTab:CreateToggle({
          end)
       end
 
-      Rayfield:Notify({
-         Title = "Auto Blow",
-         Content = Value and "Enabled" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Blow",
+      -- Content = Value and "Enabled" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AutoBlowToggle = AutoBlowToggle
 
 local AutoPickupToggle = FarmTab:CreateToggle({
    Name = "💰 Auto Collect Pickups",
@@ -2164,14 +2287,15 @@ local AutoPickupToggle = FarmTab:CreateToggle({
    Flag = "AutoPickup",
    Callback = function(Value)
       state.autoPickup = Value
-      Rayfield:Notify({
-         Title = "Auto Pickup",
-         Content = Value and "Enabled - Collecting coins/gems" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Pickup",
+      -- Content = Value and "Enabled - Collecting coins/gems" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AutoPickupToggle = AutoPickupToggle
 
 local AutoChestToggle = FarmTab:CreateToggle({
    Name = "📦 Auto Open Chests",
@@ -2179,14 +2303,15 @@ local AutoChestToggle = FarmTab:CreateToggle({
    Flag = "AutoChest",
    Callback = function(Value)
       state.autoChest = Value
-      Rayfield:Notify({
-         Title = "Auto Chest",
-         Content = Value and "Enabled - Opening all chests" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Chest",
+      -- Content = Value and "Enabled - Opening all chests" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AutoChestToggle = AutoChestToggle
 
 local AutoSellBubblesToggle = FarmTab:CreateToggle({
    Name = "💸 Auto Sell Bubbles",
@@ -2194,14 +2319,15 @@ local AutoSellBubblesToggle = FarmTab:CreateToggle({
    Flag = "AutoSellBubbles",
    Callback = function(Value)
       state.autoSellBubbles = Value
-      Rayfield:Notify({
-         Title = "Auto Sell",
-         Content = Value and "Enabled - Selling bubbles for coins" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Sell",
+      -- Content = Value and "Enabled - Selling bubbles for coins" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AutoSellBubblesToggle = AutoSellBubblesToggle
 
 -- DISABLED: Auto Claim Event Prizes (Not working correctly)
 -- local AutoClaimEventToggle = FarmTab:CreateToggle({
@@ -2229,12 +2355,12 @@ local AdminEventToggle = FarmTab:CreateToggle({
    Flag = "AdminEvent",
    Callback = function(Value)
       state.adminEventActive = Value
-      Rayfield:Notify({
-         Title = "Admin Event Detector",
-         Content = Value and "Monitoring for Admin/Super events" or "Disabled",
-         Duration = 3,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Admin Event Detector",
+      -- Content = Value and "Monitoring for Admin/Super events" or "Disabled",
+      -- Duration = 3,
+      -- Image = 4483362458,
+      -- })
    end,
 })
 
@@ -2246,14 +2372,15 @@ local AutoClaimToggle = FarmTab:CreateToggle({
    Flag = "AutoClaim",
    Callback = function(Value)
       state.autoClaimPlaytime = Value
-      Rayfield:Notify({
-         Title = "Auto Claim",
-         Content = Value and "Enabled - Claiming gifts every minute" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Claim",
+      -- Content = Value and "Enabled - Claiming gifts every minute" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AutoClaimPlaytimeToggle = AutoClaimToggle
 
 -- === AUTO POTIONS ===
 local PotionSection = FarmTab:CreateSection("🧪 Auto Potions")
@@ -2275,19 +2402,24 @@ local AutoPotionToggle = FarmTab:CreateToggle({
    Flag = "AutoPotion",
    Callback = function(Value)
       state.autoPotionEnabled = Value
-      Rayfield:Notify({
-         Title = "Auto Potion",
-         Content = Value and "Enabled - Re-applying selected potions" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Potion",
+      -- Content = Value and "Enabled - Re-applying selected potions" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.AutoPotionToggle = AutoPotionToggle
 
--- === AUTO ENCHANT ===
-local EnchantSection = FarmTab:CreateSection("✨ Auto Enchant")
-FarmTab:CreateLabel("Enchants all pets in team (one at a time)")
+-- === ENCHANT TAB ===
+local EnchantTab = Window:CreateTab("✨ Enchant", 4483362458)
 
-local EnchantMainDropdown = FarmTab:CreateDropdown({
+local EnchantSection = EnchantTab:CreateSection("✨ Auto Enchant")
+EnchantTab:CreateLabel("Enchants all pets in equipped team")
+EnchantTab:CreateLabel("Cycles through pets one at a time")
+EnchantTab:CreateLabel("Tier: I=1, II=2, III=3, IV=4, V=5")
+
+local EnchantMainDropdown = EnchantTab:CreateDropdown({
    Name = "Enchant #1 (target)",
    Options = {"Loading..."},
    CurrentOption = {"Loading..."},
@@ -2301,8 +2433,32 @@ local EnchantMainDropdown = FarmTab:CreateDropdown({
       end
    end,
 })
+state.uiElements.EnchantMainDropdown = EnchantMainDropdown
 
-local EnchantSecondDropdown = FarmTab:CreateDropdown({
+local EnchantMainTierSlider = EnchantTab:CreateSlider({
+   Name = "Enchant #1 Tier (I-V)",
+   Range = {1, 5},
+   Increment = 1,
+   CurrentValue = 1,
+   Flag = "EnchantMainTier",
+   Callback = function(Value)
+      state.enchantMainTier = Value
+   end,
+})
+state.uiElements.EnchantMainTierSlider = EnchantMainTierSlider
+state.uiElements.EnchantMainSlider = EnchantMainTierSlider  -- Alias for loadConfig
+
+local EnchantMainCheckToggle = EnchantTab:CreateToggle({
+   Name = "✅ Check Slot #1",
+   CurrentValue = true,
+   Flag = "EnchantMainEnabled",
+   Callback = function(Value)
+      state.enchantMainEnabled = Value
+   end,
+})
+state.uiElements.EnchantMainToggle = EnchantMainCheckToggle
+
+local EnchantSecondDropdown = EnchantTab:CreateDropdown({
    Name = "Enchant #2 (optional)",
    Options = {"Loading..."},
    CurrentOption = {"Loading..."},
@@ -2312,7 +2468,7 @@ local EnchantSecondDropdown = FarmTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "Loading..." then
          if Option[1] == state.enchantMain then
             state.enchantSecond = nil
-            Rayfield:Notify({ Title = "Enchant", Content = "Second slot can't be same as main", Duration = 2 })
+      -- Rayfield:Notify({ Title = "Enchant", Content = "Second slot can't be same as main", Duration = 2 })
          else
             state.enchantSecond = Option[1]
          end
@@ -2321,20 +2477,45 @@ local EnchantSecondDropdown = FarmTab:CreateDropdown({
       end
    end,
 })
+state.uiElements.EnchantSecondDropdown = EnchantSecondDropdown
 
-local AutoEnchantToggle = FarmTab:CreateToggle({
-   Name = "Auto Enchant (all pets in team)",
+local EnchantSecondTierSlider = EnchantTab:CreateSlider({
+   Name = "Enchant #2 Tier (I-V)",
+   Range = {1, 5},
+   Increment = 1,
+   CurrentValue = 1,
+   Flag = "EnchantSecondTier",
+   Callback = function(Value)
+      state.enchantSecondTier = Value
+   end,
+})
+state.uiElements.EnchantSecondTierSlider = EnchantSecondTierSlider
+state.uiElements.EnchantSecondSlider = EnchantSecondTierSlider  -- Alias for loadConfig
+
+local EnchantSecondCheckToggle = EnchantTab:CreateToggle({
+   Name = "✅ Check Slot #2",
+   CurrentValue = true,
+   Flag = "EnchantSecondEnabled",
+   Callback = function(Value)
+      state.enchantSecondEnabled = Value
+   end,
+})
+state.uiElements.EnchantSecondToggle = EnchantSecondCheckToggle
+
+local AutoEnchantToggle = EnchantTab:CreateToggle({
+   Name = "🔮 Enable Auto Enchant",
    CurrentValue = false,
    Flag = "AutoEnchant",
    Callback = function(Value)
       state.autoEnchantEnabled = Value
-      Rayfield:Notify({
-         Title = "Auto Enchant",
-         Content = Value and "Enabled" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Enchant",
+      -- Content = Value and "Enabled" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.AutoEnchantToggle = AutoEnchantToggle
 
 -- === AUTO FISHING ===
 local FishingSection = FarmTab:CreateSection("🎣 Auto Fishing")
@@ -2349,15 +2530,19 @@ local FishingIslandDropdown = FarmTab:CreateDropdown({
       if Option and Option[1] and Option[1] ~= "Scanning..." then
          state.fishingIsland = Option[1]
          state.fishingTeleported = false  -- Reset teleport flag when island changes
+         state.fishingAreaIndex = 1  -- Reset to first fishing spot
+         state.lastSuccessfulCast = 0
+         state.fishingStuckCheckTime = 0
          log("🎣 [Fishing] Island changed to: " .. state.fishingIsland)
-         Rayfield:Notify({
-            Title = "Fishing Island",
-            Content = "Changed to " .. state.fishingIsland,
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Fishing Island",
+      -- Content = "Changed to " .. state.fishingIsland,
+      -- Duration = 2,
+      -- })
       end
    end,
 })
+state.uiElements.FishingIslandDropdown = FishingIslandDropdown
 
 local FishingRodDropdown = FarmTab:CreateDropdown({
    Name = "Select Fishing Rod",
@@ -2369,14 +2554,15 @@ local FishingRodDropdown = FarmTab:CreateDropdown({
       if Option and Option[1] then
          state.fishingRod = Option[1]
          log("🎣 [Fishing] Rod changed to: " .. state.fishingRod)
-         Rayfield:Notify({
-            Title = "Fishing Rod",
-            Content = "Using " .. state.fishingRod,
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Fishing Rod",
+      -- Content = "Using " .. state.fishingRod,
+      -- Duration = 2,
+      -- })
       end
    end,
 })
+state.uiElements.FishingRodDropdown = FishingRodDropdown
 
 local UpdateBestIslandButton = FarmTab:CreateButton({
    Name = "🏆 Auto-Select Best Island",
@@ -2385,19 +2571,22 @@ local UpdateBestIslandButton = FarmTab:CreateButton({
       if bestIsland then
          state.fishingIsland = bestIsland
          state.fishingTeleported = false  -- Reset teleport flag
+         state.fishingAreaIndex = 1  -- Reset to first fishing spot
+         state.lastSuccessfulCast = 0
+         state.fishingStuckCheckTime = 0
          log("🏆 [Fishing] Updated to best island: " .. bestIsland)
-         Rayfield:Notify({
-            Title = "Best Island Selected",
-            Content = "Now fishing at " .. bestIsland,
-            Duration = 3,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Best Island Selected",
+      -- Content = "Now fishing at " .. bestIsland,
+      -- Duration = 3,
+      -- Image = 4483362458,
+      -- })
       else
-         Rayfield:Notify({
-            Title = "No Islands Available",
-            Content = "No unlocked fishing islands found",
-            Duration = 3,
-         })
+      -- Rayfield:Notify({
+      -- Title = "No Islands Available",
+      -- Content = "No unlocked fishing islands found",
+      -- Duration = 3,
+      -- })
       end
    end,
 })
@@ -2412,23 +2601,24 @@ local AutoFishToggle = FarmTab:CreateToggle({
          state.fishingTeleported = false  -- Reset on enable
          local island = state.fishingIsland or "No island selected"
          log("🎣 [Fishing] Auto fishing ENABLED - Island: " .. island)
-         Rayfield:Notify({
-            Title = "Auto Fishing",
-            Content = "Enabled - " .. (state.fishingIsland and ("Fishing at " .. state.fishingIsland) or "Select an island first"),
-            Duration = 2,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Auto Fishing",
+      -- Content = "Enabled - " .. (state.fishingIsland and ("Fishing at " .. state.fishingIsland) or "Select an island first"),
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
       else
          log("🎣 [Fishing] Auto fishing DISABLED")
-         Rayfield:Notify({
-            Title = "Auto Fishing",
-            Content = "Disabled",
-            Duration = 2,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Auto Fishing",
+      -- Content = "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
       end
    end,
 })
+state.uiElements.AutoFishToggle = AutoFishToggle
 
 FarmTab:CreateLabel("Auto-fishes at selected island")
 FarmTab:CreateLabel("NOTE: You must own the selected rod!")
@@ -2444,14 +2634,15 @@ local AntiAFKToggle = FarmTab:CreateToggle({
    Flag = "AntiAFK",
    Callback = function(Value)
       state.antiAFK = Value
-      Rayfield:Notify({
-         Title = "Anti-AFK",
-         Content = Value and "Enabled - Won't be kicked" or "Disabled",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Anti-AFK",
+      -- Content = Value and "Enabled - Won't be kicked" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
+state.uiElements.AntiAFKToggle = AntiAFKToggle
 
 FarmTab:CreateLabel("Prevents Roblox from kicking you (every 15-19 min)")
 
@@ -2477,12 +2668,12 @@ if EventTab then
         Flag = "AutoFlowers",
         Callback = function(Value)
             state.autoCollectFlowers = Value
-            Rayfield:Notify({
-                Title = "Auto Collect Flowers",
-                Content = Value and "Enabled - Collecting flowers" or "Disabled",
-                Duration = 2,
-                Image = 4483362458,
-            })
+      -- Rayfield:Notify({
+      -- Title = "Auto Collect Flowers",
+      -- Content = Value and "Enabled - Collecting flowers" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
         end,
     })
 
@@ -2501,12 +2692,12 @@ if EventTab then
         Callback = function(Option)
             if Option and Option[1] then
                 state.flowersEggChoice = Option[1]
-                Rayfield:Notify({
-                    Title = "Flower + Egg Combo",
-                    Content = "Egg set to: " .. Option[1],
-                    Duration = 2,
-                    Image = 4483362458,
-                })
+      -- Rayfield:Notify({
+      -- Title = "Flower + Egg Combo",
+      -- Content = "Egg set to: " .. Option[1],
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
             end
         end,
     })
@@ -2518,12 +2709,12 @@ if EventTab then
         Callback = function(Value)
             state.autoFlowersEgg = Value
             state.lastFlowerEggTeleport = 0  -- Reset timer
-            Rayfield:Notify({
-                Title = "Auto Flowers + Egg",
-                Content = Value and "Enabled - Farm flowers at egg!" or "Disabled",
-                Duration = 2,
-                Image = 4483362458,
-            })
+      -- Rayfield:Notify({
+      -- Title = "Auto Flowers + Egg",
+      -- Content = Value and "Enabled - Farm flowers at egg!" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
         end,
     })
 
@@ -2539,12 +2730,12 @@ if EventTab then
         Flag = "AutoWheel",
         Callback = function(Value)
             state.autoWheelSpin = Value
-            Rayfield:Notify({
-                Title = "Auto Wheel Spin",
-                Content = Value and "Enabled - Spinning wheel" or "Disabled",
-                Duration = 2,
-                Image = 4483362458,
-            })
+      -- Rayfield:Notify({
+      -- Title = "Auto Wheel Spin",
+      -- Content = Value and "Enabled - Spinning wheel" or "Disabled",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
         end,
     })
 
@@ -2571,12 +2762,12 @@ local EggDropdown = EggsTab:CreateDropdown({
             if egg.name == selectedEgg then
                state.eggPriority = selectedEgg
                tpToModel(egg.instance)
-               Rayfield:Notify({
-                  Title = "Egg Selected",
-                  Content = "Set normal egg: " .. selectedEgg,
-                  Duration = 2,
-                  Image = 4483362458,
-               })
+      -- Rayfield:Notify({
+      -- Title = "Egg Selected",
+      -- Content = "Set normal egg: " .. selectedEgg,
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
                break
             end
          end
@@ -2601,22 +2792,23 @@ local AutoHatchToggle = EggsTab:CreateToggle({
             end)
          end
 
-         Rayfield:Notify({
-            Title = "Auto Hatch Enabled",
-            Content = "Hatching eggs from: " .. (state.eggPriority or "Select an egg first!"),
-            Duration = 3,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Auto Hatch Enabled",
+      -- Content = "Hatching eggs from: " .. (state.eggPriority or "Select an egg first!"),
+      -- Duration = 3,
+      -- Image = 4483362458,
+      -- })
       else
          state.lastEggPosition = nil
-         Rayfield:Notify({
-            Title = "Auto Hatch Disabled",
-            Content = "Stopped auto-hatching",
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Auto Hatch Disabled",
+      -- Content = "Stopped auto-hatching",
+      -- Duration = 2,
+      -- })
       end
    end,
 })
+state.uiElements.AutoHatchToggle = AutoHatchToggle
 
 local DisableHatchAnimToggle = EggsTab:CreateToggle({
    Name = "Disable egg hatching animation",
@@ -2624,11 +2816,11 @@ local DisableHatchAnimToggle = EggsTab:CreateToggle({
    Flag = "DisableHatchAnim",
    Callback = function(Value)
       state.disableHatchAnimation = Value
-      Rayfield:Notify({
-         Title = "Hatch animation",
-         Content = Value and "Disabled (animation will be stopped)" or "Enabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Hatch animation",
+      -- Content = Value and "Disabled (animation will be stopped)" or "Enabled",
+      -- Duration = 2,
+      -- })
    end,
 })
 
@@ -2652,13 +2844,14 @@ local PriorityEggToggle = EggsTab:CreateToggle({
    Flag = "PriorityEggMode",
    Callback = function(Value)
       state.priorityEggMode = Value
-      Rayfield:Notify({
-         Title = "Priority Egg Mode",
-         Content = Value and "Will auto-switch to priority eggs" or "Priority detection disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Priority Egg Mode",
+      -- Content = Value and "Will auto-switch to priority eggs" or "Priority detection disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.PriorityEggModeToggle = PriorityEggToggle
 
 -- === RIFTS TAB ===
 local RiftsTab = Window:CreateTab("🌌 Rifts", 4483362458)
@@ -2683,12 +2876,12 @@ local RiftDropdown = RiftsTab:CreateDropdown({
             if rift.name == riftName or rift.displayText == selectedRift then
                state.riftPriority = rift.name
                tpToModel(rift.instance)
-               Rayfield:Notify({
-                  Title = "Rift Selected",
-                  Content = "Set rift: " .. rift.name,
-                  Duration = 2,
-                  Image = 4483362458,
-               })
+      -- Rayfield:Notify({
+      -- Title = "Rift Selected",
+      -- Content = "Set rift: " .. rift.name,
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
                break
             end
          end
@@ -2702,13 +2895,14 @@ local RiftAutoHatchToggle = RiftsTab:CreateToggle({
    Flag = "RiftAutoHatch",
    Callback = function(Value)
       state.riftAutoHatch = Value
-      Rayfield:Notify({
-         Title = "Rift Auto Hatch",
-         Content = Value and "Enabled" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Rift Auto Hatch",
+      -- Content = Value and "Enabled" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.RiftAutoHatchToggle = RiftAutoHatchToggle
 
 local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
 
@@ -2731,21 +2925,22 @@ local PriorityRiftToggle = RiftsTab:CreateToggle({
    Callback = function(Value)
       state.riftPriorityMode = Value
       if Value then
-         Rayfield:Notify({
-            Title = "Priority Rift Enabled",
-            Content = "Will auto-switch to priority rifts when they spawn",
-            Duration = 3,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Priority Rift Enabled",
+      -- Content = "Will auto-switch to priority rifts when they spawn",
+      -- Duration = 3,
+      -- Image = 4483362458,
+      -- })
       else
-         Rayfield:Notify({
-            Title = "Priority Rift Disabled",
-            Content = "Back to normal rift farming",
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Priority Rift Disabled",
+      -- Content = "Back to normal rift farming",
+      -- Duration = 2,
+      -- })
       end
    end,
 })
+state.uiElements.RiftPriorityModeToggle = PriorityRiftToggle
 
 -- === WEBHOOK TAB ===
 local WebTab = Window:CreateTab("📊 Webhook", 4483362458)
@@ -2760,15 +2955,17 @@ local WebhookInput = WebTab:CreateInput({
       state.webhookUrl = Text
    end,
 })
+state.uiElements.WebhookInput = WebhookInput
 
 local WebhookStatsToggle = WebTab:CreateToggle({
    Name = "📊 Send Stats",
    CurrentValue = true,
    Flag = "WebhookStats",
    Callback = function(Value)
-      state.webhookStats = Value
+      state.webhookStatsEnabled = Value
    end,
 })
+state.uiElements.WebhookStatsToggle = WebhookStatsToggle
 
 local PingSection = WebTab:CreateSection("📢 Discord Ping")
 
@@ -2780,6 +2977,7 @@ local PingToggle = WebTab:CreateToggle({
       state.webhookPingEnabled = Value
    end,
 })
+state.uiElements.WebhookPingToggle = PingToggle
 
 local PingUserInput = WebTab:CreateInput({
    Name = "Discord User ID",
@@ -2789,6 +2987,7 @@ local PingUserInput = WebTab:CreateInput({
       state.webhookPingUserId = Text
    end,
 })
+state.uiElements.PingUserInput = PingUserInput
 
 WebTab:CreateLabel("Pings the user when legendary+ pet hatches")
 
@@ -2873,20 +3072,21 @@ local ChanceThresholdInput = WebTab:CreateInput({
          state.webhookChanceThreshold = value
          local formatted = value >= 1000000 and string.format("%.1fM", value/1000000) or
                           value >= 1000 and string.format("%.1fK", value/1000) or tostring(value)
-         Rayfield:Notify({
-            Title = "Chance Filter Updated",
-            Content = "Only sends pets rarer than 1/" .. formatted,
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Chance Filter Updated",
+      -- Content = "Only sends pets rarer than 1/" .. formatted,
+      -- Duration = 2,
+      -- })
       else
-         Rayfield:Notify({
-            Title = "Invalid Value",
-            Content = "Please enter a positive number",
-            Duration = 2,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Invalid Value",
+      -- Content = "Please enter a positive number",
+      -- Duration = 2,
+      -- })
       end
    end,
 })
+state.uiElements.ChanceThresholdInput = ChanceThresholdInput
 
 WebTab:CreateLabel("Only send pets with rarity ≥ threshold")
 WebTab:CreateLabel("Example: 100000000 = only 1 in 100M+ pets")
@@ -2906,11 +3106,11 @@ local StatsWebhookToggle = WebTab:CreateToggle({
          -- Send first stats immediately
          SendStatsWebhook()
       end
-      Rayfield:Notify({
-         Title = "Stats Webhook",
-         Content = Value and "Enabled - Sending stats periodically" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Stats Webhook",
+      -- Content = Value and "Enabled - Sending stats periodically" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
 
@@ -2922,11 +3122,11 @@ local StatsIntervalSlider = WebTab:CreateSlider({
    Flag = "StatsInterval",
    Callback = function(Value)
       state.webhookStatsInterval = Value
-      Rayfield:Notify({
-         Title = "Interval Updated",
-         Content = "Stats will send every " .. Value .. " seconds",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Interval Updated",
+      -- Content = "Stats will send every " .. Value .. " seconds",
+      -- Duration = 2,
+      -- })
    end,
 })
 
@@ -2964,11 +3164,11 @@ WebTab:CreateButton({
 -- print("   Template frames should appear as children when hatching.")
 -- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-      Rayfield:Notify({
-         Title = "Diagnostics Complete",
-         Content = "Check console (F9) for details",
-         Duration = 3,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Diagnostics Complete",
+      -- Content = "Check console (F9) for details",
+      -- Duration = 3,
+      -- })
    end,
 })
 
@@ -2976,21 +3176,21 @@ local WebhookTestButton = WebTab:CreateButton({
    Name = "🧪 Test Webhook (Simple)",
    Callback = function()
       if state.webhookUrl == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Please add webhook URL first!",
-            Duration = 3,
-            Image = 4483362458,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Error",
+      -- Content = "Please add webhook URL first!",
+      -- Duration = 3,
+      -- Image = 4483362458,
+      -- })
          return
       end
       SendWebhook(state.webhookUrl, "**🧼 BGSI Test** " .. os.date("%H:%M"))
-      Rayfield:Notify({
-         Title = "Test Sent",
-         Content = "Check your Discord!",
-         Duration = 2,
-         Image = 4483362458,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Test Sent",
+      -- Content = "Check your Discord!",
+      -- Duration = 2,
+      -- Image = 4483362458,
+      -- })
    end,
 })
 
@@ -2998,11 +3198,11 @@ WebTab:CreateButton({
    Name = "🎉 Test Pet Hatch Webhook",
    Callback = function()
       if state.webhookUrl == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Add webhook URL first!",
-            Duration = 3,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Error",
+      -- Content = "Add webhook URL first!",
+      -- Duration = 3,
+      -- })
          return
       end
       -- Send test with a random Secret pet
@@ -3018,11 +3218,11 @@ WebTab:CreateButton({
       local testShiny = math.random() > 0.5
       local testMythic = math.random() > 0.8
       SendPetHatchWebhook(testData.name, state.eggPriority or "Test Egg", testData.rarity, testXL, testShiny, false, testMythic)
-      Rayfield:Notify({
-         Title = "Pet Hatch Test Sent",
-         Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or "") .. (testMythic and " [Mythic]" or ""),
-         Duration = 3,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Pet Hatch Test Sent",
+      -- Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or "") .. (testMythic and " [Mythic]" or ""),
+      -- Duration = 3,
+      -- })
    end,
 })
 
@@ -3030,19 +3230,19 @@ WebTab:CreateButton({
    Name = "📊 Test Stats Webhook",
    Callback = function()
       if state.webhookUrl == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Add webhook URL first!",
-            Duration = 3,
-         })
+      -- Rayfield:Notify({
+      -- Title = "Error",
+      -- Content = "Add webhook URL first!",
+      -- Duration = 3,
+      -- })
          return
       end
       SendStatsWebhook()
-      Rayfield:Notify({
-         Title = "Stats Webhook Sent",
-         Content = "Check your Discord!",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Stats Webhook Sent",
+      -- Content = "Check your Discord!",
+      -- Duration = 2,
+      -- })
    end,
 })
 
@@ -3053,11 +3253,11 @@ WebTab:CreateButton({
       if delfile and isfile and isfile(STATS_MESSAGE_FILE) then
          pcall(delfile, STATS_MESSAGE_FILE)
       end
-      Rayfield:Notify({
-         Title = "Message Reset",
-         Content = "Next stats webhook will create a new message",
-         Duration = 3,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Message Reset",
+      -- Content = "Next stats webhook will create a new message",
+      -- Duration = 3,
+      -- })
    end,
 })
 
@@ -3083,13 +3283,14 @@ local PowerupToggle = PowerupsTab:CreateToggle({
    Flag = "AutoPowerups",
    Callback = function(Value)
       state.autoPowerupEnabled = Value
-      Rayfield:Notify({
-         Title = "Auto Powerups",
-         Content = Value and "Enabled" or "Disabled",
-         Duration = 2,
-      })
+      -- Rayfield:Notify({
+      -- Title = "Auto Powerups",
+      -- Content = Value and "Enabled" or "Disabled",
+      -- Duration = 2,
+      -- })
    end,
 })
+state.uiElements.AutoPowerupToggle = PowerupToggle
 
 PowerupsTab:CreateLabel("Uses selected powerups when available")
 
@@ -3098,99 +3299,143 @@ local ConfigTab = Window:CreateTab("⚙️ Config", 4483362458)
 
 local ConfigSection = ConfigTab:CreateSection("💾 Save/Load Configuration")
 
-local configNameInput = ""
+local selectedConfig = nil
 
-local ConfigNameInput = ConfigTab:CreateInput({
-   Name = "Config Name",
-   PlaceholderText = "MyConfig",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      configNameInput = Text
-      state.currentConfigName = Text
-   end,
-})
-
-ConfigTab:CreateButton({
-   Name = "💾 Save Config",
-   Callback = function()
-      if configNameInput == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Enter a config name first!",
-            Duration = 3,
-         })
-         return
-      end
-
-      local success, message = saveConfig(configNameInput)
-      Rayfield:Notify({
-         Title = success and "Saved" or "Error",
-         Content = message,
-         Duration = 3,
-      })
-   end,
-})
-
-ConfigTab:CreateButton({
-   Name = "📂 Load Config",
-   Callback = function()
-      if configNameInput == "" then
-         Rayfield:Notify({
-            Title = "Error",
-            Content = "Enter a config name first!",
-            Duration = 3,
-         })
-         return
-      end
-
-      local success, message = loadConfig(configNameInput)
-      Rayfield:Notify({
-         Title = success and "Loaded" or "Error",
-         Content = message,
-         Duration = 3,
-      })
-
-      if success then
-         -- Refresh all UI elements
-         Window:LoadConfiguration()
+-- Dropdown for config selection
+local ConfigDropdown = ConfigTab:CreateDropdown({
+   Name = "Select Config",
+   Options = {"No configs found"},
+   CurrentOption = {"No configs found"},
+   MultipleOptions = false,
+   Flag = "SelectedConfig",
+   Callback = function(Option)
+      if Option and Option[1] and Option[1] ~= "No configs found" then
+         selectedConfig = Option[1]
+         state.currentConfigName = Option[1]
+      else
+         selectedConfig = nil
       end
    end,
 })
 
-local ConfigListSection = ConfigTab:CreateSection("📋 Saved Configs")
-
+-- Refresh button to update dropdown list
 ConfigTab:CreateButton({
    Name = "🔄 Refresh Config List",
    Callback = function()
       local configs = listConfigs()
-      local message = #configs > 0 and table.concat(configs, ", ") or "No configs found"
-      Rayfield:Notify({
-         Title = "Saved Configs",
-         Content = message,
-         Duration = 5,
-      })
-   end,
-})
+      print("📋 Found " .. #configs .. " config(s)")
 
-local AutoLoadSection = ConfigTab:CreateSection("🚀 Auto-Load")
-
-local AutoLoadInput = ConfigTab:CreateInput({
-   Name = "Auto-load config on startup",
-   PlaceholderText = "ConfigName",
-   RemoveTextAfterFocusLost = false,
-   Callback = function(Text)
-      if Text ~= "" then
-         writefile("ZenithBGSI_AutoLoad.txt", Text)
-         Rayfield:Notify({
-            Title = "Auto-load Set",
-            Content = "Will load '" .. Text .. "' on next startup",
-            Duration = 3,
-         })
+      if #configs > 0 then
+         table.insert(configs, "— Create New —")
+         pcall(function()
+            ConfigDropdown:Refresh(configs, true)  -- true = keep current selection if possible
+            print("✅ Dropdown refreshed with " .. (#configs - 1) .. " config(s)")
+            -- Set first config as selected if nothing is selected
+            if not selectedConfig or selectedConfig == "No configs found" then
+               selectedConfig = configs[1]
+            end
+         end)
+      else
+         pcall(function()
+            ConfigDropdown:Refresh({"No configs found"}, true)
+            selectedConfig = nil
+            print("📋 No configs found")
+         end)
       end
    end,
 })
 
-ConfigTab:CreateLabel("Config auto-loads when script starts")
+-- Input for new config name (when creating new)
+local newConfigName = ""
+ConfigTab:CreateInput({
+   Name = "New Config Name (for Create New)",
+   PlaceholderText = "MyNewConfig",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      newConfigName = Text
+   end,
+})
+
+-- Save button (overwrites selected OR creates new)
+ConfigTab:CreateButton({
+   Name = "💾 Save Config",
+   Callback = function()
+      local nameToSave = selectedConfig
+
+      -- If "Create New" is selected, use the input field
+      if selectedConfig == "— Create New —" or not selectedConfig or selectedConfig == "No configs found" then
+         if newConfigName == "" then
+            print("❌ Enter a name in 'New Config Name' field!")
+            return
+         end
+         nameToSave = newConfigName
+      end
+
+      local success, message = saveConfig(nameToSave)
+      if success then
+         print("✅ Config saved: " .. nameToSave)
+         -- Auto-refresh dropdown
+         task.wait(0.1)  -- Small delay to ensure file is written
+         local configs = listConfigs()
+         if #configs > 0 then
+            table.insert(configs, "— Create New —")
+            ConfigDropdown:Refresh(configs, true)
+            selectedConfig = nameToSave
+            print("🔄 Dropdown refreshed, showing " .. (#configs - 1) .. " config(s)")
+         end
+      else
+         print("❌ Save failed: " .. message)
+      end
+   end,
+})
+
+-- Load button
+ConfigTab:CreateButton({
+   Name = "📂 Load Config",
+   Callback = function()
+      if not selectedConfig or selectedConfig == "No configs found" or selectedConfig == "— Create New —" then
+         print("❌ Select a config from the dropdown first!")
+         return
+      end
+
+      local success, message = loadConfig(selectedConfig)
+      if success then
+         print("✅ Config loaded: " .. selectedConfig)
+      else
+         print("❌ Load failed: " .. message)
+      end
+   end,
+})
+
+local ConfigListSection = ConfigTab:CreateSection("📋 Auto-Refresh")
+
+ConfigTab:CreateLabel("Dropdown auto-refreshes on startup")
+
+local AutoLoadSection = ConfigTab:CreateSection("🚀 Auto-Load")
+
+ConfigTab:CreateButton({
+   Name = "🚀 Set Selected as Auto-Load",
+   Callback = function()
+      if selectedConfig and selectedConfig ~= "No configs found" and selectedConfig ~= "— Create New —" then
+         writefile("ZenithBGSI_AutoLoad.txt", selectedConfig)
+         print("✅ Auto-load set to: " .. selectedConfig)
+      else
+         print("❌ Select a config first!")
+      end
+   end,
+})
+
+ConfigTab:CreateButton({
+   Name = "❌ Disable Auto-Load",
+   Callback = function()
+      if isfile("ZenithBGSI_AutoLoad.txt") then
+         pcall(function() delfile("ZenithBGSI_AutoLoad.txt") end)
+         print("✅ Auto-load disabled")
+      end
+   end,
+})
+
+ConfigTab:CreateLabel("Auto-load runs when script starts")
 
 -- === DATA TAB ===
 local DataTab = Window:CreateTab("📋 Data", 4483362458)
@@ -3231,11 +3476,11 @@ DataTab:CreateButton({
 -- print("=== END SCAN ===\n")
       end)
 
-      Rayfield:Notify({
-         Title = "Scan Complete",
-         Content = "Check console (F9)",
-         Duration = 3
-      })
+      -- Rayfield:Notify({
+      -- Title = "Scan Complete",
+      -- Content = "Check console (F9)",
+      -- Duration = 3
+      -- })
    end
 })
 
@@ -3249,11 +3494,11 @@ DataTab:CreateButton({
 -- print("✅ Sent BlowBubble command!")
       end)
 
-      Rayfield:Notify({
-         Title = "Bubble Blown!",
-         Content = "Manual test successful",
-         Duration = 2
-      })
+      -- Rayfield:Notify({
+      -- Title = "Bubble Blown!",
+      -- Content = "Manual test successful",
+      -- Duration = 2
+      -- })
    end
 })
 
@@ -3268,17 +3513,17 @@ DataTab:CreateButton({
 -- print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
 
-         Rayfield:Notify({
-            Title = "Hatching Egg!",
-            Content = state.eggPriority,
-            Duration = 2
-         })
+      -- Rayfield:Notify({
+      -- Title = "Hatching Egg!",
+      -- Content = state.eggPriority,
+      -- Duration = 2
+      -- })
       else
-         Rayfield:Notify({
-            Title = "No Egg Selected",
-            Content = "Select an egg first",
-            Duration = 3
-         })
+      -- Rayfield:Notify({
+      -- Title = "No Egg Selected",
+      -- Content = "Select an egg first",
+      -- Duration = 3
+      -- })
       end
    end
 })
@@ -3289,6 +3534,23 @@ DataTab:CreateButton({
 -- Load saved stats message ID (persists across rejoins)
 loadStatsMessageId()
 
+-- Auto-refresh config dropdown on startup
+task.spawn(function()
+    task.wait(0.5)  -- Wait for UI to fully load
+    pcall(function()
+        local configs = listConfigs()
+        if #configs > 0 then
+            table.insert(configs, "— Create New —")
+            ConfigDropdown:Refresh(configs, true)
+            selectedConfig = configs[1]
+            print("✅ Config list loaded: " .. (#configs - 1) .. " config(s) found")
+        else
+            ConfigDropdown:Refresh({"No configs found"}, true)
+            print("📋 No saved configs found")
+        end
+    end)
+end)
+
 -- Try to auto-load config if set
 task.spawn(function()
     task.wait(2)  -- Wait for UI to fully load
@@ -3298,11 +3560,13 @@ task.spawn(function()
             if configName and configName ~= "" then
                 local success, message = loadConfig(configName)
                 if success then
-                    Rayfield:Notify({
-                        Title = "Config Auto-Loaded",
-                        Content = configName,
-                        Duration = 3,
-                    })
+                    print("✅ Auto-loaded config: " .. configName)
+                    selectedConfig = configName
+      -- Rayfield:Notify({
+      -- Title = "Config Auto-Loaded",
+      -- Content = configName,
+      -- Duration = 3,
+      -- })
                 end
             end
         end
@@ -3486,20 +3750,20 @@ task.spawn(function()
                         local plate = superEgg:FindFirstChild("Plate")
                         if plate then
                             tpToModel(superEgg)
-                            Rayfield:Notify({
-                                Title = "🎉 Admin Event: Super Egg!",
-                                Content = "Teleporting to Super Egg now!",
-                                Duration = 4,
-                                Image = 4483362458,
-                            })
+      -- Rayfield:Notify({
+      -- Title = "🎉 Admin Event: Super Egg!",
+      -- Content = "Teleporting to Super Egg now!",
+      -- Duration = 4,
+      -- Image = 4483362458,
+      -- })
 
                             -- Set as priority egg
                             state.eggPriority = "Super Egg"
-                            Rayfield:Notify({
-                                Title = "🥚 Priority: Super Egg",
-                                Content = "Now auto-hatching Super Egg!",
-                                Duration = 3,
-                            })
+      -- Rayfield:Notify({
+      -- Title = "🥚 Priority: Super Egg",
+      -- Content = "Now auto-hatching Super Egg!",
+      -- Duration = 3,
+      -- })
                         end
                     else
                         pcall(function()
@@ -3592,86 +3856,192 @@ task.spawn(function()
 
         -- ✅ Auto Enchant (all pets in equipped team, one at a time)
         if state.autoEnchantEnabled and state.enchantMain then
-            pcall(function()
-                -- Get LocalData to access team and pet info
-                local LocalData = require(RS.Client.Framework.Services.LocalData):Get()
-                if not LocalData then
-                    return
-                end
+            local success, err = pcall(function()
+                print("🔮 [Enchant] Starting auto-enchant cycle")
 
-                if not LocalData.Teams then
+                -- Get LocalData to access team and pet info
+                local LocalData = require(RS.Client.Framework.Services.LocalData)
+                local playerData = LocalData:Get()
+
+                if not playerData then
+                    print("❌ [Enchant] No playerData")
                     return
                 end
+                print("✅ [Enchant] Got playerData")
+
+                if not playerData.Teams then
+                    print("❌ [Enchant] No Teams in playerData")
+                    return
+                end
+                print("✅ [Enchant] Teams exist, count:", #playerData.Teams)
 
                 -- Try multiple methods to find equipped team
                 local equippedTeamIndex = nil
                 local team = nil
 
-                -- Method 1: Check LocalData.EquippedTeam
-                if LocalData.EquippedTeam then
-                    equippedTeamIndex = LocalData.EquippedTeam
-                    team = LocalData.Teams[equippedTeamIndex]
+                -- Method 1: Check playerData.TeamEquipped (correct field name)
+                if playerData.TeamEquipped then
+                    equippedTeamIndex = playerData.TeamEquipped
+                    team = playerData.Teams[equippedTeamIndex]
+                    print("✅ [Enchant] Method 1: Found team via TeamEquipped, index:", equippedTeamIndex)
                 end
 
                 -- Method 2: Find team with Equipped = true
                 if not team then
-                    for idx, t in pairs(LocalData.Teams) do
+                    for idx, t in pairs(playerData.Teams) do
                         if t.Equipped == true then
                             equippedTeamIndex = idx
                             team = t
+                            print("✅ [Enchant] Method 2: Found team via Equipped flag, index:", idx)
                             break
                         end
                     end
                 end
 
-
-                local petData = LocalData.Pets[currentPetId]
-                if not petData then
-                    state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
+                -- Check if team exists and has pets
+                if not team then
+                    print("❌ [Enchant] No equipped team found")
                     return
                 end
 
+                if not team.Pets or #team.Pets == 0 then
+                    print("❌ [Enchant] Team has no pets")
+                    return
+                end
+
+                print("✅ [Enchant] Team has", #team.Pets, "pets")
+                print("🔢 [Enchant] Current pet index:", state.currentEnchantPetIndex)
+
+                -- Get current pet ID from team's pet array
+                local currentPetId = team.Pets[state.currentEnchantPetIndex]
+                if not currentPetId then
+                    print("❌ [Enchant] Invalid pet index, resetting to 1")
+                    state.currentEnchantPetIndex = 1
+                    return
+                end
+                print("✅ [Enchant] Current pet ID:", currentPetId)
+
+                -- Find pet data by matching ID
+                local petData = nil
+                if playerData.Pets then
+                    for _, pet in pairs(playerData.Pets) do
+                        if pet.Id == currentPetId then
+                            petData = pet
+                            break
+                        end
+                    end
+                end
+
+                if not petData then
+                    print("❌ [Enchant] Pet not found in collection, skipping to next")
+                    state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
+                    return
+                end
+                print("✅ [Enchant] Found pet data")
+
                 -- Check current enchants
                 local currentEnchants = petData.Enchants or {}
-                local hasDesiredEnchant = false
+                print("🔮 [Enchant] Pet has", #currentEnchants, "enchants")
 
-                -- Create safe string versions of target enchants
-                local mainTarget = state.enchantMain and tostring(state.enchantMain):lower() or nil
-                local secondTarget = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
+                -- Debug: print current enchants
+                for i, ench in ipairs(currentEnchants) do
+                    if ench and ench.Id then
+                        local level = ench.Level or 1
+                        print("  Enchant #" .. i .. ":", ench.Id, "Level:", level)
+                    end
+                end
 
-                -- Check if pet has ANY of the desired enchants
+                -- Track which slots are satisfied
+                local slot1Satisfied = not state.enchantMainEnabled  -- If disabled, consider satisfied
+                local slot2Satisfied = not state.enchantSecondEnabled  -- If disabled, consider satisfied
+
+                -- Prepare target enchants (base name only, compare level separately)
+                local mainTargetName = state.enchantMain and tostring(state.enchantMain):lower() or nil
+                local secondTargetName = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
+
+                print("🎯 [Enchant] Target Slot 1:", mainTargetName or "none",
+                      "(Tier:", state.enchantMainTier or 1, "Enabled:", state.enchantMainEnabled,
+                      "Auto-satisfied:", not state.enchantMainEnabled, ")")
+                print("🎯 [Enchant] Target Slot 2:", secondTargetName or "none",
+                      "(Tier:", state.enchantSecondTier or 1, "Enabled:", state.enchantSecondEnabled,
+                      "Auto-satisfied:", not state.enchantSecondEnabled, ")")
+
+                -- Check if pet has the desired enchants
                 for _, enchant in ipairs(currentEnchants) do
                     if enchant and enchant.Id then
                         local enchantId = tostring(enchant.Id):lower()
+                        local enchantLevel = enchant.Level or 1
 
-                        -- Check if this enchant matches main target
-                        if mainTarget and enchantId:find(mainTarget) then
-                            hasDesiredEnchant = true
-                            break
+                        -- Check slot 1 (only if enabled and has target)
+                        if state.enchantMainEnabled and mainTargetName and not slot1Satisfied then
+                            if enchantId == mainTargetName and enchantLevel == state.enchantMainTier then
+                                slot1Satisfied = true
+                                print("✅ [Enchant] Slot 1 satisfied:", enchant.Id, "Level:", enchantLevel)
+                            end
                         end
 
-                        -- Check if this enchant matches second target
-                        if secondTarget and enchantId:find(secondTarget) then
-                            hasDesiredEnchant = true
+                        -- Check slot 2 (only if enabled and has target)
+                        if state.enchantSecondEnabled and secondTargetName and not slot2Satisfied then
+                            if enchantId == secondTargetName and enchantLevel == state.enchantSecondTier then
+                                slot2Satisfied = true
+                                print("✅ [Enchant] Slot 2 satisfied:", enchant.Id, "Level:", enchantLevel)
+                            end
+                        end
+
+                        -- If both slots satisfied, no need to check more
+                        if slot1Satisfied and slot2Satisfied then
                             break
                         end
                     end
                 end
+
+                -- Pet is ready if all enabled slots are satisfied
+                local hasDesiredEnchant = slot1Satisfied and slot2Satisfied
+                print("📊 [Enchant] Result - Slot1:", slot1Satisfied, "Slot2:", slot2Satisfied, "Ready:", hasDesiredEnchant)
 
                 -- If pet has desired enchant, move to next pet
                 if hasDesiredEnchant then
+                    print("➡️ [Enchant] Moving to next pet")
                     state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
                     if state.currentEnchantPetIndex > #team.Pets then
+                        print("🔄 [Enchant] Reached end of team, looping back to pet 1")
                         state.currentEnchantPetIndex = 1
                     end
                 else
-                    -- Reroll current pet's enchants
-                    pcall(function()
-                        local RemoteFunction = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
-                        RemoteFunction:InvokeServer("RerollEnchants", currentPetId, "Gems")
-                    end)
+                    -- Reroll specific slots that need rerolling
+                    local RemoteEvent = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
+
+                    -- Reroll slot 1 if it's enabled and not satisfied
+                    if state.enchantMainEnabled and not slot1Satisfied then
+                        print("🎲 [Enchant] Rerolling slot 1 for pet:", currentPetId)
+                        local rerollSuccess, rerollErr = pcall(function()
+                            RemoteEvent:FireServer("RerollEnchant", currentPetId, 1)
+                        end)
+                        if not rerollSuccess then
+                            print("❌ [Enchant] Slot 1 reroll failed:", rerollErr)
+                        else
+                            print("✅ [Enchant] Slot 1 rerolled")
+                        end
+                    end
+
+                    -- Reroll slot 2 if it's enabled and not satisfied
+                    if state.enchantSecondEnabled and not slot2Satisfied then
+                        print("🎲 [Enchant] Rerolling slot 2 for pet:", currentPetId)
+                        local rerollSuccess, rerollErr = pcall(function()
+                            RemoteEvent:FireServer("RerollEnchant", currentPetId, 2)
+                        end)
+                        if not rerollSuccess then
+                            print("❌ [Enchant] Slot 2 reroll failed:", rerollErr)
+                        else
+                            print("✅ [Enchant] Slot 2 rerolled")
+                        end
+                    end
                 end
             end)
+
+            if not success then
+                print("❌ [Enchant] Error:", err)
+            end
         end
 
         -- ✅ Auto Collect Flowers (Spring Event)
@@ -3924,8 +4294,26 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Found " .. #areaList .. " fishing areas")
 
-                    -- Pick first fishing area
-                    local area = areaList[1]
+                    -- Check if we're stuck (no successful cast in 5 seconds after starting)
+                    local currentTime2 = tick()
+                    if state.fishingStuckCheckTime == 0 then
+                        state.fishingStuckCheckTime = currentTime2
+                    elseif currentTime2 - state.lastSuccessfulCast > 5 and state.lastSuccessfulCast > 0 then
+                        -- Stuck! Try next fishing spot
+                        state.fishingAreaIndex = state.fishingAreaIndex + 1
+                        if state.fishingAreaIndex > #areaList then
+                            state.fishingAreaIndex = 1  -- Loop back to first spot
+                        end
+                        state.fishingTeleported = false  -- Force re-teleport
+                        state.fishingRodEquipped = false  -- Force re-equip
+                        log("⚠️ [Fishing] Stuck detected! Trying fishing spot #" .. state.fishingAreaIndex)
+                        return
+                    end
+
+                    -- Pick fishing area by index (cycles through if stuck)
+                    local areaIndex = math.min(state.fishingAreaIndex, #areaList)
+                    local area = areaList[areaIndex]
+                    log("🎣 [Fishing] Using fishing spot #" .. areaIndex .. " of " .. #areaList)
                     if not area:IsA("Model") then
                         log("❌ [Fishing] ERROR: Fishing area is not a Model")
                         return
@@ -4166,6 +4554,8 @@ task.spawn(function()
 
                     if castComplete then
                         state.lastFishingAttempt = currentTime
+                        state.lastSuccessfulCast = tick()  -- Mark successful cast
+                        state.fishingStuckCheckTime = tick()  -- Reset stuck check timer
                         log("✅ [Fishing] Cast cycle complete! Ready for next cast")
                     else
                         log("⚠️ [Fishing] Cast cycle incomplete, waiting before retry")
@@ -4619,12 +5009,12 @@ task.spawn(function()
                         state.fishingIsland = bestIsland
                         state.fishingTeleported = false  -- Trigger re-teleport
 
-                        Rayfield:Notify({
-                            Title = "Fishing Island Upgraded!",
-                            Content = "Now fishing at " .. bestIsland,
-                            Duration = 4,
-                            Image = 4483362458,
-                        })
+      -- Rayfield:Notify({
+      -- Title = "Fishing Island Upgraded!",
+      -- Content = "Now fishing at " .. bestIsland,
+      -- Duration = 4,
+      -- Image = 4483362458,
+      -- })
                     end
                 end
             end
@@ -4636,8 +5026,8 @@ task.spawn(function()
     end)
 end)
 
--- Load saved configuration
-Rayfield:LoadConfiguration()
+-- Rayfield config disabled - using custom JSON config system
+-- Rayfield:LoadConfiguration()
 
 -- print("✅ ==========================================")
 -- print("✅ Zenith (BGSI) - READY!")
@@ -4674,12 +5064,12 @@ Rayfield:LoadConfiguration()
 -- print("   🔒 No duplicates, no freezing, no missed pets")
 -- print("✅ ==========================================")
 
-Rayfield:Notify({
-   Title = "Zenith (BGSI) Ready!",
-   Content = "Mobile-optimized | All systems active!",
-   Duration = 5,
-   Image = 4483362458,
-})
+      -- Rayfield:Notify({
+      -- Title = "Zenith (BGSI) Ready!",
+      -- Content = "Mobile-optimized | All systems active!",
+      -- Duration = 5,
+      -- Image = 4483362458,
+      -- })
 
 -- print("Zenith (BGSI) loaded successfully!")
 -- print("💡 Rifts and eggs will auto-refresh every 2 seconds")
