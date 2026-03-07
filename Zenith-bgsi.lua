@@ -5790,8 +5790,8 @@ task.spawn(function()
                             end
                         end
 
-                        -- Send hatch command
-                        Remote:FireServer("HatchEgg", state.compCurrentHatchEgg, 1)
+                        -- Send hatch command (99 eggs at once)
+                        Remote:FireServer("HatchEgg", state.compCurrentHatchEgg, 99)
                         task.defer(stopHatchAnimation)
 
                         break
@@ -5801,7 +5801,7 @@ task.spawn(function()
                 -- If egg not found in current eggs, might be infinity egg
                 if not eggFound and state.compCurrentHatchEgg == "Infinity Egg" then
                     -- Try to hatch infinity egg directly (it might not be spawned)
-                    Remote:FireServer("HatchEgg", "Infinity Egg", 1)
+                    Remote:FireServer("HatchEgg", "Infinity Egg", 99)
                     task.defer(stopHatchAnimation)
                 end
             end)
