@@ -167,6 +167,13 @@ local state = {
     compLastRerollCheck = 0,  -- Timestamp of last reroll check
     compPreviousScores = {},  -- Track previous scores for rate calculation
     compPreviousTime = 0,  -- Timestamp of previous webhook for rate calculation
+    -- Competitive Quest Selection
+    compDoHatchQuests = true,  -- Enable hatch quests
+    compDoBubbleQuests = true,  -- Enable bubble quests
+    compDoPlaytimeQuests = true,  -- Enable playtime quests
+    compCurrentHatchEgg = nil,  -- Current egg we're hatching for quest
+    compHatchActive = false,  -- Whether we're actively hatching for quest
+    compLastHatchTime = 0,  -- Timestamp of last hatch command
     -- Powerups
     gamePowerupList = {},
     selectedPowerups = {},
@@ -1911,6 +1918,180 @@ local function sendCompetitiveWebhook(testMode)
     end)
 end
 
+-- === QUEST HELPER FUNCTIONS ===
+
+-- Parse quest to determine type and requirements
+local function parseQuest(quest)
+    if not quest or not quest.Tasks or not quest.Tasks[1] then
+        return nil
+    end
+
+    local task = quest.Tasks[1]
+    local taskType = task.Type
+    local questInfo = {
+        id = quest.Id,
+        type = "unknown",
+        specificEgg = nil,
+        rarity = nil,
+        amount = task.Amount or 0,
+        progress = task.Progress or 0
+    }
+
+    -- Check task type
+    if taskType then
+        local lowerType = taskType:lower()
+
+        -- Bubble quest
+        if lowerType:find("bubble") or lowerType:find("blow") then
+            questInfo.type = "bubble"
+        -- Hatch quest
+        elseif lowerType:find("hatch") or lowerType:find("egg") or lowerType:find("open") then
+            questInfo.type = "hatch"
+
+            -- Check for specific egg in task data
+            if task.Data then
+                if task.Data.Egg then
+                    questInfo.specificEgg = task.Data.Egg
+                elseif task.Data.Rarity then
+                    questInfo.rarity = task.Data.Rarity
+                end
+            end
+
+            -- Also check in task name/type for egg names
+            if not questInfo.specificEgg then
+                for _, eggName in pairs({"Common Egg", "Hell Egg", "Volcano Egg", "Ice Egg", "Sakura Egg", "Super Egg", "Heaven Egg", "Infinity Egg"}) do
+                    if taskType:find(eggName) then
+                        questInfo.specificEgg = eggName
+                        break
+                    end
+                end
+            end
+
+            -- Check for rarity in type
+            if not questInfo.rarity then
+                for _, rarity in pairs({"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity"}) do
+                    if taskType:find(rarity) then
+                        questInfo.rarity = rarity
+                        break
+                    end
+                end
+            end
+        -- Playtime quest
+        elseif lowerType:find("playtime") or lowerType:find("play") or lowerType:find("time") then
+            questInfo.type = "playtime"
+        end
+    end
+
+    return questInfo
+end
+
+-- Get all competitive hatch quests (slots 1-4)
+local function getCompetitiveHatchQuests(playerData)
+    local hatchQuests = {}
+
+    if not playerData or not playerData.Quests then
+        return hatchQuests
+    end
+
+    for slotNum = 1, 4 do
+        local questId = "competitive-" .. slotNum
+
+        for _, quest in pairs(playerData.Quests) do
+            if type(quest) == "table" and quest.Id == questId then
+                local questInfo = parseQuest(quest)
+                if questInfo and questInfo.type == "hatch" then
+                    questInfo.slot = slotNum
+                    table.insert(hatchQuests, questInfo)
+                end
+                break
+            end
+        end
+    end
+
+    return hatchQuests
+end
+
+-- Get all season pass hatch quests
+local function getSeasonHatchQuests(playerData)
+    local hatchQuests = {}
+
+    if not playerData or not playerData.Quests then
+        return hatchQuests
+    end
+
+    for _, quest in pairs(playerData.Quests) do
+        if type(quest) == "table" then
+            -- Season quests typically have IDs like "season-1", "season-2", etc.
+            if quest.Id and quest.Id:find("season") then
+                local questInfo = parseQuest(quest)
+                if questInfo and questInfo.type == "hatch" then
+                    table.insert(hatchQuests, questInfo)
+                end
+            end
+        end
+    end
+
+    return hatchQuests
+end
+
+-- Find best egg to hatch based on comp and season quests
+local function findBestHatchEgg(compQuest, seasonQuests)
+    -- Priority 1: Match specific egg from comp quest with season quest
+    if compQuest.specificEgg then
+        for _, seasonQuest in ipairs(seasonQuests) do
+            if seasonQuest.specificEgg == compQuest.specificEgg then
+                return compQuest.specificEgg, true  -- egg name, matches season
+            end
+        end
+        return compQuest.specificEgg, false  -- use comp egg, no season match
+    end
+
+    -- Priority 2: Match rarity from comp quest with specific egg from season quest
+    if compQuest.rarity then
+        for _, seasonQuest in ipairs(seasonQuests) do
+            if seasonQuest.specificEgg then
+                -- Check if this egg has the rarity we need
+                -- We'll use this egg and check if it gives the right rarity
+                return seasonQuest.specificEgg, true
+            end
+        end
+    end
+
+    -- Priority 3: Use specific egg from any season quest
+    for _, seasonQuest in ipairs(seasonQuests) do
+        if seasonQuest.specificEgg then
+            return seasonQuest.specificEgg, true
+        end
+    end
+
+    -- Priority 4: Use specific egg from comp quest if available
+    if compQuest.specificEgg then
+        return compQuest.specificEgg, false
+    end
+
+    -- Priority 5: Fallback to Infinity Egg
+    return "Infinity Egg", false
+end
+
+-- Check if a quest should be skipped based on user settings
+local function shouldSkipQuest(questInfo)
+    if not questInfo then return true end
+
+    if questInfo.type == "hatch" and not state.compDoHatchQuests then
+        return true
+    end
+
+    if questInfo.type == "bubble" and not state.compDoBubbleQuests then
+        return true
+    end
+
+    if questInfo.type == "playtime" and not state.compDoPlaytimeQuests then
+        return true
+    end
+
+    return false
+end
+
 -- ✅ FIXED: Real-time rift scanner with correct paths (Display.SurfaceGui)
 local function scanRifts()
     local newRifts = {}
@@ -2091,6 +2272,15 @@ local function saveConfig(configName)
         webhookPingEnabled = state.webhookPingEnabled,
         webhookPingUserId = state.webhookPingUserId,
 
+        -- Competitive settings
+        compAutoEnabled = state.compAutoEnabled,
+        compWebhookUrl = state.compWebhookUrl,
+        compWebhookInterval = state.compWebhookInterval,
+        compRerollNonBubble = state.compRerollNonBubble,
+        compDoHatchQuests = state.compDoHatchQuests,
+        compDoBubbleQuests = state.compDoBubbleQuests,
+        compDoPlaytimeQuests = state.compDoPlaytimeQuests,
+
         -- Other settings
         disableHatchAnimation = state.disableHatchAnimation,
         antiAFK = state.antiAFK,
@@ -2181,6 +2371,14 @@ local function loadConfig(configName)
     state.webhookPingEnabled = config.webhookPingEnabled or false
     state.webhookPingUserId = config.webhookPingUserId or ""
 
+    state.compAutoEnabled = config.compAutoEnabled or false
+    state.compWebhookUrl = config.compWebhookUrl or ""
+    state.compWebhookInterval = config.compWebhookInterval or 300
+    state.compRerollNonBubble = config.compRerollNonBubble ~= false  -- Default true
+    state.compDoHatchQuests = config.compDoHatchQuests ~= false  -- Default true
+    state.compDoBubbleQuests = config.compDoBubbleQuests ~= false  -- Default true
+    state.compDoPlaytimeQuests = config.compDoPlaytimeQuests ~= false  -- Default true
+
     state.disableHatchAnimation = config.disableHatchAnimation or false
     state.antiAFK = config.antiAFK or false
     state.fishingIsland = config.fishingIsland
@@ -2218,11 +2416,18 @@ local function loadConfig(configName)
     if ui.RiftAutoHatchToggle then pcall(function() ui.RiftAutoHatchToggle:Set(state.riftAutoHatch) end) end
     if ui.WebhookStatsToggle then pcall(function() ui.WebhookStatsToggle:Set(state.webhookStatsEnabled) end) end
     if ui.WebhookPingToggle then pcall(function() ui.WebhookPingToggle:Set(state.webhookPingEnabled) end) end
+    if ui.CompAutoToggle then pcall(function() ui.CompAutoToggle:Set(state.compAutoEnabled) end) end
+    if ui.CompRerollToggle then pcall(function() ui.CompRerollToggle:Set(state.compRerollNonBubble) end) end
+    if ui.CompHatchToggle then pcall(function() ui.CompHatchToggle:Set(state.compDoHatchQuests) end) end
+    if ui.CompBubbleToggle then pcall(function() ui.CompBubbleToggle:Set(state.compDoBubbleQuests) end) end
+    if ui.CompPlaytimeToggle then pcall(function() ui.CompPlaytimeToggle:Set(state.compDoPlaytimeQuests) end) end
 
     -- Update inputs (if they exist)
     if ui.WebhookInput then pcall(function() ui.WebhookInput:Set(state.webhookUrl) end) end
     if ui.PingUserInput then pcall(function() ui.PingUserInput:Set(state.webhookPingUserId) end) end
     if ui.ChanceThresholdInput then pcall(function() ui.ChanceThresholdInput:Set(tostring(state.webhookChanceThreshold)) end) end
+    if ui.CompWebhookInput then pcall(function() ui.CompWebhookInput:Set(state.compWebhookUrl) end) end
+    if ui.CompWebhookIntervalInput then pcall(function() ui.CompWebhookIntervalInput:Set(tostring(state.compWebhookInterval)) end) end
 
     -- Update dropdowns (if they exist)
     if ui.FishingIslandDropdown and state.fishingIsland then pcall(function() ui.FishingIslandDropdown:Set(state.fishingIsland) end) end
@@ -3535,6 +3740,46 @@ local CompRerollToggle = CompTab:CreateToggle({
 state.uiElements.CompRerollToggle = CompRerollToggle
 
 CompTab:CreateLabel("Only rerolls slots 3-4 (repeatable quests)")
+
+local CompQuestSection = CompTab:CreateSection("🎯 Quest Type Selection")
+
+CompTab:CreateLabel("Select which quest types to complete:")
+
+local CompHatchToggle = CompTab:CreateToggle({
+   Name = "🥚 Do Hatch Quests",
+   CurrentValue = true,
+   Flag = "CompHatch",
+   Callback = function(Value)
+      state.compDoHatchQuests = Value
+      if not Value then
+         state.compHatchActive = false
+         state.compCurrentHatchEgg = nil
+      end
+   end,
+})
+state.uiElements.CompHatchToggle = CompHatchToggle
+
+local CompBubbleToggle = CompTab:CreateToggle({
+   Name = "💨 Do Bubble Quests",
+   CurrentValue = true,
+   Flag = "CompBubble",
+   Callback = function(Value)
+      state.compDoBubbleQuests = Value
+   end,
+})
+state.uiElements.CompBubbleToggle = CompBubbleToggle
+
+local CompPlaytimeToggle = CompTab:CreateToggle({
+   Name = "⏰ Do Playtime Quests",
+   CurrentValue = true,
+   Flag = "CompPlaytime",
+   Callback = function(Value)
+      state.compDoPlaytimeQuests = Value
+   end,
+})
+state.uiElements.CompPlaytimeToggle = CompPlaytimeToggle
+
+CompTab:CreateLabel("Hatch quests sync with Season Pass for efficiency")
 
 local CompWebhookSection = CompTab:CreateSection("📊 Competitive Webhook")
 
@@ -5401,9 +5646,12 @@ task.spawn(function()
                 if not playerData or not playerData.Competitive then
                     return
                 end
-                -- Auto-reroll non-bubble quests (slots 3-4 only)
+
+                -- === QUEST SELECTION & REROLL LOGIC ===
+                local questData = playerData.Quests or {}
+
+                -- Auto-reroll non-selected quest types (slots 3-4 only)
                 if state.compRerollNonBubble then
-                    local questData = playerData.Quests or {}
                     for slotNum = 3, 4 do
                         local questId = "competitive-" .. slotNum
                         local quest = nil
@@ -5416,31 +5664,65 @@ task.spawn(function()
                             end
                         end
 
-                        if quest and quest.Tasks and quest.Tasks[1] then
-                            local task = quest.Tasks[1]
-                            local taskType = task.Type
+                        if quest then
+                            local questInfo = parseQuest(quest)
 
-                            -- Check if it's NOT a bubble quest
-                            -- Bubble quests have Type = "Bubble" or similar
-                            local isBubbleQuest = false
-
-                            if taskType and (
-                                taskType:lower():find("bubble") or
-                                taskType:lower():find("blow") or
-                                (task.Data and task.Data.Type and task.Data.Type:lower():find("bubble"))
-                            ) then
-                                isBubbleQuest = true
-                            end
-
-                            -- If not a bubble quest, reroll it
-                            if not isBubbleQuest then
-                                print(string.format("🔄 [Competitive] Rerolling slot %d (Type: %s)", slotNum, tostring(taskType)))
+                            if questInfo and shouldSkipQuest(questInfo) then
+                                print(string.format("🔄 [Competitive] Rerolling slot %d (Type: %s - disabled)", slotNum, questInfo.type))
 
                                 -- Fire reroll remote
                                 pcall(function()
                                     Remote:FireServer("CompetitiveReroll", slotNum)
                                 end)
                             end
+                        end
+                    end
+                end
+
+                -- === HATCH QUEST HANDLING ===
+                if state.compDoHatchQuests then
+                    -- Get all competitive hatch quests (slots 1-4)
+                    local compHatchQuests = getCompetitiveHatchQuests(playerData)
+
+                    if #compHatchQuests > 0 then
+                        -- Get season hatch quests for syncing
+                        local seasonHatchQuests = getSeasonHatchQuests(playerData)
+
+                        -- Find first incomplete comp hatch quest
+                        local activeCompQuest = nil
+                        for _, quest in ipairs(compHatchQuests) do
+                            if quest.progress < quest.amount then
+                                activeCompQuest = quest
+                                break
+                            end
+                        end
+
+                        if activeCompQuest then
+                            -- Find best egg to hatch
+                            local bestEgg, matchesSeason = findBestHatchEgg(activeCompQuest, seasonHatchQuests)
+
+                            -- Update state
+                            if state.compCurrentHatchEgg ~= bestEgg then
+                                state.compCurrentHatchEgg = bestEgg
+                                state.compHatchActive = true
+
+                                local syncMsg = matchesSeason and " (synced with season quest)" or ""
+                                print(string.format("🥚 [Competitive] Starting hatch quest: %s%s", bestEgg, syncMsg))
+                                print(string.format("   └─ Progress: %d/%d", activeCompQuest.progress, activeCompQuest.amount))
+                            end
+                        else
+                            -- All comp hatch quests complete
+                            if state.compHatchActive then
+                                print("✅ [Competitive] All hatch quests completed!")
+                                state.compHatchActive = false
+                                state.compCurrentHatchEgg = nil
+                            end
+                        end
+                    else
+                        -- No hatch quests available
+                        if state.compHatchActive then
+                            state.compHatchActive = false
+                            state.compCurrentHatchEgg = nil
                         end
                     end
                 end
@@ -5462,6 +5744,67 @@ task.spawn(function()
             if not success then
                 print("❌ [Competitive] Error: " .. tostring(err))
             end
+        end
+    end
+end)
+
+-- === COMPETITIVE HATCH EXECUTION LOOP ===
+task.spawn(function()
+    print("🥚 [Competitive Hatch] System initialized")
+
+    while true do
+        task.wait(0.3)  -- Hatch every 0.3 seconds
+
+        if state.compAutoEnabled and state.compHatchActive and state.compCurrentHatchEgg then
+            pcall(function()
+                -- Get Remote module
+                local Remote = nil
+                pcall(function()
+                    Remote = require(RS.Shared.Framework.Network.Remote)
+                end)
+
+                if not Remote then
+                    return
+                end
+
+                -- Find the egg in workspace
+                local eggFound = false
+                for _, egg in pairs(state.currentEggs) do
+                    if egg.name == state.compCurrentHatchEgg then
+                        eggFound = true
+
+                        -- Validate egg still exists
+                        if not egg.instance:IsDescendantOf(Workspace) then
+                            return
+                        end
+
+                        -- TP to egg if needed
+                        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local eggPos = egg.instance:GetPivot().Position
+                            local distance = (hrp.Position - eggPos).Magnitude
+
+                            if distance > 15 then
+                                tpToModel(egg.instance)
+                                task.wait(0.1)
+                            end
+                        end
+
+                        -- Send hatch command
+                        Remote:FireServer("HatchEgg", state.compCurrentHatchEgg, 1)
+                        task.defer(stopHatchAnimation)
+
+                        break
+                    end
+                end
+
+                -- If egg not found in current eggs, might be infinity egg
+                if not eggFound and state.compCurrentHatchEgg == "Infinity Egg" then
+                    -- Try to hatch infinity egg directly (it might not be spawned)
+                    Remote:FireServer("HatchEgg", "Infinity Egg", 1)
+                    task.defer(stopHatchAnimation)
+                end
+            end)
         end
     end
 end)
