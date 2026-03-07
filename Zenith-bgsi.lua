@@ -1,5 +1,5 @@
--- Zenith (BGSI) - Bubble Gum Simulator Infinite
--- Script: Zenith | Game: BGSI — Perfect for mobile screens, auto-resizes, single column layout
+-- Lorio (BGSI) - Bubble Gum Simulator Infinite
+-- Script: Lorio | Game: BGSI — Perfect for mobile screens, auto-resizes, single column layout
 
 getgenv().script_key = "uIeCsXNDMliclXkKGlfNwXHZHFblrJZl"
 
@@ -40,9 +40,9 @@ end
 
 -- === CREATE WINDOW ===
 local Window = Rayfield:CreateWindow({
-   Name = "Zenith | BGSI",
+   Name = "Lorio | BGSI",
    Icon = 0,
-   LoadingTitle = "Zenith - BGSI",
+   LoadingTitle = "Lorio - BGSI",
    LoadingSubtitle = "Mobile-Optimized for 2026",
    Theme = "Default",
 
@@ -52,7 +52,7 @@ local Window = Rayfield:CreateWindow({
    ConfigurationSaving = {
       Enabled = false,  -- Disabled: Using custom JSON config system instead
       FolderName = nil,
-      FileName = "Zenith_BGSI"
+      FileName = "Lorio_BGSI"
    },
 
    Discord = {
@@ -63,10 +63,10 @@ local Window = Rayfield:CreateWindow({
 
    KeySystem = false,
    KeySettings = {
-      Title = "Zenith - BGSI",
+      Title = "Lorio - BGSI",
       Subtitle = "Key System",
       Note = "No key required",
-      FileName = "Zenith_BGSI_Key",
+      FileName = "Lorio_BGSI_Key",
       SaveKey = false,
       GrabKeyFromSite = false,
       Key = {""}
@@ -158,6 +158,15 @@ local state = {
     enchantSecondEnabled = true,  -- Enable slot 2 checking
     autoEnchantEnabled = false,
     currentEnchantPetIndex = 1,  -- Track which pet in team we're currently enchanting
+    -- Competitive
+    compAutoEnabled = false,  -- Auto blow + auto reroll for competitive
+    compWebhookUrl = "",  -- Separate webhook for competitive stats
+    compWebhookInterval = 300,  -- Send stats every 5 minutes (300 seconds)
+    compLastWebhook = 0,  -- Timestamp of last webhook send
+    compRerollNonBubble = true,  -- Auto-reroll non-bubble quests (slots 3-4)
+    compLastRerollCheck = 0,  -- Timestamp of last reroll check
+    compPreviousScores = {},  -- Track previous scores for rate calculation
+    compPreviousTime = 0,  -- Timestamp of previous webhook for rate calculation
     -- Powerups
     gamePowerupList = {},
     selectedPowerups = {},
@@ -537,35 +546,144 @@ local function preCacheAllPetData()
     -- print(string.format("✅ Pre-cached: %d pets, %d eggs, %d chances in %.2fs", cachedPets, cachedEggs, cachedChances, elapsed))
 end
 
--- Stop hatch animation function (simple - just hide Hatching frame)
-local function stopHatchAnimation()
-    if not state.disableHatchAnimation then return end
-    pcall(function()
-        local screenGui = playerGui:FindFirstChild("ScreenGui")
-        if screenGui then
-            local hatchingFrame = screenGui:FindFirstChild("Hatching")
-            if hatchingFrame then
-                hatchingFrame.Visible = false
-            end
-        end
-    end)
-end
+-- === ADVANCED EGG ANIMATION DISABLER ===
+-- Hooks into the game's HatchEgg module to completely disable animations
 
--- Continuous animation monitor (keeps Hatching frame hidden)
-task.spawn(function()
-    while task.wait(0.05) do  -- Check every 50ms for fast hiding
-        if state.disableHatchAnimation then
-            stopHatchAnimation()
+local hatchEggModule = nil
+local originalPlayFunction = nil
+local originalDisplayPetOnce = nil
+
+-- Get HatchEgg module from ReplicatedStorage
+pcall(function()
+    hatchEggModule = RS:FindFirstChild("Client", true)
+    if hatchEggModule then
+        hatchEggModule = hatchEggModule:FindFirstChild("Effects", true)
+        if hatchEggModule then
+            hatchEggModule = hatchEggModule:FindFirstChild("HatchEgg", true)
+            if hatchEggModule then
+                -- Successfully found the module
+                -- print("✅ Found HatchEgg module at: " .. hatchEggModule:GetFullName())
+            end
         end
     end
 end)
 
+-- Hook the HatchEgg module's Play function
+local function hookHatchEggModule()
+    if not hatchEggModule then return end
+
+    pcall(function()
+        local module = require(hatchEggModule)
+
+        -- Save original functions
+        if not originalPlayFunction then
+            originalPlayFunction = module.Play
+            originalDisplayPetOnce = module.DisplayPetOnce
+        end
+
+        -- Replace Play function with dummy that does nothing
+        module.Play = function(self, data)
+            -- Do nothing - this skips the entire animation
+            -- But we need to mark hatching as complete
+            if module._hatching ~= nil then
+                module._hatching = false
+            end
+            return
+        end
+
+        -- Replace DisplayPetOnce to skip secret reveals
+        module.DisplayPetOnce = function(self, pet, egg)
+            -- Do nothing - skip secret pet reveals too
+            if module._hatching ~= nil then
+                module._hatching = false
+            end
+            return
+        end
+
+        -- print("✅ Hooked HatchEgg.Play and DisplayPetOnce functions")
+    end)
+end
+
+-- Restore original functions
+local function unhookHatchEggModule()
+    if not hatchEggModule or not originalPlayFunction then return end
+
+    pcall(function()
+        local module = require(hatchEggModule)
+        module.Play = originalPlayFunction
+        module.DisplayPetOnce = originalDisplayPetOnce
+        -- print("✅ Restored original HatchEgg functions")
+    end)
+end
+
+-- Hide all hatching UI elements
+local function hideHatchingUI()
+    pcall(function()
+        local screenGui = playerGui:FindFirstChild("ScreenGui")
+        if not screenGui then return end
+
+        -- Hide main hatching frame
+        local hatching = screenGui:FindFirstChild("Hatching")
+        if hatching then
+            hatching.Visible = false
+        end
+
+        -- Hide AFKReveal frame (for AFK eggs)
+        local afkReveal = screenGui:FindFirstChild("AFKReveal")
+        if afkReveal then
+            afkReveal.Visible = false
+        end
+
+        -- Hide overlay
+        local overlay = screenGui:FindFirstChild("_overlay")
+        if overlay then
+            overlay.BackgroundTransparency = 1
+        end
+    end)
+end
+
+-- Continuous monitor to keep animations disabled
+task.spawn(function()
+    while task.wait(0.1) do
+        if state.disableHatchAnimation then
+            -- Hook the module functions
+            hookHatchEggModule()
+
+            -- Hide all UI
+            hideHatchingUI()
+
+            -- Force HUD to be visible
+            pcall(function()
+                local screenGui = playerGui:FindFirstChild("ScreenGui")
+                if screenGui then
+                    local hud = screenGui:FindFirstChild("HUD")
+                    if hud then
+                        hud.Visible = true
+                    end
+                end
+            end)
+        else
+            -- Restore original functions when disabled
+            if originalPlayFunction then
+                unhookHatchEggModule()
+            end
+        end
+    end
+end)
+
+-- Legacy function for compatibility
+local function stopHatchAnimation()
+    if state.disableHatchAnimation then
+        hideHatchingUI()
+    end
+end
+
 -- === UTILITY FUNCTIONS ===
 
 -- File path for saving stats message ID (persists across rejoins)
-local STATS_MESSAGE_FILE = "zenith_bgsi_stats_message_id.txt"
-local LOG_FILE = "zenith_bgsi_fishing_log.txt"
-local DEBUG_LOG_FILE = "zenith_bgsi_webhook_debug.txt"
+local STATS_MESSAGE_FILE = "lorio_bgsi_stats_message_id.txt"
+local LOG_FILE = "lorio_bgsi_fishing_log.txt"
+local DEBUG_LOG_FILE = "lorio_bgsi_webhook_debug.txt"
 
 -- Logging function (writes to both console and file)
 local function log(message)
@@ -1474,6 +1592,325 @@ local function updateStats()
     end)
 end
 
+-- Send competitive webhook with stats, quest progress, and team data
+local function sendCompetitiveWebhook(testMode)
+    if state.compWebhookUrl == "" then return end
+
+    task.spawn(function()
+        pcall(function()
+            -- Get LocalData
+            local localDataModule = RS:FindFirstChild("Client", true)
+            if localDataModule then
+                localDataModule = localDataModule:FindFirstChild("Framework", true)
+                if localDataModule then
+                    localDataModule = localDataModule:FindFirstChild("Services", true)
+                    if localDataModule then
+                        localDataModule = localDataModule:FindFirstChild("LocalData", true)
+                    end
+                end
+            end
+
+            if not localDataModule then return end
+
+            local LocalData = require(localDataModule)
+            local playerData = LocalData:Get()
+
+            if not playerData then return end
+
+            local compData = playerData.Competitive
+            if not compData then
+                -- No competitive data - send message
+                local embed = {
+                    title = testMode and "🧪 Test - Competitive Stats" or "🏆 Competitive Stats",
+                    description = "❌ **No competitive data found**\nStart competitive mode in-game first!",
+                    color = 15158332,  -- Red
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
+                }
+                local payload = {embeds = {embed}}
+                pcall(function()
+                    request({
+                        Url = state.compWebhookUrl,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = HttpService:JSONEncode(payload)
+                    })
+                end)
+                return
+            end
+
+            local currentTime = tick()
+            local timeSinceLastCheck = state.compPreviousTime > 0 and (currentTime - state.compPreviousTime) or 0
+            local minutesSinceLastCheck = timeSinceLastCheck / 60
+
+            -- Build team data
+            local teamText = ""
+            local clanData = compData.Clan
+            local teamRank = "N/A"
+            local starsPerMin = 0
+            local starsTo250 = "N/A"
+
+            -- Get leaderboard from workspace GUI frames
+            local leaderboardList = nil
+            pcall(function()
+                local worlds = Workspace:FindFirstChild("Worlds")
+                if worlds then
+                    local overworld = worlds:FindFirstChild("The Overworld")
+                    if overworld then
+                        local leaderboards = overworld:FindFirstChild("Leaderboards")
+                        if leaderboards then
+                            local compLeaderboard = leaderboards:FindFirstChild("Competitive")
+                            if compLeaderboard then
+                                local display = compLeaderboard:FindFirstChild("Display")
+                                if display then
+                                    local leaderboard = display:FindFirstChild("Leaderboard")
+                                    if leaderboard then
+                                        leaderboardList = leaderboard:FindFirstChild("List")
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            if clanData and clanData.Id then
+                local teamName = clanData.Id
+                local memberCount = clanData.Members and #clanData.Members or 0
+
+                -- Calculate total team score
+                local totalScore = 0
+                local memberScores = {}
+
+                if clanData.Members then
+                    for _, member in pairs(clanData.Members) do
+                        local memberScore = member.Score or 0
+                        local memberName = member.Username or "Unknown"
+
+                        -- Use current player's actual score
+                        if member.UserId == player.UserId then
+                            memberScore = compData.Score
+                        end
+
+                        totalScore = totalScore + memberScore
+                        table.insert(memberScores, {
+                            name = memberName,
+                            userId = member.UserId,
+                            score = memberScore
+                        })
+                    end
+
+                    -- Sort members by score (highest first)
+                    table.sort(memberScores, function(a, b) return a.score > b.score end)
+                end
+
+                -- Find team rank in leaderboard by checking GUI frames
+                if leaderboardList then
+                    -- Get rank from player's Competitive UI
+                    local rankText = "N/A"
+                    pcall(function()
+                        local competitiveGui = player.PlayerGui:FindFirstChild("ScreenGui")
+                        if competitiveGui then
+                            local compFrame = competitiveGui:FindFirstChild("Competitive")
+                            if compFrame then
+                                local frame = compFrame:FindFirstChild("Frame")
+                                if frame then
+                                    local content = frame:FindFirstChild("Content")
+                                    if content then
+                                        local team = content:FindFirstChild("Team")
+                                        if team then
+                                            local teamContent = team:FindFirstChild("Content")
+                                            if teamContent then
+                                                local rankLabel = teamContent:FindFirstChild("Rank")
+                                                if rankLabel and rankLabel:IsA("TextLabel") then
+                                                    rankText = rankLabel.Text
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+
+                    teamRank = rankText
+
+                    -- Parse rank number from text (e.g., "250th" -> 250, "347th" -> 347)
+                    local rankNumber = tonumber(rankText:match("%d+"))
+
+                    -- Determine which entry to compare against
+                    local targetEntry = nil
+                    local targetRankText = ""
+
+                    if rankNumber and rankNumber > 0 then
+                        if rankNumber <= 250 then
+                            -- In top 250: look at team ahead (rank - 1)
+                            if rankNumber > 1 then
+                                local teamAheadRank = rankNumber - 1
+                                targetEntry = leaderboardList:FindFirstChild("Entry" .. teamAheadRank)
+                                targetRankText = string.format("rank %d", teamAheadRank)
+                            else
+                                -- Already rank 1!
+                                starsTo250 = "Rank #1! 🏆"
+                            end
+                        else
+                            -- Outside top 250: aim for 250th place
+                            targetEntry = leaderboardList:FindFirstChild("Entry250")
+                            targetRankText = "rank 250"
+                        end
+                    else
+                        -- Couldn't parse rank, default to 250th place
+                        targetEntry = leaderboardList:FindFirstChild("Entry250")
+                        targetRankText = "rank 250"
+                    end
+
+                    -- Get target team's score
+                    if targetEntry and starsTo250 ~= "Rank #1! 🏆" then
+                        local numberLabel = targetEntry:FindFirstChild("Number")
+                        if numberLabel and numberLabel:IsA("TextLabel") then
+                            -- Parse the score (might have commas or formatting)
+                            local scoreText = numberLabel.Text
+                            local targetScore = tonumber((scoreText:gsub(",", ""))) or 0
+
+                            if totalScore < targetScore then
+                                local starsNeeded = targetScore - totalScore + 1  -- +1 to beat them
+                                starsTo250 = string.format("%s to beat %s", formatNumber(starsNeeded), targetRankText)
+                            else
+                                if rankNumber and rankNumber <= 250 then
+                                    starsTo250 = string.format("Beating %s! ✅", targetRankText)
+                                else
+                                    starsTo250 = "Ready for top 250! ✅"
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- Calculate stars/min based on total team score change
+                local previousTotal = 0
+                for userId, prevScore in pairs(state.compPreviousScores) do
+                    previousTotal = previousTotal + prevScore
+                end
+
+                if previousTotal > 0 and minutesSinceLastCheck > 0 then
+                    local scoreDiff = totalScore - previousTotal
+                    starsPerMin = scoreDiff / minutesSinceLastCheck
+                end
+
+                -- Build team info text
+                teamText = string.format("**Team Name**: %s\n", teamName)
+                teamText = teamText .. string.format("**Members**: %d\n", memberCount)
+                teamText = teamText .. string.format("**Total Team Score**: %s\n\n", formatNumber(totalScore))
+
+                -- Add individual member scores with differences
+                teamText = teamText .. "**Member Scores**:\n"
+                for i, member in ipairs(memberScores) do
+                    local prevScore = state.compPreviousScores[member.userId] or 0
+                    local scoreDiff = member.score - prevScore
+                    local diffText = ""
+
+                    if prevScore > 0 and scoreDiff ~= 0 then
+                        diffText = string.format(" (%s%s)",
+                            scoreDiff > 0 and "+" or "",
+                            formatNumber(scoreDiff)
+                        )
+                    end
+
+                    teamText = teamText .. string.format("%d. %s: %s%s\n",
+                        i,
+                        member.name,
+                        formatNumber(member.score),
+                        diffText
+                    )
+                end
+
+                -- Update previous scores
+                state.compPreviousScores = {}
+                for _, member in ipairs(memberScores) do
+                    state.compPreviousScores[member.userId] = member.score
+                end
+            else
+                teamText = "**Status**: Not in a team"
+            end
+
+            -- Update previous time
+            state.compPreviousTime = currentTime
+
+            -- Build embed
+            local fields = {
+                {
+                    name = "📊 Competitive Score",
+                    value = string.format("**Current Score**: %s", formatNumber(compData.Score or 0)),
+                    inline = false
+                }
+            }
+
+            -- Add team rank if in team
+            if clanData and clanData.Id then
+                table.insert(fields, {
+                    name = "🏅 Team Leaderboard Position",
+                    value = string.format("**Team Rank**: #%s", teamRank),
+                    inline = false
+                })
+            end
+
+            -- Add team data
+            if clanData and clanData.Id then
+                table.insert(fields, {
+                    name = "👥 Team Data",
+                    value = teamText,
+                    inline = false
+                })
+            end
+
+            -- Add performance stats
+            if clanData and clanData.Id then
+                local perfText = ""
+
+                if starsPerMin > 0 then
+                    perfText = string.format("**Stars/min**: %.1f ⭐\n", starsPerMin)
+                else
+                    perfText = "**Stars/min**: Calculating... (need 2 checks)\n"
+                end
+
+                perfText = perfText .. string.format("**Goal**: %s", starsTo250)
+
+                table.insert(fields, {
+                    name = "📈 Performance",
+                    value = perfText,
+                    inline = false
+                })
+            end
+
+            local embed = {
+                title = testMode and "🧪 Test - Competitive Stats" or "🏆 Competitive Stats",
+                description = string.format("**Player**: %s (@%s)", player.DisplayName, player.Name),
+                color = 3447003,  -- Blue
+                fields = fields,
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%S")
+            }
+
+            local payload = {embeds = {embed}}
+
+            pcall(function()
+                request({
+                    Url = state.compWebhookUrl,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(payload)
+                })
+            end)
+
+            if testMode then
+                Rayfield:Notify({
+                    Title = "Webhook Sent",
+                    Content = "Competitive test webhook sent!",
+                    Duration = 3,
+                })
+            end
+        end)
+    end)
+end
+
 -- ✅ FIXED: Real-time rift scanner with correct paths (Display.SurfaceGui)
 local function scanRifts()
     local newRifts = {}
@@ -1666,7 +2103,7 @@ local function saveConfig(configName)
     end)
 
     if success then
-        local fileName = "ZenithBGSI_Config_" .. configName .. ".json"
+        local fileName = "LorioBGSI_Config_" .. configName .. ".json"
         writefile(fileName, encoded)
         state.savedConfigs[configName] = config
         print("💾 Config saved to: " .. fileName)
@@ -1685,7 +2122,7 @@ local function loadConfig(configName)
         return false, "Config name cannot be empty"
     end
 
-    local fileName = "ZenithBGSI_Config_" .. configName .. ".json"
+    local fileName = "LorioBGSI_Config_" .. configName .. ".json"
 
     if not isfile(fileName) then
         return false, "Config file not found"
@@ -1795,6 +2232,21 @@ local function loadConfig(configName)
     if ui.EnchantMainDropdown and state.enchantMain then pcall(function() ui.EnchantMainDropdown:Set(state.enchantMain) end) end
     if ui.EnchantSecondDropdown and state.enchantSecond then pcall(function() ui.EnchantSecondDropdown:Set(state.enchantSecond) end) end
 
+    -- Update rarity dropdown with selected rarities
+    if ui.RarityDropdown and state.webhookRarities then
+        pcall(function()
+            local selectedRarities = {}
+            for rarity, enabled in pairs(state.webhookRarities) do
+                if enabled then
+                    table.insert(selectedRarities, rarity)
+                end
+            end
+            if #selectedRarities > 0 then
+                ui.RarityDropdown:Set(selectedRarities)
+            end
+        end)
+    end
+
     -- Update sliders (if they exist)
     if ui.EnchantMainSlider then pcall(function() ui.EnchantMainSlider:Set(state.enchantMainTier) end) end
     if ui.EnchantSecondSlider then pcall(function() ui.EnchantSecondSlider:Set(state.enchantSecondTier) end) end
@@ -1812,7 +2264,7 @@ local function listConfigs()
         local allFiles = listfiles(".") or listfiles() or {}
         for i, file in pairs(allFiles) do
             -- Print full path for debugging (first 10 files)
-            if i <= 10 or file:lower():find("zenithbgsi") then
+            if i <= 10 or file:lower():find("loriobgsi") then
                 print("  📄 File " .. i .. ": " .. file)
 
                 -- Extract filename from path (handle both / and \ separators)
@@ -1820,12 +2272,12 @@ local function listConfigs()
                 print("    → Extracted: '" .. fileName .. "'")
 
                 -- Test pattern match
-                local matches = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
+                local matches = fileName:match("^LorioBGSI_Config_(.+)%.json$")
                 print("    → Pattern match result: " .. tostring(matches))
 
                 -- Check if it matches our config pattern
-                if fileName:match("^ZenithBGSI_Config_(.+)%.json$") then
-                    local configName = fileName:match("^ZenithBGSI_Config_(.+)%.json$")
+                if fileName:match("^LorioBGSI_Config_(.+)%.json$") then
+                    local configName = fileName:match("^LorioBGSI_Config_(.+)%.json$")
                     table.insert(configs, configName)
                     print("    ✅ FOUND CONFIG: " .. configName)
                 end
@@ -1833,10 +2285,10 @@ local function listConfigs()
         end
 
         -- Also try case-insensitive search
-        print("\n🔍 Trying case-insensitive search for 'zenith'...")
+        print("\n🔍 Trying case-insensitive search for 'lorio'...")
         for _, file in pairs(allFiles) do
-            if file:lower():find("zenith") then
-                print("  🔎 Found file with 'zenith': " .. file)
+            if file:lower():find("lorio") then
+                print("  🔎 Found file with 'lorio': " .. file)
             end
         end
     end)
@@ -2945,7 +3397,7 @@ state.uiElements.RiftPriorityModeToggle = PriorityRiftToggle
 -- === WEBHOOK TAB ===
 local WebTab = Window:CreateTab("📊 Webhook", 4483362458)
 
-local WebSection = WebTab:CreateSection("💬 Discord Integration")
+local WebSection = WebTab:CreateSection("💬 Hatch Notifications")
 
 local WebhookInput = WebTab:CreateInput({
    Name = "Webhook URL",
@@ -2957,30 +3409,8 @@ local WebhookInput = WebTab:CreateInput({
 })
 state.uiElements.WebhookInput = WebhookInput
 
-local WebhookStatsToggle = WebTab:CreateToggle({
-   Name = "📊 Send Stats",
-   CurrentValue = true,
-   Flag = "WebhookStats",
-   Callback = function(Value)
-      state.webhookStatsEnabled = Value
-   end,
-})
-state.uiElements.WebhookStatsToggle = WebhookStatsToggle
-
-local PingSection = WebTab:CreateSection("📢 Discord Ping")
-
-local PingToggle = WebTab:CreateToggle({
-   Name = "Enable Discord Ping",
-   CurrentValue = false,
-   Flag = "WebhookPing",
-   Callback = function(Value)
-      state.webhookPingEnabled = Value
-   end,
-})
-state.uiElements.WebhookPingToggle = PingToggle
-
 local PingUserInput = WebTab:CreateInput({
-   Name = "Discord User ID",
+   Name = "Discord User ID (to ping)",
    PlaceholderText = "123456789012345678",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text)
@@ -2989,78 +3419,15 @@ local PingUserInput = WebTab:CreateInput({
 })
 state.uiElements.PingUserInput = PingUserInput
 
-WebTab:CreateLabel("Pings the user when legendary+ pet hatches")
-
-local RaritySection = WebTab:CreateSection("🎨 Rarity Filter (Hatch Notifications)")
-
-WebTab:CreateLabel("Only send webhook when you hatch:")
-
-local RarityCommonToggle = WebTab:CreateToggle({
-   Name = "⚪ Common",
+local PingToggle = WebTab:CreateToggle({
+   Name = "📢 Enable Discord Ping",
    CurrentValue = false,
-   Flag = "RarityCommon",
+   Flag = "WebhookPing",
    Callback = function(Value)
-      state.webhookRarities.Common = Value
+      state.webhookPingEnabled = Value
    end,
 })
-
-local RarityUniqueToggle = WebTab:CreateToggle({
-   Name = "🟢 Unique",
-   CurrentValue = false,
-   Flag = "RarityUnique",
-   Callback = function(Value)
-      state.webhookRarities.Unique = Value
-   end,
-})
-
-local RarityRareToggle = WebTab:CreateToggle({
-   Name = "🔵 Rare",
-   CurrentValue = false,
-   Flag = "RarityRare",
-   Callback = function(Value)
-      state.webhookRarities.Rare = Value
-   end,
-})
-
-local RarityEpicToggle = WebTab:CreateToggle({
-   Name = "🟣 Epic",
-   CurrentValue = false,
-   Flag = "RarityEpic",
-   Callback = function(Value)
-      state.webhookRarities.Epic = Value
-   end,
-})
-
-local RarityLegendaryToggle = WebTab:CreateToggle({
-   Name = "🟠 Legendary",
-   CurrentValue = true,
-   Flag = "RarityLegendary",
-   Callback = function(Value)
-      state.webhookRarities.Legendary = Value
-   end,
-})
-
-local RaritySecretToggle = WebTab:CreateToggle({
-   Name = "🟡 Secret",
-   CurrentValue = true,
-   Flag = "RaritySecret",
-   Callback = function(Value)
-      state.webhookRarities.Secret = Value
-   end,
-})
-
-local RarityInfinityToggle = WebTab:CreateToggle({
-   Name = "🌟 Infinity",
-   CurrentValue = true,
-   Flag = "RarityInfinity",
-   Callback = function(Value)
-      state.webhookRarities.Infinity = Value
-   end,
-})
-
-WebTab:CreateLabel("💡 Legendary, Secret & Infinity enabled by default")
-
-local ChanceSection = WebTab:CreateSection("🎲 Chance Filter")
+state.uiElements.WebhookPingToggle = PingToggle
 
 local ChanceThresholdInput = WebTab:CreateInput({
    Name = "Minimum Rarity (1 in X)",
@@ -3070,196 +3437,31 @@ local ChanceThresholdInput = WebTab:CreateInput({
       local value = tonumber(Text)
       if value and value > 0 then
          state.webhookChanceThreshold = value
-         local formatted = value >= 1000000 and string.format("%.1fM", value/1000000) or
-                          value >= 1000 and string.format("%.1fK", value/1000) or tostring(value)
-      -- Rayfield:Notify({
-      -- Title = "Chance Filter Updated",
-      -- Content = "Only sends pets rarer than 1/" .. formatted,
-      -- Duration = 2,
-      -- })
-      else
-      -- Rayfield:Notify({
-      -- Title = "Invalid Value",
-      -- Content = "Please enter a positive number",
-      -- Duration = 2,
-      -- })
       end
    end,
 })
 state.uiElements.ChanceThresholdInput = ChanceThresholdInput
 
-WebTab:CreateLabel("Only send pets with rarity ≥ threshold")
-WebTab:CreateLabel("Example: 100000000 = only 1 in 100M+ pets")
+WebTab:CreateLabel("💡 Example: 100000000 = only 1 in 100M+ pets")
 
-local StatsSection = WebTab:CreateSection("📊 User Stats Webhook")
-
-WebTab:CreateLabel("✨ Edits the same message (no spam!)")
-WebTab:CreateLabel("Message ID saved locally, persists across rejoins")
-
-local StatsWebhookToggle = WebTab:CreateToggle({
-   Name = "📊 Enable Stats Webhook",
-   CurrentValue = false,
-   Flag = "StatsWebhook",
-   Callback = function(Value)
-      state.webhookStatsEnabled = Value
-      if Value then
-         -- Send first stats immediately
-         SendStatsWebhook()
+local RarityDropdown = WebTab:CreateDropdown({
+   Name = "Select Rarities to Notify",
+   Options = {"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity"},
+   CurrentOption = {"Legendary", "Secret", "Infinity"},
+   MultipleOptions = true,
+   Flag = "WebhookRarities",
+   Callback = function(Options)
+      -- Reset all to false
+      state.webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=false, Secret=false, Infinity=false}
+      -- Enable selected ones
+      for _, rarity in ipairs(Options) do
+         state.webhookRarities[rarity] = true
       end
-      -- Rayfield:Notify({
-      -- Title = "Stats Webhook",
-      -- Content = Value and "Enabled - Sending stats periodically" or "Disabled",
-      -- Duration = 2,
-      -- })
    end,
 })
+state.uiElements.RarityDropdown = RarityDropdown
 
-local StatsIntervalSlider = WebTab:CreateSlider({
-   Name = "Stats Interval (seconds)",
-   Range = {30, 120},
-   Increment = 5,
-   CurrentValue = 60,
-   Flag = "StatsInterval",
-   Callback = function(Value)
-      state.webhookStatsInterval = Value
-      -- Rayfield:Notify({
-      -- Title = "Interval Updated",
-      -- Content = "Stats will send every " .. Value .. " seconds",
-      -- Duration = 2,
-      -- })
-   end,
-})
-
-WebTab:CreateLabel("Shows: Username, stats, differences, rates/min")
-
-WebTab:CreateButton({
-   Name = "🔍 Diagnose Hatch Detection",
-   Callback = function()
--- print("━━━━━━━━━━ HATCH DETECTION DIAGNOSTICS ━━━━━━━━━━")
-
-      -- Check PlayerGui
-      local screenGui = playerGui:FindFirstChild("ScreenGui")
--- print("PlayerGui.ScreenGui: " .. (screenGui and "✅ EXISTS" or "❌ NOT FOUND"))
-
-      if screenGui then
-         -- List all children
--- print("\n📋 ScreenGui children:")
-         for _, child in pairs(screenGui:GetChildren()) do
--- print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
-         end
-
-         -- Check for Hatching frame
-         local hatchingFrame = screenGui:FindFirstChild("Hatching")
--- print("\nScreenGui.Hatching: " .. (hatchingFrame and "✅ EXISTS" or "❌ NOT FOUND"))
-
-         if hatchingFrame then
--- print("\n📋 Hatching frame children:")
-            for _, child in pairs(hatchingFrame:GetChildren()) do
--- print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
-            end
-         end
-      end
-
--- print("\n💡 If Hatching frame exists, try hatching an egg!")
--- print("   Template frames should appear as children when hatching.")
--- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-      -- Rayfield:Notify({
-      -- Title = "Diagnostics Complete",
-      -- Content = "Check console (F9) for details",
-      -- Duration = 3,
-      -- })
-   end,
-})
-
-local WebhookTestButton = WebTab:CreateButton({
-   Name = "🧪 Test Webhook (Simple)",
-   Callback = function()
-      if state.webhookUrl == "" then
-      -- Rayfield:Notify({
-      -- Title = "Error",
-      -- Content = "Please add webhook URL first!",
-      -- Duration = 3,
-      -- Image = 4483362458,
-      -- })
-         return
-      end
-      SendWebhook(state.webhookUrl, "**🧼 BGSI Test** " .. os.date("%H:%M"))
-      -- Rayfield:Notify({
-      -- Title = "Test Sent",
-      -- Content = "Check your Discord!",
-      -- Duration = 2,
-      -- Image = 4483362458,
-      -- })
-   end,
-})
-
-WebTab:CreateButton({
-   Name = "🎉 Test Pet Hatch Webhook",
-   Callback = function()
-      if state.webhookUrl == "" then
-      -- Rayfield:Notify({
-      -- Title = "Error",
-      -- Content = "Add webhook URL first!",
-      -- Duration = 3,
-      -- })
-         return
-      end
-      -- Send test with a random Secret pet
-      local testPets = {
-         {name = "King Doggy", rarity = "Secret"},
-         {name = "The Overlord", rarity = "Secret"},
-         {name = "The Superlord", rarity = "Infinity"},
-         {name = "Giant Crescent Empress", rarity = "Secret"}
-      }
-      local testData = testPets[math.random(#testPets)]
-      -- Simulate XL, Shiny, and Mythic randomly for test
-      local testXL = math.random() > 0.7
-      local testShiny = math.random() > 0.5
-      local testMythic = math.random() > 0.8
-      SendPetHatchWebhook(testData.name, state.eggPriority or "Test Egg", testData.rarity, testXL, testShiny, false, testMythic)
-      -- Rayfield:Notify({
-      -- Title = "Pet Hatch Test Sent",
-      -- Content = testData.name .. (testXL and " [XL]" or "") .. (testShiny and " [Shiny]" or "") .. (testMythic and " [Mythic]" or ""),
-      -- Duration = 3,
-      -- })
-   end,
-})
-
-WebTab:CreateButton({
-   Name = "📊 Test Stats Webhook",
-   Callback = function()
-      if state.webhookUrl == "" then
-      -- Rayfield:Notify({
-      -- Title = "Error",
-      -- Content = "Add webhook URL first!",
-      -- Duration = 3,
-      -- })
-         return
-      end
-      SendStatsWebhook()
-      -- Rayfield:Notify({
-      -- Title = "Stats Webhook Sent",
-      -- Content = "Check your Discord!",
-      -- Duration = 2,
-      -- })
-   end,
-})
-
-WebTab:CreateButton({
-   Name = "🔄 Reset Stats Message (Force New)",
-   Callback = function()
-      state.statsMessageId = nil
-      if delfile and isfile and isfile(STATS_MESSAGE_FILE) then
-         pcall(delfile, STATS_MESSAGE_FILE)
-      end
-      -- Rayfield:Notify({
-      -- Title = "Message Reset",
-      -- Content = "Next stats webhook will create a new message",
-      -- Duration = 3,
-      -- })
-   end,
-})
+WebTab:CreateLabel("💎 Select which rarities trigger notifications")
 
 -- === POWERUPS TAB ===
 local PowerupsTab = Window:CreateTab("⚡ Powerups", 4483362458)
@@ -3293,6 +3495,89 @@ local PowerupToggle = PowerupsTab:CreateToggle({
 state.uiElements.AutoPowerupToggle = PowerupToggle
 
 PowerupsTab:CreateLabel("Uses selected powerups when available")
+
+-- === COMPETITIVE TAB ===
+local CompTab = Window:CreateTab("🏆 Competitive", 4483362458)
+
+local CompInfoSection = CompTab:CreateSection("ℹ️ Competitive System")
+
+CompTab:CreateLabel("Auto-blow bubbles + Auto-reroll non-bubble quests")
+CompTab:CreateLabel("Rerolls slots 3-4 if quest is not a bubble quest")
+CompTab:CreateLabel("Webhook sends: Score, Quest Progress, Team Data")
+
+local CompAutoSection = CompTab:CreateSection("🤖 Auto Competitive")
+
+local CompAutoToggle = CompTab:CreateToggle({
+   Name = "✨ Enable Auto Competitive",
+   CurrentValue = false,
+   Flag = "CompAuto",
+   Callback = function(Value)
+      state.compAutoEnabled = Value
+      if Value then
+         -- Auto-enable auto blow when competitive mode starts
+         state.autoBlow = true
+         if state.uiElements.AutoBlowToggle then
+            pcall(function() state.uiElements.AutoBlowToggle:Set(true) end)
+         end
+      end
+   end,
+})
+state.uiElements.CompAutoToggle = CompAutoToggle
+
+local CompRerollToggle = CompTab:CreateToggle({
+   Name = "🔄 Auto-Reroll Non-Bubble Quests",
+   CurrentValue = true,
+   Flag = "CompReroll",
+   Callback = function(Value)
+      state.compRerollNonBubble = Value
+   end,
+})
+state.uiElements.CompRerollToggle = CompRerollToggle
+
+CompTab:CreateLabel("Only rerolls slots 3-4 (repeatable quests)")
+
+local CompWebhookSection = CompTab:CreateSection("📊 Competitive Webhook")
+
+local CompWebhookInput = CompTab:CreateInput({
+   Name = "Competitive Webhook URL",
+   PlaceholderText = "https://discord.com/api/webhooks/...",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      state.compWebhookUrl = Text
+   end,
+})
+state.uiElements.CompWebhookInput = CompWebhookInput
+
+local CompWebhookIntervalInput = CompTab:CreateInput({
+   Name = "Webhook Interval (seconds)",
+   PlaceholderText = "300 (5 minutes)",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local interval = tonumber(Text)
+      if interval and interval >= 60 then
+         state.compWebhookInterval = interval
+      end
+   end,
+})
+state.uiElements.CompWebhookIntervalInput = CompWebhookIntervalInput
+
+CompTab:CreateLabel("Sends competitive stats to Discord webhook")
+CompTab:CreateLabel("Interval: 60-3600 seconds (1min - 1hour)")
+
+local CompTestWebhookButton = CompTab:CreateButton({
+   Name = "📡 Test Competitive Webhook",
+   Callback = function()
+      if state.compWebhookUrl == "" then
+         Rayfield:Notify({
+            Title = "Webhook Test",
+            Content = "Please enter a webhook URL first",
+            Duration = 3,
+         })
+         return
+      end
+      task.spawn(sendCompetitiveWebhook, true)  -- true = test mode
+   end,
+})
 
 -- === CONFIG TAB ===
 local ConfigTab = Window:CreateTab("⚙️ Config", 4483362458)
@@ -3417,7 +3702,7 @@ ConfigTab:CreateButton({
    Name = "🚀 Set Selected as Auto-Load",
    Callback = function()
       if selectedConfig and selectedConfig ~= "No configs found" and selectedConfig ~= "— Create New —" then
-         writefile("ZenithBGSI_AutoLoad.txt", selectedConfig)
+         writefile("LorioBGSI_AutoLoad.txt", selectedConfig)
          print("✅ Auto-load set to: " .. selectedConfig)
       else
          print("❌ Select a config first!")
@@ -3428,8 +3713,8 @@ ConfigTab:CreateButton({
 ConfigTab:CreateButton({
    Name = "❌ Disable Auto-Load",
    Callback = function()
-      if isfile("ZenithBGSI_AutoLoad.txt") then
-         pcall(function() delfile("ZenithBGSI_AutoLoad.txt") end)
+      if isfile("LorioBGSI_AutoLoad.txt") then
+         pcall(function() delfile("LorioBGSI_AutoLoad.txt") end)
          print("✅ Auto-load disabled")
       end
    end,
@@ -3555,8 +3840,8 @@ end)
 task.spawn(function()
     task.wait(2)  -- Wait for UI to fully load
     pcall(function()
-        if isfile("ZenithBGSI_AutoLoad.txt") then
-            local configName = readfile("ZenithBGSI_AutoLoad.txt")
+        if isfile("LorioBGSI_AutoLoad.txt") then
+            local configName = readfile("LorioBGSI_AutoLoad.txt")
             if configName and configName ~= "" then
                 local success, message = loadConfig(configName)
                 if success then
@@ -4661,7 +4946,7 @@ task.spawn(function()
 
                     -- Teleport to rift
                     tpToModel(priorityRiftInstance)
-                    task.wait(0.15)
+                    task.wait(0.3)
 
                     -- Get rift data and farm accordingly
                     local riftData = state.gameRiftData[priorityRiftName]
@@ -4700,7 +4985,7 @@ task.spawn(function()
                 if riftInstance and riftInstance:IsDescendantOf(Workspace) then
                     -- Teleport to rift
                     tpToModel(riftInstance)
-                    task.wait(0.15)
+                    task.wait(0.3)
 
                     -- Get rift data and farm accordingly
                     local riftData = state.gameRiftData[state.riftPriority]
@@ -4756,7 +5041,7 @@ task.spawn(function()
 
                         -- Teleport to priority egg
                         tpToModel(priorityEggInstance)
-                        task.wait(0.15)
+                        task.wait(0.3)
 
                         -- Hatch the priority egg
                         Remote:FireServer("HatchEgg", priorityEggName, 99)
@@ -4803,7 +5088,7 @@ task.spawn(function()
                         end
                         if shouldTeleport then
                             tpToModel(egg.instance)
-                            task.wait(0.15)
+                            task.wait(0.3)
                         end
                         Remote:FireServer("HatchEgg", state.eggPriority, 99)
                         task.defer(stopHatchAnimation)
@@ -5030,9 +5315,9 @@ end)
 -- Rayfield:LoadConfiguration()
 
 -- print("✅ ==========================================")
--- print("✅ Zenith (BGSI) - READY!")
+-- print("✅ Lorio (BGSI) - READY!")
 -- print("✅ ==========================================")
--- print("📱 Zenith is mobile-optimized (Rayfield)")
+-- print("📱 Lorio is mobile-optimized (Rayfield)")
 -- print("   • Single column layout")
 -- print("   • Auto-resizes to your screen")
 -- print("   • Touch-friendly buttons")
@@ -5065,17 +5350,121 @@ end)
 -- print("✅ ==========================================")
 
       -- Rayfield:Notify({
-      -- Title = "Zenith (BGSI) Ready!",
+      -- Title = "Lorio (BGSI) Ready!",
       -- Content = "Mobile-optimized | All systems active!",
       -- Duration = 5,
       -- Image = 4483362458,
       -- })
 
--- print("Zenith (BGSI) loaded successfully!")
+-- print("Lorio (BGSI) loaded successfully!")
 -- print("💡 Rifts and eggs will auto-refresh every 2 seconds")
 -- print("💡 Enable webhook for pet hatch notifications!")
 -- print("🎣 Fishing: Auto-selects best island + upgrades on level up")
--- print("🎣 Fishing logs: zenith_bgsi_fishing_log.txt")
+-- print("🎣 Fishing logs: lorio_bgsi_fishing_log.txt")
+
+-- === COMPETITIVE BACKGROUND TASK ===
+task.spawn(function()
+    print("🏆 [Competitive] System initialized")
+
+    while true do
+        task.wait(0.5)  -- Check every 0.5 seconds for fast rerolls
+
+        if state.compAutoEnabled then
+            local success, err = pcall(function()
+                -- Get Remote module
+                local Remote = nil
+                pcall(function()
+                    Remote = require(RS.Shared.Framework.Network.Remote)
+                end)
+
+                if not Remote then
+                    return
+                end
+                local localDataModule = RS:FindFirstChild("Client", true)
+                if localDataModule then
+                    localDataModule = localDataModule:FindFirstChild("Framework", true)
+                    if localDataModule then
+                        localDataModule = localDataModule:FindFirstChild("Services", true)
+                        if localDataModule then
+                            localDataModule = localDataModule:FindFirstChild("LocalData", true)
+                        end
+                    end
+                end
+
+                if not localDataModule then
+                    return
+                end
+
+                local LocalData = require(localDataModule)
+                local playerData = LocalData:Get()
+
+                if not playerData or not playerData.Competitive then
+                    return
+                end
+                -- Auto-reroll non-bubble quests (slots 3-4 only)
+                if state.compRerollNonBubble then
+                    local questData = playerData.Quests or {}
+                    for slotNum = 3, 4 do
+                        local questId = "competitive-" .. slotNum
+                        local quest = nil
+
+                        -- Find quest by ID
+                        for _, q in pairs(questData) do
+                            if type(q) == "table" and q.Id == questId then
+                                quest = q
+                                break
+                            end
+                        end
+
+                        if quest and quest.Tasks and quest.Tasks[1] then
+                            local task = quest.Tasks[1]
+                            local taskType = task.Type
+
+                            -- Check if it's NOT a bubble quest
+                            -- Bubble quests have Type = "Bubble" or similar
+                            local isBubbleQuest = false
+
+                            if taskType and (
+                                taskType:lower():find("bubble") or
+                                taskType:lower():find("blow") or
+                                (task.Data and task.Data.Type and task.Data.Type:lower():find("bubble"))
+                            ) then
+                                isBubbleQuest = true
+                            end
+
+                            -- If not a bubble quest, reroll it
+                            if not isBubbleQuest then
+                                print(string.format("🔄 [Competitive] Rerolling slot %d (Type: %s)", slotNum, tostring(taskType)))
+
+                                -- Fire reroll remote
+                                pcall(function()
+                                    Remote:FireServer("CompetitiveReroll", slotNum)
+                                end)
+                            end
+                        end
+                    end
+                end
+
+                -- Send competitive webhook at interval
+                if state.compWebhookUrl ~= "" then
+                    local currentTime = tick()
+
+                    if currentTime - state.compLastWebhook >= state.compWebhookInterval then
+                        state.compLastWebhook = currentTime
+                        print("📊 [Competitive] Sending webhook stats...")
+                        pcall(function()
+                            sendCompetitiveWebhook(false)
+                        end)
+                    end
+                end
+            end)
+
+            if not success then
+                print("❌ [Competitive] Error: " .. tostring(err))
+            end
+        end
+    end
+end)
 
 -- === ANTI-AFK BACKGROUND TASK ===
 task.spawn(function()
@@ -5084,27 +5473,39 @@ task.spawn(function()
     -- Capture controller once at startup
     VirtualUser:CaptureController()
 
--- print("🛡️ [Anti-AFK] System initialized")
+    print("🛡️ [Anti-AFK] System initialized")
+    print("🛡️ [Anti-AFK] Waiting for toggle to be enabled...")
 
-    while task.wait(1) do
+    while true do
         if state.antiAFK then
-            -- Random interval between 15-19 minutes (900-1140 seconds)
-            local interval = math.random(900, 1140)
+            -- Random interval between 1-2 minutes (60-120 seconds)
+            local interval = math.random(60, 120)
+            print("🛡️ [Anti-AFK] ✅ ENABLED - Next input in " .. interval .. " seconds (" .. math.floor(interval/60) .. "m " .. (interval%60) .. "s)")
 
--- print("🛡️ [Anti-AFK] Enabled - Next input in " .. math.floor(interval/60) .. " minutes")
-
+            -- Wait for the interval
             task.wait(interval)
 
+            -- Check if still enabled after waiting
             if state.antiAFK then
-                -- Simulate user input to prevent AFK kick
-                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                task.wait(0.1)
-                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                print("🛡️ [Anti-AFK] Simulating user input...")
 
--- print("🛡️ [Anti-AFK] Input simulated - Reset AFK timer")
+                -- Simulate right-click input to prevent AFK kick
+                local success, err = pcall(function()
+                    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    task.wait(0.1)
+                    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    print("🛡️ [Anti-AFK]   └─ ✅ INPUT SIMULATED - AFK timer reset!")
+                end)
+
+                if not success then
+                    print("🛡️ [Anti-AFK]   └─ ❌ Error during input simulation: " .. tostring(err))
+                end
+            else
+                print("🛡️ [Anti-AFK] Toggle was disabled during wait period")
             end
         else
-            task.wait(10)  -- Check every 10 seconds when disabled
+            -- Check every 10 seconds when disabled
+            task.wait(10)
         end
     end
 end)
