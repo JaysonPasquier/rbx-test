@@ -168,7 +168,7 @@ local state = {
     compPreviousScores = {},  -- Track previous scores for rate calculation
     compPreviousTime = 0,  -- Timestamp of previous webhook for rate calculation
     -- Competitive Quest Selection
-    compDoHatchQuests = true,  -- Enable hatch quests
+    compDoHatchQuests = false,  -- Enable hatch quests (disabled by default)
     compDoBubbleQuests = true,  -- Enable bubble quests
     compDoPlaytimeQuests = true,  -- Enable playtime quests
     compCurrentHatchEgg = nil,  -- Current egg we're hatching for quest
@@ -2375,7 +2375,7 @@ local function loadConfig(configName)
     state.compWebhookUrl = config.compWebhookUrl or ""
     state.compWebhookInterval = config.compWebhookInterval or 300
     state.compRerollNonBubble = config.compRerollNonBubble ~= false  -- Default true
-    state.compDoHatchQuests = config.compDoHatchQuests ~= false  -- Default true
+    state.compDoHatchQuests = config.compDoHatchQuests == true  -- Default false
     state.compDoBubbleQuests = config.compDoBubbleQuests ~= false  -- Default true
     state.compDoPlaytimeQuests = config.compDoPlaytimeQuests ~= false  -- Default true
 
@@ -3747,7 +3747,7 @@ CompTab:CreateLabel("Select which quest types to complete:")
 
 local CompHatchToggle = CompTab:CreateToggle({
    Name = "🥚 Do Hatch Quests",
-   CurrentValue = true,
+   CurrentValue = false,
    Flag = "CompHatch",
    Callback = function(Value)
       state.compDoHatchQuests = Value
