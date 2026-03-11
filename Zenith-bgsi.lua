@@ -4821,6 +4821,17 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Found FishingAreas")
 
+                    -- Get IslandTeleport position to find closest fishing area
+                    local islandTeleport = island:FindFirstChild("IslandTeleport")
+                    if not islandTeleport then
+                        log("❌ [Fishing] ERROR: IslandTeleport not found in " .. state.fishingIsland)
+                        return
+                    end
+
+                    local teleportSpawn = islandTeleport:FindFirstChild("Spawn") or islandTeleport
+                    local teleportPosition = teleportSpawn:IsA("BasePart") and teleportSpawn.Position or teleportSpawn:GetPivot().Position
+                    log("✅ [Fishing] Island teleport position: " .. tostring(teleportPosition))
+
                     -- Get all fishing areas (UUID named models)
                     local areaList = fishingAreas:GetChildren()
                     if #areaList == 0 then
@@ -4829,15 +4840,23 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Found " .. #areaList .. " fishing areas")
 
-                    -- Smart area selection: Filter out potentially bugged areas
+                    -- Smart area selection: Filter out potentially bugged areas and calculate distances
                     local validAreas = {}
                     for i, area in ipairs(areaList) do
                         if area:IsA("Model") then
                             local cframe, size = area:GetBoundingBox()
                             -- Only include areas with reasonable size (not tiny/bugged)
                             if size.Magnitude > 10 then
-                                table.insert(validAreas, {index = i, area = area, size = size})
-                                log("  ✅ Valid fishing area #" .. i .. " - Size: " .. tostring(size))
+                                local center = cframe.Position
+                                local distance = (center - teleportPosition).Magnitude
+                                table.insert(validAreas, {
+                                    index = i,
+                                    area = area,
+                                    size = size,
+                                    center = center,
+                                    distance = distance
+                                })
+                                log("  ✅ Valid fishing area #" .. i .. " - Size: " .. tostring(size) .. ", Distance from teleport: " .. tostring(math.floor(distance)) .. " studs")
                             else
                                 log("  ⚠️ Skipping area #" .. i .. " (too small, possibly bugged) - Size: " .. tostring(size))
                             end
@@ -4850,15 +4869,22 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] " .. #validAreas .. " valid fishing areas")
 
+                    -- Sort fishing areas by distance from IslandTeleport (closest first)
+                    table.sort(validAreas, function(a, b)
+                        return a.distance < b.distance
+                    end)
+
+                    log("🎯 [Fishing] Closest fishing area is #" .. validAreas[1].index .. " at " .. tostring(math.floor(validAreas[1].distance)) .. " studs")
+
                     -- Check if we're stuck (no successful cast in 10 seconds after starting)
                     local currentTime2 = tick()
                     if state.fishingStuckCheckTime == 0 then
                         state.fishingStuckCheckTime = currentTime2
                     elseif currentTime2 - state.lastSuccessfulCast > 10 and state.lastSuccessfulCast > 0 then
-                        -- Stuck! Try next fishing spot
+                        -- Stuck! Try next fishing spot (already sorted by distance)
                         state.fishingAreaIndex = state.fishingAreaIndex + 1
                         if state.fishingAreaIndex > #validAreas then
-                            state.fishingAreaIndex = 1  -- Loop back to first valid spot
+                            state.fishingAreaIndex = 1  -- Loop back to closest spot
                         end
                         state.fishingTeleported = false  -- Force re-teleport
                         state.fishingRodEquipped = false  -- Force re-equip
@@ -4866,11 +4892,13 @@ task.spawn(function()
                         return
                     end
 
-                    -- Pick fishing area from valid list (cycles through if stuck)
+                    -- Pick fishing area from sorted list (closest first, cycles if stuck)
                     local areaIndex = math.min(state.fishingAreaIndex, #validAreas)
                     local areaData = validAreas[areaIndex]
                     local area = areaData.area
-                    log("🎣 [Fishing] Using valid fishing spot #" .. areaIndex .. " of " .. #validAreas)
+                    local center = areaData.center
+                    local size = areaData.size
+                    log("🎣 [Fishing] Using fishing spot #" .. areaIndex .. " of " .. #validAreas .. " (distance: " .. tostring(math.floor(areaData.distance)) .. " studs)")
                     if not area:IsA("Model") then
                         log("❌ [Fishing] ERROR: Fishing area is not a Model")
                         return
@@ -4889,12 +4917,6 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Area ID: " .. tostring(correctAreaId))
 
-                    -- Calculate center and size of fishing area
-                    local cframe, size = area:GetBoundingBox()
-                    local center = cframe.Position
-                    log("✅ [Fishing] Fishing area center: " .. tostring(center))
-                    log("✅ [Fishing] Fishing area size: " .. tostring(size))
-
                     -- Get player character
                     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                     if not hrp then
@@ -4902,16 +4924,12 @@ task.spawn(function()
                         return
                     end
 
-                    -- TELEPORT PLAYER TO FISHING AREA EXTREMITY (edge of the area)
-                    -- Calculate edge position: use half the size to get to the boundary
-                    local edgeOffset = Vector3.new(0, 0, size.Z / 2 + 10)  -- Stand 10 studs outside the edge
-                    local fishingPosition = CFrame.new(center + edgeOffset) * CFrame.new(0, 3, 0)  -- Raise by 3 studs
+                    -- TELEPORT PLAYER TO CENTER OF FISHING AREA
+                    local fishingPosition = CFrame.new(center) * CFrame.new(0, 3, 0)  -- At center, raised by 3 studs
                     hrp.CFrame = fishingPosition
                     task.wait(0.3)
 
-                    -- Face the fishing area center
-                    hrp.CFrame = CFrame.new(hrp.Position, center)
-                    log("✅ [Fishing] Positioned at extremity (" .. tostring(hrp.Position) .. "), facing water center")
+                    log("✅ [Fishing] Positioned at center (" .. tostring(hrp.Position) .. ") of closest fishing area")
 
                     -- ONE-TIME SETUP: Equip rod, enable AutoFish, and setup event listeners
                     if not state.fishingRodEquipped then
