@@ -349,14 +349,27 @@ local function collectBrainrots()
             end
         end
 
-        -- Teleport to and collect the closest brainrot
+        -- Teleport brainrot to player (anti-TP bypass)
         if closestBrainrot and closestTakePrompt then
-            local brainrotName = closestBrainrot.Parent and closestBrainrot.Parent.Name or "Unknown"
+            local brainrotModel = closestBrainrot.Parent -- RenderedBrainrot model
+            local brainrotName = brainrotModel and brainrotModel.Name or "Unknown"
             local level = closestBrainrot:GetAttribute("Level") or 1
             local holdDuration = closestTakePrompt.HoldDuration or 5 -- Read actual hold duration from ProximityPrompt
 
-            -- Teleport to brainrot (Root part position)
-            hrp.CFrame = closestBrainrot.CFrame + Vector3.new(0, 3, 0)
+            -- Teleport the brainrot TO the player (not player to brainrot - anti-TP bypass)
+            if brainrotModel and brainrotModel:IsA("Model") then
+                -- Save player position
+                local playerPos = hrp.Position
+
+                -- Move brainrot model to player position
+                if brainrotModel.PrimaryPart then
+                    brainrotModel:SetPrimaryPartCFrame(CFrame.new(playerPos + Vector3.new(0, 2, 0)))
+                else
+                    -- If no PrimaryPart, move the Root directly
+                    closestBrainrot.CFrame = CFrame.new(playerPos + Vector3.new(0, 2, 0))
+                end
+            end
+
             task.wait(0.3)
 
             -- Hold E key for the duration specified by TakePrompt.HoldDuration
@@ -528,17 +541,33 @@ local function disableWaves()
         if not activeTsunamis then return end
 
         if not state.tsunamiDodge then
-            -- Re-enable waves if toggle is off
+            -- Re-enable waves if toggle is off (restore original values)
             for _, wave in pairs(activeTsunamis:GetChildren()) do
                 if wave:IsA("Model") then
                     for _, part in pairs(wave:GetDescendants()) do
                         if part:IsA("BasePart") then
+                            -- Restore original values if they were saved
                             local origTransparency = part:GetAttribute("OriginalTransparency")
+                            local origCanCollide = part:GetAttribute("OriginalCanCollide")
+                            local origSize = part:GetAttribute("OriginalSize")
+                            local origCFrame = part:GetAttribute("OriginalCFrame")
+
                             if origTransparency then
                                 part.Transparency = origTransparency
                                 part:SetAttribute("OriginalTransparency", nil)
                             end
-                            part.CanCollide = true
+                            if origCanCollide ~= nil then
+                                part.CanCollide = origCanCollide
+                                part:SetAttribute("OriginalCanCollide", nil)
+                            end
+                            if origSize then
+                                part.Size = origSize
+                                part:SetAttribute("OriginalSize", nil)
+                            end
+                            if origCFrame then
+                                part.CFrame = origCFrame
+                                part:SetAttribute("OriginalCFrame", nil)
+                            end
                         end
                     end
                 end
@@ -546,19 +575,31 @@ local function disableWaves()
             return
         end
 
-        -- Disable waves client-side (no collision, invisible)
+        -- Disable waves client-side (no collision, invisible, moved far away)
         for _, wave in pairs(activeTsunamis:GetChildren()) do
             if wave:IsA("Model") then
                 for _, part in pairs(wave:GetDescendants()) do
                     if part:IsA("BasePart") then
-                        -- Save original transparency before modifying (only once)
+                        -- Save original values before modifying (only once)
                         if not part:GetAttribute("OriginalTransparency") then
                             part:SetAttribute("OriginalTransparency", part.Transparency)
+                            part:SetAttribute("OriginalCanCollide", part.CanCollide)
+                            part:SetAttribute("OriginalSize", part.Size)
+                            part:SetAttribute("OriginalCFrame", part.CFrame)
                         end
 
-                        -- Disable collision and make invisible
+                        -- Aggressive wave disabling (multiple methods)
                         part.CanCollide = false
                         part.Transparency = 1
+                        part.Size = Vector3.new(0, 0, 0) -- Shrink to nothing
+                        part.CFrame = CFrame.new(0, -10000, 0) -- Move far underground
+
+                        -- Disable TouchInterest if it exists
+                        for _, child in pairs(part:GetChildren()) do
+                            if child:IsA("TouchTransmitter") then
+                                child:Destroy()
+                            end
+                        end
                     end
                 end
             end
@@ -878,11 +919,10 @@ task.spawn(function()
     end
 end)
 
--- === TSUNAMI WAVE DISABLE TASK ===
-task.spawn(function()
-    while task.wait(0.5) do
-        disableWaves()
-    end
+-- === TSUNAMI WAVE DISABLE TASK (CONTINUOUS) ===
+-- Run every frame to catch new waves immediately
+RunService.Heartbeat:Connect(function()
+    disableWaves()
 end)
 
 -- === ITEM ESP UPDATE TASK ===
