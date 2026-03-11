@@ -8,6 +8,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -70,6 +71,11 @@ local state = {
     dodgeDistance = 100,
     minMutationToLock = {"Diamond", "Electric", "Infinity", "Admin"},
     sellMutations = {"Emerald", "Gold", "Blood"},
+    brainrotRarityFilter = {"All"}, -- Rarity filter for auto-collect
+
+    -- Runtime Data
+    lastBrainrotTP = 0,
+    playerBase = nil,
 
     -- ESP Objects
     espObjects = {},
@@ -217,38 +223,165 @@ local function updateStats()
     end)
 end
 
--- Auto-collect brainrots
-local function collectBrainrots()
+-- Find player's base
+local function findPlayerBase()
     pcall(function()
-        if not state.autoBrainrot then return end
-        if not hrp then return end
-
         local bases = Workspace:FindFirstChild("Bases")
         if not bases then return end
 
         for _, base in pairs(bases:GetChildren()) do
             if base:IsA("Model") then
-                for _, item in pairs(base:GetDescendants()) do
-                    if item:IsA("Model") and item:FindFirstChild("Brainrot") then
-                        -- Check if it's a brainrot
-                        local brainrotAttr = item:GetAttribute("BrainrotName")
-                        if brainrotAttr then
-                            local mutation = item:GetAttribute("Mutation") or "None"
-                            local level = item:GetAttribute("Level") or 1
+                -- Check if this is player's base (usually has player name or owns it)
+                local owner = base:FindFirstChild("Owner")
+                if owner and owner.Value == player then
+                    state.playerBase = base
+                    return
+                end
 
-                            -- Teleport to collect
-                            if item.PrimaryPart then
-                                hrp.CFrame = item.PrimaryPart.CFrame
-                                task.wait(0.1)
+                -- Alternative: check base name or just use first available base
+                if base.Name:find(player.Name) or base.Name:match("%d+") then
+                    state.playerBase = base
+                    return
+                end
+            end
+        end
+    end)
+end
 
-                                state.brainrotsCollected = state.brainrotsCollected + 1
+-- Auto-collect brainrots (improved with base return)
+local function collectBrainrots()
+    pcall(function()
+        if not state.autoBrainrot then return end
+        if not hrp then return end
 
-                                -- Check if rare
-                                if mutation == "Infinity" or mutation == "Admin" or mutation == "Diamond" then
-                                    sendRareItemWebhook(brainrotAttr, mutation, level)
-                                end
+        -- Rate limit
+        local currentTime = tick()
+        if currentTime - state.lastBrainrotTP < 2 then return end
+
+        -- Find player base if not found
+        if not state.playerBase then
+            findPlayerBase()
+        end
+
+        -- Get ActiveBrainrots folder (where brainrots spawn in the game)
+        local activeBrainrots = Workspace:FindFirstChild("ActiveBrainrots")
+        if not activeBrainrots then return end
+
+        -- Check if player is already holding a brainrot
+        local holdingBrainrot = false
+        for _, child in pairs(character:GetChildren()) do
+            if child:IsA("Model") and CollectionService:HasTag(child, "Brainrot") then
+                holdingBrainrot = true
+                break
+            end
+        end
+
+        -- If holding a brainrot, teleport back to base to place it
+        if holdingBrainrot then
+            local bases = Workspace:FindFirstChild("Bases")
+            if bases then
+                -- Find player's base (use saved playerBase or search for it)
+                local playerBase = state.playerBase
+                if not playerBase then
+                    for _, base in pairs(bases:GetChildren()) do
+                        if base:IsA("Model") and base.Name:match("%d+") then
+                            playerBase = base
+                            break
+                        end
+                    end
+                end
+
+                if playerBase and playerBase.PrimaryPart then
+                    hrp.CFrame = playerBase.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                    task.wait(1.5) -- Wait for brainrot to be placed
+                    state.lastBrainrotTP = tick()
+                    return
+                end
+            end
+            return
+        end
+
+        -- Find closest brainrot that matches rarity filter
+        local closestBrainrot = nil
+        local closestDistance = math.huge
+        local savedReturnPos = hrp.CFrame -- Save position before teleporting
+
+        for _, brainrotFolder in pairs(activeBrainrots:GetChildren()) do
+            for _, brainrot in pairs(brainrotFolder:GetChildren()) do
+                if brainrot:IsA("Model") and brainrot.PrimaryPart then
+                    local brainrotName = brainrot:GetAttribute("BrainrotName")
+                    local mutation = brainrot:GetAttribute("Mutation") or "None"
+
+                    if brainrotName then
+                        -- Check rarity filter
+                        local shouldCollect = false
+
+                        if table.find(state.brainrotRarityFilter, "All") then
+                            shouldCollect = true
+                        elseif table.find(state.brainrotRarityFilter, mutation) then
+                            shouldCollect = true
+                        end
+
+                        if shouldCollect then
+                            local distance = (brainrot.PrimaryPart.Position - hrp.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestBrainrot = brainrot
                             end
                         end
+                    end
+                end
+            end
+        end
+
+        -- Teleport to and collect the closest brainrot
+        if closestBrainrot and closestBrainrot.PrimaryPart then
+            local brainrotName = closestBrainrot:GetAttribute("BrainrotName")
+            local mutation = closestBrainrot:GetAttribute("Mutation") or "None"
+            local level = closestBrainrot:GetAttribute("Level") or 1
+
+            -- Teleport to brainrot (proximity-based pickup)
+            hrp.CFrame = closestBrainrot.PrimaryPart.CFrame + Vector3.new(0, 2, 0)
+            task.wait(0.8) -- Wait for proximity collection to trigger
+
+            -- Check if we picked it up (brainrot becomes child of character)
+            local pickedUp = false
+            for _, child in pairs(character:GetChildren()) do
+                if child:IsA("Model") and CollectionService:HasTag(child, "Brainrot") then
+                    pickedUp = true
+                    break
+                end
+            end
+
+            if pickedUp then
+                state.brainrotsCollected = state.brainrotsCollected + 1
+                state.lastBrainrotTP = tick()
+
+                -- Check if rare for webhook
+                if mutation == "Infinity" or mutation == "Admin" or mutation == "Diamond" or mutation == "Electric" then
+                    sendRareItemWebhook(brainrotName, mutation, level)
+                end
+
+                -- Return to base to place brainrot
+                local bases = Workspace:FindFirstChild("Bases")
+                if bases then
+                    local playerBase = state.playerBase
+                    if not playerBase then
+                        for _, base in pairs(bases:GetChildren()) do
+                            if base:IsA("Model") and base.Name:match("%d+") then
+                                playerBase = base
+                                break
+                            end
+                        end
+                    end
+
+                    if playerBase and playerBase.PrimaryPart then
+                        hrp.CFrame = playerBase.PrimaryPart.CFrame + Vector3.new(0, 5, 0)
+                        task.wait(1.5) -- Wait for brainrot to be placed
+                    else
+                        -- Fallback to saved position
+                        hrp.CFrame = savedReturnPos
+                        task.wait(1)
                     end
                 end
             end
@@ -363,11 +496,29 @@ local function updateTsunamiESP()
     end)
 end
 
--- Tsunami auto-dodge
+-- Tsunami auto-dodge (improved)
 local function tsunamiAutoDodge()
     pcall(function()
         if not state.tsunamiDodge then return end
         if not hrp then return end
+
+        -- Check if player is in spawn zone (safe zone)
+        local inSpawn = false
+        local spawnZone = Workspace:FindFirstChild("SpawnZone") or Workspace:FindFirstChild("Spawn")
+        if spawnZone and spawnZone:IsA("BasePart") then
+            local spawnPos = spawnZone.Position
+            local playerPos = hrp.Position
+            local distToSpawn = (spawnPos - playerPos).Magnitude
+            if distToSpawn < 100 then
+                inSpawn = true
+            end
+        elseif hrp.Position.Y > 50 then
+            -- Fallback: spawn is usually elevated
+            inSpawn = true
+        end
+
+        -- Only dodge if NOT in spawn
+        if inSpawn then return end
 
         for _, waveData in pairs(state.activeTsunamis) do
             local wave = waveData.model
@@ -376,11 +527,50 @@ local function tsunamiAutoDodge()
                 local playerPos = hrp.Position
                 local distance = (wavePos - playerPos).Magnitude
 
-                -- If wave is too close, teleport forward
-                if distance < state.dodgeDistance then
-                    hrp.CFrame = hrp.CFrame + Vector3.new(-state.dodgeDistance * 2, 0, 0)
+                -- Dodge BEFORE wave hits (increased distance threshold)
+                local safeDodgeDistance = state.dodgeDistance * 2 -- Dodge earlier
+
+                if distance < safeDodgeDistance then
+                    -- Calculate wave direction (where it's moving)
+                    local waveVelocity = wave.PrimaryPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+
+                    -- Move BEHIND the wave (opposite of wave direction)
+                    -- If wave is moving in positive X direction, player should go to negative X
+                    local escapeDir = -waveVelocity.Unit
+
+                    -- If wave has no velocity, escape away from wave position
+                    if escapeDir.Magnitude < 0.1 then
+                        escapeDir = (playerPos - wavePos).Unit
+                    end
+
+                    -- Calculate new safe position BEHIND the wave
+                    local escapeDistance = safeDodgeDistance * 1.5
+                    local newPos = wavePos + (escapeDir * escapeDistance)
+
+                    -- Ensure position stays within map bounds
+                    -- Map bounds (adjust based on game map size)
+                    local minX, maxX = -300, 2000
+                    local minZ, maxZ = -400, 400
+                    local safeY = 15 -- Safe ground height
+
+                    newPos = Vector3.new(
+                        math.clamp(newPos.X, minX, maxX),
+                        safeY,
+                        math.clamp(newPos.Z, minZ, maxZ)
+                    )
+
+                    -- Verify newPos is not too close to any edge
+                    local edgeBuffer = 50
+                    if newPos.X < minX + edgeBuffer or newPos.X > maxX - edgeBuffer or
+                       newPos.Z < minZ + edgeBuffer or newPos.Z > maxZ - edgeBuffer then
+                        -- Too close to edge, just move to center of map instead
+                        newPos = Vector3.new(800, safeY, 0)
+                    end
+
+                    -- Teleport to safe position
+                    hrp.CFrame = CFrame.new(newPos)
                     state.tsunamisDodged = state.tsunamisDodged + 1
-                    task.wait(0.5)
+                    task.wait(0.8) -- Longer wait to avoid rapid dodging
                 end
             end
         end
@@ -517,14 +707,30 @@ local BrainrotTab = Window:CreateTab("🧠 Brainrot", 4483362458)
 
 local AutoFarmSection = BrainrotTab:CreateSection("⚡ Auto-Farm")
 
+local RarityDropdown = BrainrotTab:CreateDropdown({
+    Name = "Select Rarity to Collect",
+    Options = {"All", "Emerald", "Gold", "Blood", "Diamond", "Electric", "Radioactive", "Admin", "UFO", "Hacker", "Lucky", "Money", "Gamer", "Candy", "Doom", "Fire", "Ice", "Phantom"},
+    CurrentOption = {"All"},
+    MultipleOptions = true,
+    Flag = "BrainrotRarity",
+    Callback = function(Options)
+        state.brainrotRarityFilter = Options
+    end,
+})
+
 local AutoBrainrotToggle = BrainrotTab:CreateToggle({
     Name = "⚡ Auto-Collect Brainrots",
     CurrentValue = false,
     Flag = "AutoBrainrot",
     Callback = function(Value)
         state.autoBrainrot = Value
+        if Value then
+            findPlayerBase()
+        end
     end,
 })
+
+BrainrotTab:CreateLabel("Teleports to brainrot, then returns to base")
 
 local AutoSellSection = BrainrotTab:CreateSection("💰 Auto-Sell")
 
