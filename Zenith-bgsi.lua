@@ -3255,7 +3255,12 @@ local AutoFishToggle = FarmTab:CreateToggle({
    Callback = function(Value)
       state.autoFishEnabled = Value
       if Value then
-         state.fishingTeleported = false  -- Reset on enable
+         -- Reset all fishing state variables for fresh start
+         state.fishingTeleported = false
+         state.fishingRodEquipped = false
+         state.fishingAreaIndex = 1
+         state.lastSuccessfulCast = 0
+         state.fishingStuckCheckTime = 0
          local island = state.fishingIsland or "No island selected"
          log("🎣 [Fishing] Auto fishing ENABLED - Island: " .. island)
       -- Rayfield:Notify({
@@ -4824,15 +4829,36 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Found " .. #areaList .. " fishing areas")
 
-                    -- Check if we're stuck (no successful cast in 5 seconds after starting)
+                    -- Smart area selection: Filter out potentially bugged areas
+                    local validAreas = {}
+                    for i, area in ipairs(areaList) do
+                        if area:IsA("Model") then
+                            local cframe, size = area:GetBoundingBox()
+                            -- Only include areas with reasonable size (not tiny/bugged)
+                            if size.Magnitude > 10 then
+                                table.insert(validAreas, {index = i, area = area, size = size})
+                                log("  ✅ Valid fishing area #" .. i .. " - Size: " .. tostring(size))
+                            else
+                                log("  ⚠️ Skipping area #" .. i .. " (too small, possibly bugged) - Size: " .. tostring(size))
+                            end
+                        end
+                    end
+
+                    if #validAreas == 0 then
+                        log("❌ [Fishing] ERROR: No valid fishing areas found")
+                        return
+                    end
+                    log("✅ [Fishing] " .. #validAreas .. " valid fishing areas")
+
+                    -- Check if we're stuck (no successful cast in 10 seconds after starting)
                     local currentTime2 = tick()
                     if state.fishingStuckCheckTime == 0 then
                         state.fishingStuckCheckTime = currentTime2
-                    elseif currentTime2 - state.lastSuccessfulCast > 5 and state.lastSuccessfulCast > 0 then
+                    elseif currentTime2 - state.lastSuccessfulCast > 10 and state.lastSuccessfulCast > 0 then
                         -- Stuck! Try next fishing spot
                         state.fishingAreaIndex = state.fishingAreaIndex + 1
-                        if state.fishingAreaIndex > #areaList then
-                            state.fishingAreaIndex = 1  -- Loop back to first spot
+                        if state.fishingAreaIndex > #validAreas then
+                            state.fishingAreaIndex = 1  -- Loop back to first valid spot
                         end
                         state.fishingTeleported = false  -- Force re-teleport
                         state.fishingRodEquipped = false  -- Force re-equip
@@ -4840,10 +4866,11 @@ task.spawn(function()
                         return
                     end
 
-                    -- Pick fishing area by index (cycles through if stuck)
-                    local areaIndex = math.min(state.fishingAreaIndex, #areaList)
-                    local area = areaList[areaIndex]
-                    log("🎣 [Fishing] Using fishing spot #" .. areaIndex .. " of " .. #areaList)
+                    -- Pick fishing area from valid list (cycles through if stuck)
+                    local areaIndex = math.min(state.fishingAreaIndex, #validAreas)
+                    local areaData = validAreas[areaIndex]
+                    local area = areaData.area
+                    log("🎣 [Fishing] Using valid fishing spot #" .. areaIndex .. " of " .. #validAreas)
                     if not area:IsA("Model") then
                         log("❌ [Fishing] ERROR: Fishing area is not a Model")
                         return
@@ -4862,9 +4889,11 @@ task.spawn(function()
                     end
                     log("✅ [Fishing] Area ID: " .. tostring(correctAreaId))
 
-                    -- Calculate center of fishing area
-                    local center = area:GetBoundingBox().Position
+                    -- Calculate center and size of fishing area
+                    local cframe, size = area:GetBoundingBox()
+                    local center = cframe.Position
                     log("✅ [Fishing] Fishing area center: " .. tostring(center))
+                    log("✅ [Fishing] Fishing area size: " .. tostring(size))
 
                     -- Get player character
                     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -4873,22 +4902,35 @@ task.spawn(function()
                         return
                     end
 
-                    -- TELEPORT PLAYER TO FISHING AREA (on the edge, not center)
-                    local fishingPosition = CFrame.new(center.X, center.Y + 3, center.Z + 15)  -- Stand at edge
+                    -- TELEPORT PLAYER TO FISHING AREA EXTREMITY (edge of the area)
+                    -- Calculate edge position: use half the size to get to the boundary
+                    local edgeOffset = Vector3.new(0, 0, size.Z / 2 + 10)  -- Stand 10 studs outside the edge
+                    local fishingPosition = CFrame.new(center + edgeOffset) * CFrame.new(0, 3, 0)  -- Raise by 3 studs
                     hrp.CFrame = fishingPosition
                     task.wait(0.3)
 
                     -- Face the fishing area center
                     hrp.CFrame = CFrame.new(hrp.Position, center)
-                    log("✅ [Fishing] Positioned at edge, facing water")
+                    log("✅ [Fishing] Positioned at extremity (" .. tostring(hrp.Position) .. "), facing water center")
 
                     -- ONE-TIME SETUP: Equip rod, enable AutoFish, and setup event listeners
                     if not state.fishingRodEquipped then
+                        -- Check if fishing was disabled during wait
+                        if not state.autoFishEnabled then
+                            log("⚠️ [Fishing] Disabled during setup, aborting")
+                            return
+                        end
+
                         log("🎣 [Fishing] Setting up rod and event listeners...")
                         Remote:FireServer("SetEquippedRod", state.fishingRod, false)
                         task.wait(1)
+
+                        if not state.autoFishEnabled then return end
+
                         Remote:FireServer("EquipRod")
                         task.wait(2)
+
+                        if not state.autoFishEnabled then return end
 
                         -- Enable AutoFish (handles reeling minigame automatically)
                         log("🎣 [Fishing] Enabling AutoFish for automatic reeling...")
@@ -4961,6 +5003,12 @@ task.spawn(function()
                         castPosition = center
                     end
 
+                    -- Check if fishing still enabled before casting
+                    if not state.autoFishEnabled then
+                        log("⚠️ [Fishing] Disabled before cast, aborting")
+                        return
+                    end
+
                     -- EVENT-DRIVEN FISHING (waits for actual game events)
                     log("🎣 [Fishing] Starting event-driven cast...")
 
@@ -4994,6 +5042,10 @@ task.spawn(function()
                             log("  ⏳ Waiting for Idle state...")
                             local maxWait = 0
                             while fsm:GetCurrentState() ~= FishingState.Idle and maxWait < 100 do
+                                if not state.autoFishEnabled then
+                                    log("  ⚠️ Fishing disabled, stopping wait")
+                                    error("Fishing disabled")
+                                end
                                 task.wait(0.1)
                                 maxWait = maxWait + 1
                             end
@@ -5007,6 +5059,7 @@ task.spawn(function()
                         -- Wait for Charge state
                         local maxWait = 0
                         while fsm:GetCurrentState() ~= FishingState.Charge and maxWait < 20 do
+                            if not state.autoFishEnabled then error("Fishing disabled") end
                             task.wait(0.05)
                             maxWait = maxWait + 1
                         end
@@ -5024,6 +5077,7 @@ task.spawn(function()
                             -- Wait for Casting state
                             maxWait = 0
                             while fsm:GetCurrentState() ~= FishingState.Casting and maxWait < 20 do
+                                if not state.autoFishEnabled then error("Fishing disabled") end
                                 task.wait(0.1)
                                 maxWait = maxWait + 1
                             end
@@ -5032,6 +5086,7 @@ task.spawn(function()
                             -- Wait for Waiting state (waiting for fish)
                             maxWait = 0
                             while fsm:GetCurrentState() ~= FishingState.Waiting and maxWait < 50 do
+                                if not state.autoFishEnabled then error("Fishing disabled") end
                                 task.wait(0.1)
                                 maxWait = maxWait + 1
                             end
@@ -5041,6 +5096,10 @@ task.spawn(function()
                             log("  ⏳ Waiting for fish bite...")
                             maxWait = 0
                             while fsm:GetCurrentState() ~= FishingState.Reeling and maxWait < 200 do
+                                if not state.autoFishEnabled then
+                                    log("  ⚠️ Fishing disabled while waiting for bite")
+                                    error("Fishing disabled")
+                                end
                                 task.wait(0.1)
                                 maxWait = maxWait + 1
                             end
@@ -5051,6 +5110,7 @@ task.spawn(function()
                                 -- Wait for Idle state (fish caught, cycle complete)
                                 maxWait = 0
                                 while fsm:GetCurrentState() ~= FishingState.Idle and maxWait < 150 do
+                                    if not state.autoFishEnabled then error("Fishing disabled") end
                                     task.wait(0.1)
                                     maxWait = maxWait + 1
                                 end
@@ -5068,6 +5128,12 @@ task.spawn(function()
                     if not eventSuccess then
                         log("❌ [Fishing] Event-driven fishing failed, using fallback timing...")
 
+                        -- Check if still enabled before fallback
+                        if not state.autoFishEnabled then
+                            log("⚠️ [Fishing] Disabled during event failure, aborting fallback")
+                            return
+                        end
+
                         -- Fallback: Use input events with hardcoded timing
                         pcall(function()
                             local FishingInput = require(RS.Client.Gui.Frames.Fishing.FishingInput)
@@ -5076,9 +5142,15 @@ task.spawn(function()
                             FishingInput.Released:Fire()
                         end)
 
-                        -- Wait with hardcoded time as fallback
+                        -- Wait with hardcoded time as fallback (check every second for instant stop)
                         log("  ⏳ Waiting 30s (fallback timing)")
-                        task.wait(30)
+                        for i = 1, 30 do
+                            if not state.autoFishEnabled then
+                                log("  ⚠️ Fishing disabled during fallback wait")
+                                return
+                            end
+                            task.wait(1)
+                        end
                         castComplete = true
                     end
 
@@ -5089,7 +5161,10 @@ task.spawn(function()
                         log("✅ [Fishing] Cast cycle complete! Ready for next cast")
                     else
                         log("⚠️ [Fishing] Cast cycle incomplete, waiting before retry")
-                        task.wait(5)
+                        for i = 1, 5 do
+                            if not state.autoFishEnabled then return end
+                            task.wait(1)
+                        end
                         state.lastFishingAttempt = currentTime
                     end
                 end)
