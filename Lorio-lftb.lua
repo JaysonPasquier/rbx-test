@@ -92,17 +92,19 @@ local state = {
 -- Mutation Colors (from game dump)
 -- ESP colors for brainrot rarities (BrainrotClass)
 local mutationColors = {
-    -- Rarity classes (from BrainrotClass attribute)
+    -- Rarity classes (from folder names in ActiveBrainrots)
     ["Common"] = Color3.fromRGB(156, 156, 156),      -- Gray
     ["Uncommon"] = Color3.fromRGB(85, 255, 0),       -- Green
     ["Rare"] = Color3.fromRGB(0, 170, 255),          -- Blue
     ["Epic"] = Color3.fromRGB(170, 0, 170),          -- Purple
     ["Legendary"] = Color3.fromRGB(255, 170, 0),     -- Orange
     ["Mythic"] = Color3.fromRGB(255, 0, 127),        -- Pink
+    ["Mythical"] = Color3.fromRGB(255, 0, 127),      -- Pink (alt spelling)
     ["Celestial"] = Color3.fromRGB(0, 255, 255),     -- Cyan
+    ["Cosmic"] = Color3.fromRGB(138, 43, 226),       -- Purple/Violet
     ["Infinity"] = Color3.fromRGB(255, 255, 0),      -- Yellow/Gold
-
-    -- Mutation colors (legacy fallback if needed)
+    ["Divine"] = Color3.fromRGB(255, 215, 0),        -- Gold
+    ["Secret"] = Color3.fromRGB(255, 0, 255),        -- Magenta
     ["Emerald"] = Color3.fromRGB(0, 255, 0),
     ["Gold"] = Color3.fromRGB(255, 255, 127),
     ["Diamond"] = Color3.fromRGB(0, 255, 255),
@@ -305,31 +307,41 @@ local function collectBrainrots()
         end
 
         -- Find closest brainrot that matches rarity filter
+        -- Structure: ActiveBrainrots > [RarityFolder] > RenderedBrainrot > Root > TakePrompt
         local closestBrainrot = nil
         local closestDistance = math.huge
+        local closestRarity = nil
+        local closestTakePrompt = nil
         local savedReturnPos = hrp.CFrame -- Save position before teleporting
 
-        for _, brainrotFolder in pairs(activeBrainrots:GetChildren()) do
-            for _, brainrot in pairs(brainrotFolder:GetChildren()) do
-                if brainrot:IsA("Model") and brainrot.PrimaryPart then
-                    local brainrotName = brainrot:GetAttribute("BrainrotName")
-                    local brainrotClass = brainrot:GetAttribute("BrainrotClass") or "Common" -- Rarity class (Common, Uncommon, Rare, etc.)
+        for _, rarityFolder in pairs(activeBrainrots:GetChildren()) do
+            if rarityFolder:IsA("Folder") or rarityFolder:IsA("Model") then
+                local rarityClass = rarityFolder.Name -- Folder name IS the rarity (Common, Uncommon, Rare, Cosmic, etc.)
 
-                    if brainrotName then
-                        -- Check rarity filter
-                        local shouldCollect = false
+                -- Check rarity filter
+                local shouldCollect = false
+                if table.find(state.brainrotRarityFilter, "All") then
+                    shouldCollect = true
+                elseif table.find(state.brainrotRarityFilter, rarityClass) then
+                    shouldCollect = true
+                end
 
-                        if table.find(state.brainrotRarityFilter, "All") then
-                            shouldCollect = true
-                        elseif table.find(state.brainrotRarityFilter, brainrotClass) then
-                            shouldCollect = true
-                        end
-
-                        if shouldCollect then
-                            local distance = (brainrot.PrimaryPart.Position - hrp.Position).Magnitude
-                            if distance < closestDistance then
-                                closestDistance = distance
-                                closestBrainrot = brainrot
+                if shouldCollect then
+                    -- Look for RenderedBrainrot models in this rarity folder
+                    for _, brainrot in pairs(rarityFolder:GetChildren()) do
+                        if brainrot:IsA("Model") and brainrot.Name == "RenderedBrainrot" then
+                            local root = brainrot:FindFirstChild("Root")
+                            if root and root:IsA("BasePart") then
+                                local takePrompt = root:FindFirstChild("TakePrompt")
+                                if takePrompt and takePrompt:IsA("ProximityPrompt") then
+                                    local distance = (root.Position - hrp.Position).Magnitude
+                                    if distance < closestDistance then
+                                        closestDistance = distance
+                                        closestBrainrot = root
+                                        closestRarity = rarityClass
+                                        closestTakePrompt = takePrompt
+                                    end
+                                end
                             end
                         end
                     end
@@ -338,26 +350,20 @@ local function collectBrainrots()
         end
 
         -- Teleport to and collect the closest brainrot
-        if closestBrainrot and closestBrainrot.PrimaryPart then
-            local brainrotName = closestBrainrot:GetAttribute("BrainrotName")
-            local brainrotClass = closestBrainrot:GetAttribute("BrainrotClass") or "Common"
+        if closestBrainrot and closestTakePrompt then
+            local brainrotName = closestBrainrot.Parent and closestBrainrot.Parent.Name or "Unknown"
             local level = closestBrainrot:GetAttribute("Level") or 1
+            local holdDuration = closestTakePrompt.HoldDuration or 5 -- Read actual hold duration from ProximityPrompt
 
-            -- Teleport to brainrot (proximity-based pickup)
-            hrp.CFrame = closestBrainrot.PrimaryPart.CFrame + Vector3.new(0, 2, 0)
+            -- Teleport to brainrot (Root part position)
+            hrp.CFrame = closestBrainrot.CFrame + Vector3.new(0, 3, 0)
             task.wait(0.3)
 
-            -- Simulate pressing E to pick up brainrot (hold for 5 seconds as required by ProximityPrompt)
+            -- Hold E key for the duration specified by TakePrompt.HoldDuration
             pcall(function()
-                local clickDetector = closestBrainrot:FindFirstChildOfClass("ClickDetector", true)
-                if clickDetector then
-                    fireclickdetector(clickDetector)
-                else
-                    -- Hold E key for 5 seconds (ProximityPrompt requirement)
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                    task.wait(5) -- Hold duration
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                end
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(holdDuration + 0.5) -- Hold for duration + buffer
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
             end)
 
             task.wait(0.5) -- Wait for pickup to process
@@ -376,8 +382,8 @@ local function collectBrainrots()
                 state.lastBrainrotTP = tick()
 
                 -- Check if rare for webhook (Mythic and above)
-                if brainrotClass == "Infinity" or brainrotClass == "Celestial" or brainrotClass == "Mythic" then
-                    sendRareItemWebhook(brainrotName, brainrotClass, level)
+                if closestRarity == "Infinity" or closestRarity == "Celestial" or closestRarity == "Mythic" or closestRarity == "Cosmic" then
+                    sendRareItemWebhook(brainrotName, closestRarity, level)
                 end
 
                 -- Return to base to place brainrot
@@ -517,15 +523,22 @@ end
 -- Client-side wave disabling (replaces auto-dodge)
 local function disableWaves()
     pcall(function()
+        -- Directly access ActiveTsunamis from Workspace
+        local activeTsunamis = Workspace:FindFirstChild("ActiveTsunamis")
+        if not activeTsunamis then return end
+
         if not state.tsunamiDodge then
             -- Re-enable waves if toggle is off
-            for _, waveData in pairs(state.activeTsunamis) do
-                local wave = waveData.model
-                if wave then
+            for _, wave in pairs(activeTsunamis:GetChildren()) do
+                if wave:IsA("Model") then
                     for _, part in pairs(wave:GetDescendants()) do
                         if part:IsA("BasePart") then
+                            local origTransparency = part:GetAttribute("OriginalTransparency")
+                            if origTransparency then
+                                part.Transparency = origTransparency
+                                part:SetAttribute("OriginalTransparency", nil)
+                            end
                             part.CanCollide = true
-                            part.Transparency = part:GetAttribute("OriginalTransparency") or part.Transparency
                         end
                     end
                 end
@@ -534,12 +547,11 @@ local function disableWaves()
         end
 
         -- Disable waves client-side (no collision, invisible)
-        for _, waveData in pairs(state.activeTsunamis) do
-            local wave = waveData.model
-            if wave then
+        for _, wave in pairs(activeTsunamis:GetChildren()) do
+            if wave:IsA("Model") then
                 for _, part in pairs(wave:GetDescendants()) do
                     if part:IsA("BasePart") then
-                        -- Save original transparency before modifying
+                        -- Save original transparency before modifying (only once)
                         if not part:GetAttribute("OriginalTransparency") then
                             part:SetAttribute("OriginalTransparency", part.Transparency)
                         end
@@ -565,25 +577,29 @@ local function updateItemESP()
         clearESP()
 
         -- Look in ActiveBrainrots folder (where brainrots spawn)
+        -- Structure: ActiveBrainrots > [RarityFolder] > RenderedBrainrot > Root
         local activeBrainrots = Workspace:FindFirstChild("ActiveBrainrots")
         if activeBrainrots then
-            for _, folder in pairs(activeBrainrots:GetChildren()) do
-                for _, brainrot in pairs(folder:GetChildren()) do
-                    if brainrot:IsA("Model") and brainrot.PrimaryPart then
-                        local brainrotName = brainrot:GetAttribute("BrainrotName")
-                        local brainrotClass = brainrot:GetAttribute("BrainrotClass") or "Common"
-                        local level = brainrot:GetAttribute("Level") or 1
+            for _, rarityFolder in pairs(activeBrainrots:GetChildren()) do
+                if rarityFolder:IsA("Folder") or rarityFolder:IsA("Model") then
+                    local rarityClass = rarityFolder.Name -- Folder name IS the rarity
+                    local color = mutationColors[rarityClass] or Color3.fromRGB(255, 255, 255)
 
-                        if brainrotName then
-                            local color = mutationColors[brainrotClass] or Color3.fromRGB(255, 255, 255)
-                            local distance = (brainrot.PrimaryPart.Position - hrp.Position).Magnitude
+                    for _, brainrot in pairs(rarityFolder:GetChildren()) do
+                        if brainrot:IsA("Model") and brainrot.Name == "RenderedBrainrot" then
+                            local root = brainrot:FindFirstChild("Root")
+                            if root and root:IsA("BasePart") then
+                                local brainrotName = brainrot:GetAttribute("BrainrotName") or "Brainrot"
+                                local level = brainrot:GetAttribute("Level") or 1
+                                local distance = (root.Position - hrp.Position).Magnitude
 
-                            local esp = createESP(
-                                brainrot.PrimaryPart,
-                                string.format("%s\n%s Lv.%d\n[%.0f studs]", brainrotName, brainrotClass, level, distance),
-                                color
-                            )
-                            table.insert(state.espObjects, esp)
+                                local esp = createESP(
+                                    root,
+                                    string.format("%s\n%s Lv.%d\n[%.0f studs]", brainrotName, rarityClass, level, distance),
+                                    color
+                                )
+                                table.insert(state.espObjects, esp)
+                            end
                         end
                     end
                 end
@@ -701,7 +717,7 @@ local AutoFarmSection = BrainrotTab:CreateSection("⚡ Auto-Farm")
 
 local RarityDropdown = BrainrotTab:CreateDropdown({
     Name = "Select Rarity to Collect",
-    Options = {"All", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Celestial", "Infinity"},
+    Options = {"All", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Mythical", "Celestial", "Cosmic", "Divine", "Secret", "Infinity"},
     CurrentOption = {"All"},
     MultipleOptions = true,
     Flag = "BrainrotRarity",
