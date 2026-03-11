@@ -9,6 +9,8 @@ local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local CollectionService = game:GetService("CollectionService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -76,6 +78,7 @@ local state = {
     -- Runtime Data
     lastBrainrotTP = 0,
     playerBase = nil,
+    wavePositions = {}, -- Track wave positions for direction calculation
 
     -- ESP Objects
     espObjects = {},
@@ -342,7 +345,22 @@ local function collectBrainrots()
 
             -- Teleport to brainrot (proximity-based pickup)
             hrp.CFrame = closestBrainrot.PrimaryPart.CFrame + Vector3.new(0, 2, 0)
-            task.wait(0.8) -- Wait for proximity collection to trigger
+            task.wait(0.3)
+
+            -- Simulate pressing E to pick up brainrot
+            pcall(function()
+                local clickDetector = closestBrainrot:FindFirstChildOfClass("ClickDetector", true)
+                if clickDetector then
+                    fireclickdetector(clickDetector)
+                else
+                    -- Alternative: simulate E key press
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end
+            end)
+
+            task.wait(0.5) -- Wait for pickup to process
 
             -- Check if we picked it up (brainrot becomes child of character)
             local pickedUp = false
@@ -496,7 +514,7 @@ local function updateTsunamiESP()
     end)
 end
 
--- Tsunami auto-dodge (improved)
+-- Tsunami auto-dodge (improved with direction tracking)
 local function tsunamiAutoDodge()
     pcall(function()
         if not state.tsunamiDodge then return end
@@ -504,16 +522,10 @@ local function tsunamiAutoDodge()
 
         -- Check if player is in spawn zone (safe zone)
         local inSpawn = false
-        local spawnZone = Workspace:FindFirstChild("SpawnZone") or Workspace:FindFirstChild("Spawn")
-        if spawnZone and spawnZone:IsA("BasePart") then
-            local spawnPos = spawnZone.Position
-            local playerPos = hrp.Position
-            local distToSpawn = (spawnPos - playerPos).Magnitude
-            if distToSpawn < 100 then
-                inSpawn = true
-            end
-        elseif hrp.Position.Y > 50 then
-            -- Fallback: spawn is usually elevated
+        local playerPos = hrp.Position
+
+        -- Spawn detection: Y > 40 or X < 0 (spawn is usually elevated and at lower X)
+        if playerPos.Y > 40 or playerPos.X < 50 then
             inSpawn = true
         end
 
@@ -524,34 +536,50 @@ local function tsunamiAutoDodge()
             local wave = waveData.model
             if wave and wave.PrimaryPart then
                 local wavePos = wave.PrimaryPart.Position
-                local playerPos = hrp.Position
+                local waveId = tostring(wave:GetDebugId())
                 local distance = (wavePos - playerPos).Magnitude
 
-                -- Dodge BEFORE wave hits (increased distance threshold)
-                local safeDodgeDistance = state.dodgeDistance * 2 -- Dodge earlier
+                -- Track wave position to calculate direction
+                if not state.wavePositions[waveId] then
+                    state.wavePositions[waveId] = {current = wavePos, previous = wavePos, time = tick()}
+                else
+                    state.wavePositions[waveId].previous = state.wavePositions[waveId].current
+                    state.wavePositions[waveId].current = wavePos
+                    state.wavePositions[waveId].time = tick()
+                end
 
-                if distance < safeDodgeDistance then
-                    -- Calculate wave direction (where it's moving)
-                    local waveVelocity = wave.PrimaryPart.AssemblyLinearVelocity or Vector3.new(0, 0, 0)
+                local waveTrack = state.wavePositions[waveId]
+                if not waveTrack then return end
 
-                    -- Move BEHIND the wave (opposite of wave direction)
-                    -- If wave is moving in positive X direction, player should go to negative X
-                    local escapeDir = -waveVelocity.Unit
+                -- Calculate wave direction from position history
+                local waveDirection = (waveTrack.current - waveTrack.previous).Unit
+                local waveToPlayer = (playerPos - wavePos).Unit
 
-                    -- If wave has no velocity, escape away from wave position
+                -- Check if wave is moving TOWARD player (dot product > 0)
+                local isApproaching = waveDirection:Dot(waveToPlayer) > 0.3
+
+                -- Only dodge if wave is approaching AND close enough
+                local safeDodgeDistance = state.dodgeDistance * 1.5
+
+                if distance < safeDodgeDistance and isApproaching then
+                    -- Calculate escape direction: BEHIND the wave (opposite of wave direction)
+                    local escapeDir = -waveDirection
+
+                    -- If no clear direction, move away from wave
                     if escapeDir.Magnitude < 0.1 then
                         escapeDir = (playerPos - wavePos).Unit
                     end
 
-                    -- Calculate new safe position BEHIND the wave
-                    local escapeDistance = safeDodgeDistance * 1.5
+                    -- Calculate safe position behind the wave
+                    local escapeDistance = safeDodgeDistance * 2
                     local newPos = wavePos + (escapeDir * escapeDistance)
 
-                    -- Ensure position stays within map bounds
-                    -- Map bounds (adjust based on game map size)
-                    local minX, maxX = -300, 2000
-                    local minZ, maxZ = -400, 400
-                    local safeY = 15 -- Safe ground height
+                    -- Keep player's current Y position to avoid falling through map
+                    local safeY = math.max(playerPos.Y, 12)
+
+                    -- Map bounds
+                    local minX, maxX = -200, 2500
+                    local minZ, maxZ = -300, 300
 
                     newPos = Vector3.new(
                         math.clamp(newPos.X, minX, maxX),
@@ -559,18 +587,23 @@ local function tsunamiAutoDodge()
                         math.clamp(newPos.Z, minZ, maxZ)
                     )
 
-                    -- Verify newPos is not too close to any edge
-                    local edgeBuffer = 50
+                    -- Verify position is valid (not too close to edges)
+                    local edgeBuffer = 80
                     if newPos.X < minX + edgeBuffer or newPos.X > maxX - edgeBuffer or
                        newPos.Z < minZ + edgeBuffer or newPos.Z > maxZ - edgeBuffer then
-                        -- Too close to edge, just move to center of map instead
-                        newPos = Vector3.new(800, safeY, 0)
+                        -- Move to safer center position instead
+                        newPos = Vector3.new(1000, safeY, 0)
                     end
 
                     -- Teleport to safe position
                     hrp.CFrame = CFrame.new(newPos)
                     state.tsunamisDodged = state.tsunamisDodged + 1
-                    task.wait(0.8) -- Longer wait to avoid rapid dodging
+
+                    -- Clear wave tracking after dodge
+                    state.wavePositions[waveId] = nil
+
+                    task.wait(1.0) -- Wait before next dodge
+                    break -- Only dodge one wave at a time
                 end
             end
         end
@@ -587,21 +620,46 @@ local function updateItemESP()
 
         clearESP()
 
+        -- Look in ActiveBrainrots folder (where brainrots spawn)
+        local activeBrainrots = Workspace:FindFirstChild("ActiveBrainrots")
+        if activeBrainrots then
+            for _, folder in pairs(activeBrainrots:GetChildren()) do
+                for _, brainrot in pairs(folder:GetChildren()) do
+                    if brainrot:IsA("Model") and brainrot.PrimaryPart then
+                        local brainrotName = brainrot:GetAttribute("BrainrotName")
+                        local mutation = brainrot:GetAttribute("Mutation") or "None"
+                        local level = brainrot:GetAttribute("Level") or 1
+
+                        if brainrotName then
+                            local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
+                            local distance = (brainrot.PrimaryPart.Position - hrp.Position).Magnitude
+
+                            local esp = createESP(
+                                brainrot.PrimaryPart,
+                                string.format("%s\n%s Lv.%d\n[%.0f studs]", brainrotName, mutation, level, distance),
+                                color
+                            )
+                            table.insert(state.espObjects, esp)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Also show brainrots in player bases
         local bases = Workspace:FindFirstChild("Bases")
-        if not bases then return end
+        if bases then
+            for _, base in pairs(bases:GetChildren()) do
+                if base:IsA("Model") then
+                    for _, item in pairs(base:GetDescendants()) do
+                        if item:IsA("Model") and CollectionService:HasTag(item, "Brainrot") and item.PrimaryPart then
+                            local mutation = item:GetAttribute("Mutation") or "None"
+                            local level = item:GetAttribute("Level") or 1
+                            local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
 
-        for _, base in pairs(bases:GetChildren()) do
-            if base:IsA("Model") then
-                for _, item in pairs(base:GetDescendants()) do
-                    if item:IsA("Model") and item:FindFirstChild("Brainrot") then
-                        local mutation = item:GetAttribute("Mutation") or "None"
-                        local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
-                        local level = item:GetAttribute("Level") or 1
-
-                        if item.PrimaryPart then
                             local esp = createESP(
                                 item.PrimaryPart,
-                                string.format("%s\nLv.%d", mutation, level),
+                                string.format("%s Lv.%d\n[Base]", mutation, level),
                                 color
                             )
                             table.insert(state.espObjects, esp)
@@ -613,15 +671,15 @@ local function updateItemESP()
     end)
 end
 
--- Speed boost
+-- Speed boost (continuously applied)
 local function applySpeedBoost()
     pcall(function()
         local humanoid = character and character:FindFirstChild("Humanoid")
-        if humanoid then
-            if state.speedBoost then
-                humanoid.WalkSpeed = 16 * state.speedMultiplier
-            else
-                humanoid.WalkSpeed = 16
+        if humanoid and state.speedBoost then
+            -- Apply speed continuously to prevent game from resetting it
+            local targetSpeed = 16 * state.speedMultiplier
+            if math.abs(humanoid.WalkSpeed - targetSpeed) > 1 then
+                humanoid.WalkSpeed = targetSpeed
             end
         end
     end)
@@ -781,7 +839,14 @@ local SpeedToggle = MiscTab:CreateToggle({
     Flag = "SpeedBoost",
     Callback = function(Value)
         state.speedBoost = Value
-        applySpeedBoost()
+
+        -- Reset speed when disabled
+        if not Value then
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = 16
+            end
+        end
     end,
 })
 
@@ -877,13 +942,21 @@ task.spawn(function()
     end
 end)
 
--- === SPEED BOOST MONITORING ===
-task.spawn(function()
-    while task.wait(1) do
-        if state.speedBoost then
-            applySpeedBoost()
+-- === SPEED BOOST MONITORING (Continuous) ===
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        local char = player.Character
+        local humanoid = char and char:FindFirstChild("Humanoid")
+        if humanoid then
+            if state.speedBoost then
+                local targetSpeed = 16 * state.speedMultiplier
+                -- Continuously enforce speed to prevent game from resetting it
+                if humanoid.WalkSpeed ~= targetSpeed then
+                    humanoid.WalkSpeed = targetSpeed
+                end
+            end
         end
-    end
+    end)
 end)
 
 print("=" .. string.rep("=", 60))
