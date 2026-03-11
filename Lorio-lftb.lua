@@ -90,24 +90,24 @@ local state = {
 }
 
 -- Mutation Colors (from game dump)
+-- ESP colors for brainrot rarities (BrainrotClass)
 local mutationColors = {
+    -- Rarity classes (from BrainrotClass attribute)
+    ["Common"] = Color3.fromRGB(156, 156, 156),      -- Gray
+    ["Uncommon"] = Color3.fromRGB(85, 255, 0),       -- Green
+    ["Rare"] = Color3.fromRGB(0, 170, 255),          -- Blue
+    ["Epic"] = Color3.fromRGB(170, 0, 170),          -- Purple
+    ["Legendary"] = Color3.fromRGB(255, 170, 0),     -- Orange
+    ["Mythic"] = Color3.fromRGB(255, 0, 127),        -- Pink
+    ["Celestial"] = Color3.fromRGB(0, 255, 255),     -- Cyan
+    ["Infinity"] = Color3.fromRGB(255, 255, 0),      -- Yellow/Gold
+
+    -- Mutation colors (legacy fallback if needed)
     ["Emerald"] = Color3.fromRGB(0, 255, 0),
     ["Gold"] = Color3.fromRGB(255, 255, 127),
-    ["Blood"] = Color3.fromRGB(255, 0, 0),
     ["Diamond"] = Color3.fromRGB(0, 255, 255),
     ["Electric"] = Color3.fromRGB(0, 150, 255),
-    ["Radioactive"] = Color3.fromRGB(0, 255, 0),
-    ["Admin"] = Color3.fromRGB(255, 0, 255),
-    ["UFO"] = Color3.fromRGB(0, 255, 0),
-    ["Hacker"] = Color3.fromRGB(0, 255, 0),
-    ["Lucky"] = Color3.fromRGB(0, 255, 106),
-    ["Money"] = Color3.fromRGB(255, 255, 0),
-    ["Gamer"] = Color3.fromRGB(185, 110, 225),
-    ["Candy"] = Color3.fromRGB(247, 85, 234),
-    ["Doom"] = Color3.fromRGB(255, 120, 0),
-    ["Fire"] = Color3.fromRGB(255, 80, 0),
-    ["Ice"] = Color3.fromRGB(100, 200, 255),
-    ["Phantom"] = Color3.fromRGB(0, 177, 177)
+    ["Admin"] = Color3.fromRGB(255, 0, 255)
 }
 
 -- Helper: Format time
@@ -171,12 +171,12 @@ local function clearWaveESP()
 end
 
 -- Send webhook for rare items
-local function sendRareItemWebhook(itemName, mutation, level)
+local function sendRareItemWebhook(itemName, rarity, level)
     if state.webhookUrl == "" then return end
 
     task.defer(function()
         pcall(function()
-            local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
+            local color = mutationColors[rarity] or Color3.fromRGB(255, 255, 255)
             local embed = {
                 title = "💎 Rare Brainrot Collected!",
                 description = "**Player**: " .. player.DisplayName .. " (@" .. player.Name .. ")",
@@ -184,7 +184,7 @@ local function sendRareItemWebhook(itemName, mutation, level)
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%S"),
                 fields = {
                     {name = "Item", value = itemName, inline = true},
-                    {name = "Mutation", value = mutation or "None", inline = true},
+                    {name = "Rarity", value = rarity or "Common", inline = true},
                     {name = "Level", value = tostring(level or 1), inline = true}
                 }
             }
@@ -313,7 +313,7 @@ local function collectBrainrots()
             for _, brainrot in pairs(brainrotFolder:GetChildren()) do
                 if brainrot:IsA("Model") and brainrot.PrimaryPart then
                     local brainrotName = brainrot:GetAttribute("BrainrotName")
-                    local mutation = brainrot:GetAttribute("Mutation") or "None"
+                    local brainrotClass = brainrot:GetAttribute("BrainrotClass") or "Common" -- Rarity class (Common, Uncommon, Rare, etc.)
 
                     if brainrotName then
                         -- Check rarity filter
@@ -321,7 +321,7 @@ local function collectBrainrots()
 
                         if table.find(state.brainrotRarityFilter, "All") then
                             shouldCollect = true
-                        elseif table.find(state.brainrotRarityFilter, mutation) then
+                        elseif table.find(state.brainrotRarityFilter, brainrotClass) then
                             shouldCollect = true
                         end
 
@@ -340,22 +340,22 @@ local function collectBrainrots()
         -- Teleport to and collect the closest brainrot
         if closestBrainrot and closestBrainrot.PrimaryPart then
             local brainrotName = closestBrainrot:GetAttribute("BrainrotName")
-            local mutation = closestBrainrot:GetAttribute("Mutation") or "None"
+            local brainrotClass = closestBrainrot:GetAttribute("BrainrotClass") or "Common"
             local level = closestBrainrot:GetAttribute("Level") or 1
 
             -- Teleport to brainrot (proximity-based pickup)
             hrp.CFrame = closestBrainrot.PrimaryPart.CFrame + Vector3.new(0, 2, 0)
             task.wait(0.3)
 
-            -- Simulate pressing E to pick up brainrot
+            -- Simulate pressing E to pick up brainrot (hold for 5 seconds as required by ProximityPrompt)
             pcall(function()
                 local clickDetector = closestBrainrot:FindFirstChildOfClass("ClickDetector", true)
                 if clickDetector then
                     fireclickdetector(clickDetector)
                 else
-                    -- Alternative: simulate E key press
+                    -- Hold E key for 5 seconds (ProximityPrompt requirement)
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                    task.wait(0.1)
+                    task.wait(5) -- Hold duration
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
                 end
             end)
@@ -375,9 +375,9 @@ local function collectBrainrots()
                 state.brainrotsCollected = state.brainrotsCollected + 1
                 state.lastBrainrotTP = tick()
 
-                -- Check if rare for webhook
-                if mutation == "Infinity" or mutation == "Admin" or mutation == "Diamond" or mutation == "Electric" then
-                    sendRareItemWebhook(brainrotName, mutation, level)
+                -- Check if rare for webhook (Mythic and above)
+                if brainrotClass == "Infinity" or brainrotClass == "Celestial" or brainrotClass == "Mythic" then
+                    sendRareItemWebhook(brainrotName, brainrotClass, level)
                 end
 
                 -- Return to base to place brainrot
@@ -514,96 +514,40 @@ local function updateTsunamiESP()
     end)
 end
 
--- Tsunami auto-dodge (improved with direction tracking)
-local function tsunamiAutoDodge()
+-- Client-side wave disabling (replaces auto-dodge)
+local function disableWaves()
     pcall(function()
-        if not state.tsunamiDodge then return end
-        if not hrp then return end
-
-        -- Check if player is in spawn zone (safe zone)
-        local inSpawn = false
-        local playerPos = hrp.Position
-
-        -- Spawn detection: Y > 40 or X < 0 (spawn is usually elevated and at lower X)
-        if playerPos.Y > 40 or playerPos.X < 50 then
-            inSpawn = true
+        if not state.tsunamiDodge then
+            -- Re-enable waves if toggle is off
+            for _, waveData in pairs(state.activeTsunamis) do
+                local wave = waveData.model
+                if wave then
+                    for _, part in pairs(wave:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = true
+                            part.Transparency = part:GetAttribute("OriginalTransparency") or part.Transparency
+                        end
+                    end
+                end
+            end
+            return
         end
 
-        -- Only dodge if NOT in spawn
-        if inSpawn then return end
-
+        -- Disable waves client-side (no collision, invisible)
         for _, waveData in pairs(state.activeTsunamis) do
             local wave = waveData.model
-            if wave and wave.PrimaryPart then
-                local wavePos = wave.PrimaryPart.Position
-                local waveId = tostring(wave:GetDebugId())
-                local distance = (wavePos - playerPos).Magnitude
+            if wave then
+                for _, part in pairs(wave:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        -- Save original transparency before modifying
+                        if not part:GetAttribute("OriginalTransparency") then
+                            part:SetAttribute("OriginalTransparency", part.Transparency)
+                        end
 
-                -- Track wave position to calculate direction
-                if not state.wavePositions[waveId] then
-                    state.wavePositions[waveId] = {current = wavePos, previous = wavePos, time = tick()}
-                else
-                    state.wavePositions[waveId].previous = state.wavePositions[waveId].current
-                    state.wavePositions[waveId].current = wavePos
-                    state.wavePositions[waveId].time = tick()
-                end
-
-                local waveTrack = state.wavePositions[waveId]
-                if not waveTrack then return end
-
-                -- Calculate wave direction from position history
-                local waveDirection = (waveTrack.current - waveTrack.previous).Unit
-                local waveToPlayer = (playerPos - wavePos).Unit
-
-                -- Check if wave is moving TOWARD player (dot product > 0)
-                local isApproaching = waveDirection:Dot(waveToPlayer) > 0.3
-
-                -- Only dodge if wave is approaching AND close enough
-                local safeDodgeDistance = state.dodgeDistance * 1.5
-
-                if distance < safeDodgeDistance and isApproaching then
-                    -- Calculate escape direction: BEHIND the wave (opposite of wave direction)
-                    local escapeDir = -waveDirection
-
-                    -- If no clear direction, move away from wave
-                    if escapeDir.Magnitude < 0.1 then
-                        escapeDir = (playerPos - wavePos).Unit
+                        -- Disable collision and make invisible
+                        part.CanCollide = false
+                        part.Transparency = 1
                     end
-
-                    -- Calculate safe position behind the wave
-                    local escapeDistance = safeDodgeDistance * 2
-                    local newPos = wavePos + (escapeDir * escapeDistance)
-
-                    -- Keep player's current Y position to avoid falling through map
-                    local safeY = math.max(playerPos.Y, 12)
-
-                    -- Map bounds
-                    local minX, maxX = -200, 2500
-                    local minZ, maxZ = -300, 300
-
-                    newPos = Vector3.new(
-                        math.clamp(newPos.X, minX, maxX),
-                        safeY,
-                        math.clamp(newPos.Z, minZ, maxZ)
-                    )
-
-                    -- Verify position is valid (not too close to edges)
-                    local edgeBuffer = 80
-                    if newPos.X < minX + edgeBuffer or newPos.X > maxX - edgeBuffer or
-                       newPos.Z < minZ + edgeBuffer or newPos.Z > maxZ - edgeBuffer then
-                        -- Move to safer center position instead
-                        newPos = Vector3.new(1000, safeY, 0)
-                    end
-
-                    -- Teleport to safe position
-                    hrp.CFrame = CFrame.new(newPos)
-                    state.tsunamisDodged = state.tsunamisDodged + 1
-
-                    -- Clear wave tracking after dodge
-                    state.wavePositions[waveId] = nil
-
-                    task.wait(1.0) -- Wait before next dodge
-                    break -- Only dodge one wave at a time
                 end
             end
         end
@@ -627,16 +571,16 @@ local function updateItemESP()
                 for _, brainrot in pairs(folder:GetChildren()) do
                     if brainrot:IsA("Model") and brainrot.PrimaryPart then
                         local brainrotName = brainrot:GetAttribute("BrainrotName")
-                        local mutation = brainrot:GetAttribute("Mutation") or "None"
+                        local brainrotClass = brainrot:GetAttribute("BrainrotClass") or "Common"
                         local level = brainrot:GetAttribute("Level") or 1
 
                         if brainrotName then
-                            local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
+                            local color = mutationColors[brainrotClass] or Color3.fromRGB(255, 255, 255)
                             local distance = (brainrot.PrimaryPart.Position - hrp.Position).Magnitude
 
                             local esp = createESP(
                                 brainrot.PrimaryPart,
-                                string.format("%s\n%s Lv.%d\n[%.0f studs]", brainrotName, mutation, level, distance),
+                                string.format("%s\n%s Lv.%d\n[%.0f studs]", brainrotName, brainrotClass, level, distance),
                                 color
                             )
                             table.insert(state.espObjects, esp)
@@ -653,13 +597,13 @@ local function updateItemESP()
                 if base:IsA("Model") then
                     for _, item in pairs(base:GetDescendants()) do
                         if item:IsA("Model") and CollectionService:HasTag(item, "Brainrot") and item.PrimaryPart then
-                            local mutation = item:GetAttribute("Mutation") or "None"
+                            local brainrotClass = item:GetAttribute("BrainrotClass") or "Common"
                             local level = item:GetAttribute("Level") or 1
-                            local color = mutationColors[mutation] or Color3.fromRGB(255, 255, 255)
+                            local color = mutationColors[brainrotClass] or Color3.fromRGB(255, 255, 255)
 
                             local esp = createESP(
                                 item.PrimaryPart,
-                                string.format("%s Lv.%d\n[Base]", mutation, level),
+                                string.format("%s Lv.%d\n[Base]", brainrotClass, level),
                                 color
                             )
                             table.insert(state.espObjects, esp)
@@ -737,28 +681,18 @@ local TsunamiESPToggle = TsunamiTab:CreateToggle({
     end,
 })
 
-local DodgeSection = TsunamiTab:CreateSection("🏃 Auto-Dodge")
+local DodgeSection = TsunamiTab:CreateSection("🚫 Disable Waves (Client)")
 
 local DodgeToggle = TsunamiTab:CreateToggle({
-    Name = "🏃 Auto-Dodge Tsunamis",
+    Name = "🚫 Disable Waves Client-Side",
     CurrentValue = false,
-    Flag = "TsunamiDodge",
+    Flag = "TsunamiDis able",
     Callback = function(Value)
         state.tsunamiDodge = Value
     end,
 })
 
-local DodgeSlider = TsunamiTab:CreateSlider({
-    Name = "Dodge Distance",
-    Range = {50, 300},
-    Increment = 10,
-    Suffix = " studs",
-    CurrentValue = 100,
-    Flag = "DodgeDistance",
-    Callback = function(Value)
-        state.dodgeDistance = Value
-    end,
-})
+TsunamiTab:CreateLabel("Makes waves not interact with you")
 
 -- === BRAINROT TAB ===
 local BrainrotTab = Window:CreateTab("🧠 Brainrot", 4483362458)
@@ -767,7 +701,7 @@ local AutoFarmSection = BrainrotTab:CreateSection("⚡ Auto-Farm")
 
 local RarityDropdown = BrainrotTab:CreateDropdown({
     Name = "Select Rarity to Collect",
-    Options = {"All", "Emerald", "Gold", "Blood", "Diamond", "Electric", "Radioactive", "Admin", "UFO", "Hacker", "Lucky", "Money", "Gamer", "Candy", "Doom", "Fire", "Ice", "Phantom"},
+    Options = {"All", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Celestial", "Infinity"},
     CurrentOption = {"All"},
     MultipleOptions = true,
     Flag = "BrainrotRarity",
@@ -928,10 +862,10 @@ task.spawn(function()
     end
 end)
 
--- === TSUNAMI DODGE TASK ===
+-- === TSUNAMI WAVE DISABLE TASK ===
 task.spawn(function()
     while task.wait(0.5) do
-        tsunamiAutoDodge()
+        disableWaves()
     end
 end)
 
