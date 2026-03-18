@@ -7,6 +7,8 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -102,7 +104,7 @@ local state = {
     autoClaimPlaytime = false,  -- NEW: Auto-claim playtime gifts
     webhookUrl = "",
     webhookStats = true,
-    webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=true, Secret=true, Infinity=true},
+    webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=true, Secret=true, Infinity=true, Celestial=true},
     webhookChanceThreshold = 100000000,  -- Only send if rarity is 1 in X or rarer (default: 1 in 100M)
     webhookStatsEnabled = false,  -- NEW: Enable user stats webhook
     webhookStatsInterval = 60,  -- NEW: Stats webhook interval (30-120 seconds)
@@ -126,6 +128,8 @@ local state = {
     stpatAutoEgg = false,
     stpatAutoChest = false,
     stpatSelectedEgg = nil,
+    stpatPriorityEggMode = false,
+    stpatPriorityEggs = {"4X Luck Fortune Egg"},
     stpatLastEggPosition = nil,
     stpatReturnOrigCf = nil,
     stpatReturnSunk = false,
@@ -134,7 +138,15 @@ local state = {
     lastStpatSecretShopBuy = 0,
     lastStpatEggHatch = 0,
     lastStpatChestClaim = 0,
+    lastStpatWorldTeleport = 0,
+    stpatPickupWarmupUntil = 0,
+    stpatLastEggTarget = nil,
+    lastStpatEggScan = 0,
     currentEventEggs = {},
+    performanceMode = false,
+    performanceLightingBackup = nil,
+    performancePostEffects = {},
+    performanceFxObjects = {},
     fishingIsland = nil,  -- NEW: Selected fishing island (set dynamically)
     fishingRod = "Wooden Rod",  -- NEW: Selected fishing rod (default: Wooden Rod)
     fishingTeleported = false,  -- NEW: Track if we've teleported to fishing location
@@ -599,7 +611,7 @@ local function preCacheAllPetData()
 
     local elapsed = tick() - startTime
     -- Only log if running in development mode (commented out for production)
-    -- print(string.format("✅ Pre-cached: %d pets, %d eggs, %d chances in %.2fs", cachedPets, cachedEggs, cachedChances, elapsed))
+    -- --  print(string.format("✅ Pre-cached: %d pets, %d eggs, %d chances in %.2fs", cachedPets, cachedEggs, cachedChances, elapsed))
 end
 
 -- === ADVANCED EGG ANIMATION DISABLER ===
@@ -618,7 +630,7 @@ pcall(function()
             hatchEggModule = hatchEggModule:FindFirstChild("HatchEgg", true)
             if hatchEggModule then
                 -- Successfully found the module
-                -- print("✅ Found HatchEgg module at: " .. hatchEggModule:GetFullName())
+                -- --  print("✅ Found HatchEgg module at: " .. hatchEggModule:GetFullName())
             end
         end
     end
@@ -656,7 +668,7 @@ local function hookHatchEggModule()
             return
         end
 
-        -- print("✅ Hooked HatchEgg.Play and DisplayPetOnce functions")
+        -- --  print("✅ Hooked HatchEgg.Play and DisplayPetOnce functions")
     end)
 end
 
@@ -668,7 +680,7 @@ local function unhookHatchEggModule()
         local module = require(hatchEggModule)
         module.Play = originalPlayFunction
         module.DisplayPetOnce = originalDisplayPetOnce
-        -- print("✅ Restored original HatchEgg functions")
+        -- --  print("✅ Restored original HatchEgg functions")
     end)
 end
 
@@ -778,7 +790,7 @@ end
 -- Potion debug logger (console + both txt logs)
 local function potionDebug(message)
     local text = "🧪 [PotionDebug] " .. tostring(message)
-    print(text)
+    --  print(text)
     pcall(function() log(text) end)
     pcall(function() debugLog(text) end)
 end
@@ -786,7 +798,7 @@ end
 -- Webhook debug logger (console + both txt logs)
 local function webhookDebug(message)
     local text = "📡 [WebhookDebug] " .. tostring(message)
-    print(text)
+    --  print(text)
     pcall(function() log(text) end)
     pcall(function() debugLog(text) end)
 end
@@ -952,6 +964,42 @@ local function formatNumber(num)
     return formatted
 end
 
+local recentHatchWebhookSignatures = {}
+
+local function makePetWebhookSignature(petName, isShiny, isMythic, isSuper, isXL)
+    return string.format(
+        "%s|sh=%s|my=%s|su=%s|xl=%s",
+        tostring(petName),
+        tostring(isShiny == true),
+        tostring(isMythic == true),
+        tostring(isSuper == true),
+        tostring(isXL == true)
+    )
+end
+
+local function rememberHatchWebhookSignature(signature)
+    recentHatchWebhookSignatures[signature] = tick()
+end
+
+local function wasRecentlySentFromHatch(signature, windowSeconds)
+    local now = tick()
+    local window = windowSeconds or 3
+    local seenAt = recentHatchWebhookSignatures[signature]
+
+    if seenAt and (now - seenAt) <= window then
+        return true
+    end
+
+    -- Cleanup old entries to keep map small
+    for sig, ts in pairs(recentHatchWebhookSignatures) do
+        if (now - ts) > 12 then
+            recentHatchWebhookSignatures[sig] = nil
+        end
+    end
+
+    return false
+end
+
 local function SendWebhook(url, msg)
     if not request then
         warn("[Webhook] No HTTP request function available in this executor")
@@ -1022,7 +1070,14 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         local success, error = pcall(function()
         -- Parse rarity from GUI (handle variants like "AA-Secret" -> "Secret")
         local baseRarity = rarityFromGUI
-        if rarityFromGUI:find("Secret") or rarityFromGUI:find("secret") then
+        local petMeta = petData and petData[petName]
+        local isCelestialPet = petMeta and petMeta.Celestial ~= nil
+
+        if isCelestialPet then
+            baseRarity = "Celestial"
+        elseif rarityFromGUI:find("Celestial") or rarityFromGUI:find("celestial") then
+            baseRarity = "Celestial"
+        elseif rarityFromGUI:find("Secret") or rarityFromGUI:find("secret") then
             baseRarity = "Secret"
         elseif rarityFromGUI:find("Infinity") or rarityFromGUI:find("infinity") then
             baseRarity = "Infinity"
@@ -1036,6 +1091,11 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             baseRarity = "Unique"
         elseif rarityFromGUI:find("Common") or rarityFromGUI:find("common") then
             baseRarity = "Common"
+        end
+
+        -- Egg Comet / special-case fallback detection when rarity text is ambiguous
+        if (baseRarity == "Unknown" or baseRarity == nil) and tostring(petName):find("Stardust Racer") then
+            baseRarity = "Celestial"
         end
 
         -- Check rarity filter
@@ -1246,7 +1306,8 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             Epic = 0x9900FF,
             Legendary = 0xFF6600,
             Secret = 0xFFD700,
-            Infinity = 0xFF00FF
+            Infinity = 0xFF00FF,
+            Celestial = 0x66CCFF
         }
 
         -- Build pet title with modifiers
@@ -1434,19 +1495,19 @@ task.spawn(function()
                 -- Skip deleted pets (auto-deleted by game)
                 if petInfo.Deleted ~= true then
                     -- Debug: print COMPLETE pet info structure for EVERY pet
--- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
--- print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
+-- --  print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+-- --  print("🔍 [DEBUG] Pet #" .. i .. " FULL structure:")
                     for key, value in pairs(petInfo) do
                         if type(value) == "table" then
--- print("  " .. tostring(key) .. " = [table]")
+-- --  print("  " .. tostring(key) .. " = [table]")
                             for subKey, subValue in pairs(value) do
--- print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
+-- --  print("    " .. tostring(subKey) .. " = " .. tostring(subValue))
                             end
                         else
--- print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
+-- --  print("  " .. tostring(key) .. " = " .. tostring(value) .. " (type: " .. type(value) .. ")")
                         end
                     end
--- print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+-- --  print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
                     -- Extract pet name (top level)
                     local petName = petInfo.Name or "Unknown Pet"
@@ -1487,6 +1548,9 @@ task.spawn(function()
                     webhookDebug(string.format("Pet parsed | name=%s | rarity=%s | displayEgg=%s | originalEgg=%s | deleted=%s",
                         tostring(petName), tostring(rarity), tostring(eggName), tostring(originalEgg), tostring(petInfo.Deleted)))
 
+                    local webhookSignature = makePetWebhookSignature(petName, isShiny, isMythic, isSuper, isXL)
+                    rememberHatchWebhookSignature(webhookSignature)
+
                     -- Send webhook (DEFERRED - zero game blocking)
                     -- Pass both eggs: eggName for display, originalEgg for chance calculation
                     task.defer(function()
@@ -1520,6 +1584,129 @@ task.spawn(function()
         end)
         webhookDebug("Connected listener: Remote.Event(ExclusiveHatch)")
     end)
+end)
+
+-- === INVENTORY GAIN PET DETECTION (PICKUPS / NON-HATCH SOURCES) ===
+-- Detects pets added directly to inventory (e.g., Egg Comet pickup rewards)
+task.spawn(function()
+    task.wait(6)
+
+    local LocalData = nil
+    pcall(function()
+        LocalData = require(RS.Client.Framework.Services.LocalData)
+    end)
+
+    if not LocalData then
+        pcall(function()
+            local localDataModule = RS:FindFirstChild("Client", true)
+            if localDataModule then
+                localDataModule = localDataModule:FindFirstChild("Framework", true)
+                if localDataModule then
+                    localDataModule = localDataModule:FindFirstChild("Services", true)
+                    if localDataModule then
+                        localDataModule = localDataModule:FindFirstChild("LocalData", true)
+                    end
+                end
+            end
+            if localDataModule then
+                LocalData = require(localDataModule)
+            end
+        end)
+    end
+
+    if not LocalData then
+        webhookDebug("Inventory watcher disabled: LocalData module not found")
+        return
+    end
+
+    local knownPetIds = {}
+    local primed = false
+
+    while task.wait(1) do
+        local playerData = nil
+        pcall(function()
+            playerData = LocalData:Get()
+        end)
+
+        if not playerData or type(playerData.Pets) ~= "table" then
+            continue
+        end
+
+        local pets = playerData.Pets
+        local currentIds = {}
+
+        for petId, petEntry in pairs(pets) do
+            currentIds[petId] = true
+
+            if not knownPetIds[petId] then
+                knownPetIds[petId] = true
+
+                -- First full snapshot should not notify old inventory
+                if primed and state.webhookUrl ~= "" then
+                    local petName = nil
+                    local isShiny = false
+                    local isMythic = false
+                    local isSuper = false
+                    local isXL = false
+
+                    if type(petEntry) == "table" then
+                        petName = petEntry.Name
+
+                        if petEntry.Pet and type(petEntry.Pet) == "table" then
+                            petName = petEntry.Pet.Name or petName
+                            isShiny = petEntry.Pet.Shiny == true
+                            isMythic = petEntry.Pet.Mythic == true
+                            isSuper = petEntry.Pet.Super == true or petEntry.Pet.super == true
+                            isXL = petEntry.Pet.XL == true or petEntry.Pet.xl == true
+                        else
+                            isShiny = petEntry.Shiny == true
+                            isMythic = petEntry.Mythic == true
+                            isSuper = petEntry.Super == true or petEntry.super == true
+                            isXL = petEntry.XL == true or petEntry.xl == true
+                        end
+                    end
+
+                    if petName and petName ~= "" then
+                        local signature = makePetWebhookSignature(petName, isShiny, isMythic, isSuper, isXL)
+
+                        -- Avoid duplicate webhook when hatch event already fired for same pet moments ago.
+                        if not wasRecentlySentFromHatch(signature, 3) then
+                            local rarity = "Unknown"
+                            if petData and petData[petName] then
+                                if petData[petName].Celestial ~= nil then
+                                    rarity = "Celestial"
+                                elseif petData[petName].Rarity then
+                                    rarity = petData[petName].Rarity
+                                end
+                            end
+
+                            webhookDebug(string.format("Inventory gain detected | id=%s | name=%s | rarity=%s", tostring(petId), tostring(petName), tostring(rarity)))
+
+                            task.defer(function()
+                                pcall(function()
+                                    SendPetHatchWebhook(petName, "Pickup Reward", "Pickup Reward", rarity, isXL, isShiny, isSuper, isMythic)
+                                end)
+                            end)
+                        else
+                            webhookDebug("Inventory gain skipped (duplicate of recent hatch): " .. tostring(petName))
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Cleanup IDs removed from inventory
+        for trackedId, _ in pairs(knownPetIds) do
+            if not currentIds[trackedId] then
+                knownPetIds[trackedId] = nil
+            end
+        end
+
+        if not primed then
+            primed = true
+            webhookDebug("Inventory watcher primed with existing pets")
+        end
+    end
 end)
 
 -- Send user stats webhook
@@ -2860,16 +3047,18 @@ local function getBestFishingIsland()
 end
 
 -- === CONFIG SYSTEM ===
+local setPerformanceMode
+
 local function saveConfig(configName)
     if not configName or configName == "" then
         return false, "Config name cannot be empty"
     end
 
     -- Debug: Print current state values before saving
-    print("📝 Preparing to save config: " .. configName)
-    print("🔍 Current state.webhookUrl: " .. tostring(state.webhookUrl))
-    print("🔍 Current state.webhookPingUserId: " .. tostring(state.webhookPingUserId))
-    print("🔍 Current state.fishingIsland: " .. tostring(state.fishingIsland))
+    --  print("📝 Preparing to save config: " .. configName)
+    --  print("🔍 Current state.webhookUrl: " .. tostring(state.webhookUrl))
+    --  print("🔍 Current state.webhookPingUserId: " .. tostring(state.webhookPingUserId))
+    --  print("🔍 Current state.fishingIsland: " .. tostring(state.fishingIsland))
 
     local config = {
         -- Farm settings
@@ -2898,6 +3087,8 @@ local function saveConfig(configName)
         stpatSecretShop = state.stpatSecretShop,
         stpatAutoEgg = state.stpatAutoEgg,
         stpatSelectedEgg = state.stpatSelectedEgg,
+        stpatPriorityEggMode = state.stpatPriorityEggMode,
+        stpatPriorityEggs = state.stpatPriorityEggs,
         stpatHideEggAnim = state.stpatHideEggAnim,
         stpatAutoChest = state.stpatAutoChest,
 
@@ -2943,6 +3134,7 @@ local function saveConfig(configName)
 
         -- Other settings
         disableHatchAnimation = state.disableHatchAnimation,
+        performanceMode = state.performanceMode,
         antiAFK = state.antiAFK,
         fishingIsland = state.fishingIsland,
         fishingRod = state.fishingRod,
@@ -2967,11 +3159,11 @@ local function saveConfig(configName)
         local fileName = "LorioBGSI_Config_" .. configName .. ".json"
         writefile(fileName, encoded)
         state.savedConfigs[configName] = config
-        print("💾 Config saved to: " .. fileName)
-        print("📊 Config size: " .. #encoded .. " bytes")
-        print("🔍 Webhook URL saved: " .. tostring(config.webhookUrl ~= "" and "Yes (" .. #config.webhookUrl .. " chars)" or "Empty"))
-        print("🔍 Webhook Ping User ID saved: " .. tostring(config.webhookPingUserId ~= "" and "Yes (" .. config.webhookPingUserId .. ")" or "Empty"))
-        print("🔍 Fishing Island saved: " .. tostring(config.fishingIsland or "nil"))
+        --  print("💾 Config saved to: " .. fileName)
+        --  print("📊 Config size: " .. #encoded .. " bytes")
+        --  print("🔍 Webhook URL saved: " .. tostring(config.webhookUrl ~= "" and "Yes (" .. #config.webhookUrl .. " chars)" or "Empty"))
+        --  print("🔍 Webhook Ping User ID saved: " .. tostring(config.webhookPingUserId ~= "" and "Yes (" .. config.webhookPingUserId .. ")" or "Empty"))
+        --  print("🔍 Fishing Island saved: " .. tostring(config.fishingIsland or "nil"))
         return true, "Config saved successfully"
     else
         return false, "Failed to encode config: " .. tostring(encoded)
@@ -3030,6 +3222,8 @@ local function loadConfig(configName)
     state.stpatSecretShop = config.stpatSecretShop or false
     state.stpatAutoEgg = config.stpatAutoEgg or false
     state.stpatSelectedEgg = config.stpatSelectedEgg
+    state.stpatPriorityEggMode = config.stpatPriorityEggMode or false
+    state.stpatPriorityEggs = config.stpatPriorityEggs or state.stpatPriorityEggs
     state.stpatHideEggAnim = config.stpatHideEggAnim or false
     state.stpatAutoChest = config.stpatAutoChest or false
 
@@ -3069,6 +3263,7 @@ local function loadConfig(configName)
     state.compDoPlaytimeQuests = config.compDoPlaytimeQuests ~= false  -- Default true
 
     state.disableHatchAnimation = config.disableHatchAnimation or false
+    setPerformanceMode(config.performanceMode or false)
     state.antiAFK = config.antiAFK or false
     state.fishingIsland = config.fishingIsland
     state.fishingRod = config.fishingRod or "Wooden Rod"
@@ -3095,13 +3290,13 @@ local function loadConfig(configName)
 
     state.savedConfigs[configName] = config
 
-    print("✅ Config loaded from: " .. fileName)
-    print("🔍 Webhook URL loaded: " .. (state.webhookUrl ~= "" and "Yes (" .. #state.webhookUrl .. " chars)" or "Empty"))
-    print("🔍 Webhook Ping User ID loaded: " .. (state.webhookPingUserId ~= "" and "Yes (" .. state.webhookPingUserId .. ")" or "Empty"))
-    print("🔍 Fishing Island loaded: " .. tostring(state.fishingIsland or "nil"))
+    --  print("✅ Config loaded from: " .. fileName)
+    --  print("🔍 Webhook URL loaded: " .. (state.webhookUrl ~= "" and "Yes (" .. #state.webhookUrl .. " chars)" or "Empty"))
+    --  print("🔍 Webhook Ping User ID loaded: " .. (state.webhookPingUserId ~= "" and "Yes (" .. state.webhookPingUserId .. ")" or "Empty"))
+    --  print("🔍 Fishing Island loaded: " .. tostring(state.fishingIsland or "nil"))
 
     -- Update UI elements to match loaded config values
-    print("🔄 Updating UI elements...")
+    --  print("🔄 Updating UI elements...")
     local ui = state.uiElements
 
     -- Update toggles (if they exist)
@@ -3114,12 +3309,14 @@ local function loadConfig(configName)
     if ui.AutoClaimEventPrizesToggle then pcall(function() ui.AutoClaimEventPrizesToggle:Set(state.autoClaimEventPrizes) end) end
     if ui.AutoClaimPlaytimeToggle then pcall(function() ui.AutoClaimPlaytimeToggle:Set(state.autoClaimPlaytime) end) end
     if ui.AntiAFKToggle then pcall(function() ui.AntiAFKToggle:Set(state.antiAFK) end) end
+    if ui.PerformanceModeToggle then pcall(function() ui.PerformanceModeToggle:Set(state.performanceMode) end) end
     if ui.AutoFishToggle then pcall(function() ui.AutoFishToggle:Set(state.autoFishEnabled) end) end
     if ui.StPatAutoPickupToggle then pcall(function() ui.StPatAutoPickupToggle:Set(state.stpatAutoPickup) end) end
     if ui.StPatAutoShopToggle then pcall(function() ui.StPatAutoShopToggle:Set(state.stpatAutoShop) end) end
     if ui.StPatSecretShopToggle then pcall(function() ui.StPatSecretShopToggle:Set(state.stpatSecretShop) end) end
     if ui.StPatHideEggAnimToggle then pcall(function() ui.StPatHideEggAnimToggle:Set(state.stpatHideEggAnim) end) end
     if ui.StPatAutoEggToggle then pcall(function() ui.StPatAutoEggToggle:Set(state.stpatAutoEgg) end) end
+    if ui.StPatPriorityEggModeToggle then pcall(function() ui.StPatPriorityEggModeToggle:Set(state.stpatPriorityEggMode) end) end
     if ui.StPatAutoChestToggle then pcall(function() ui.StPatAutoChestToggle:Set(state.stpatAutoChest) end) end
     if ui.AutoObbyFarmToggle then pcall(function() ui.AutoObbyFarmToggle:Set(state.autoObbyFarm) end) end
     if ui.AutoObbyChestToggle then pcall(function() ui.AutoObbyChestToggle:Set(state.autoObbyChestClaim) end) end
@@ -3176,10 +3373,14 @@ local function loadConfig(configName)
         pcall(function() ui.StPatShopTierDropdown:Set(labels[slot]) end)
     end
     if ui.StPatEggSelectDropdown and state.stpatSelectedEgg then pcall(function() ui.StPatEggSelectDropdown:Set(state.stpatSelectedEgg) end) end
+    if ui.StPatPriorityEggsDropdown and state.stpatPriorityEggs and #state.stpatPriorityEggs > 0 then pcall(function() ui.StPatPriorityEggsDropdown:Set(state.stpatPriorityEggs) end) end
 
     -- Update rarity dropdown with selected rarities
     if ui.RarityDropdown and state.webhookRarities then
         pcall(function()
+            if state.webhookRarities.Celestial == nil then
+                state.webhookRarities.Celestial = true
+            end
             local selectedRarities = {}
             for rarity, enabled in pairs(state.webhookRarities) do
                 if enabled then
@@ -3197,7 +3398,7 @@ local function loadConfig(configName)
     if ui.EnchantSecondSlider then pcall(function() ui.EnchantSecondSlider:Set(state.enchantSecondTier) end) end
     if ui.MaxEggsSlider then pcall(function() ui.MaxEggsSlider:Set(state.maxEggs) end) end
 
-    print("✅ UI elements updated successfully")
+    --  print("✅ UI elements updated successfully")
 
     return true, "Config loaded successfully"
 end
@@ -3210,39 +3411,39 @@ local function listConfigs()
         for i, file in pairs(allFiles) do
             -- Print full path for debugging (first 10 files)
             if i <= 10 or file:lower():find("loriobgsi") then
-                print("  📄 File " .. i .. ": " .. file)
+                --  print("  📄 File " .. i .. ": " .. file)
 
                 -- Extract filename from path (handle both / and \ separators)
                 local fileName = file:match("([^/\\]+)$") or file
-                print("    → Extracted: '" .. fileName .. "'")
+                --  print("    → Extracted: '" .. fileName .. "'")
 
                 -- Test pattern match
                 local matches = fileName:match("^LorioBGSI_Config_(.+)%.json$")
-                print("    → Pattern match result: " .. tostring(matches))
+                --  print("    → Pattern match result: " .. tostring(matches))
 
                 -- Check if it matches our config pattern
                 if fileName:match("^LorioBGSI_Config_(.+)%.json$") then
                     local configName = fileName:match("^LorioBGSI_Config_(.+)%.json$")
                     table.insert(configs, configName)
-                    print("    ✅ FOUND CONFIG: " .. configName)
+                    --  print("    ✅ FOUND CONFIG: " .. configName)
                 end
             end
         end
 
         -- Also try case-insensitive search
-        print("\n🔍 Trying case-insensitive search for 'lorio'...")
+        --  print("\n🔍 Trying case-insensitive search for 'lorio'...")
         for _, file in pairs(allFiles) do
             if file:lower():find("lorio") then
-                print("  🔎 Found file with 'lorio': " .. file)
+                --  print("  🔎 Found file with 'lorio': " .. file)
             end
         end
     end)
 
     if not success then
-        print("❌ Error listing config files: " .. tostring(err))
+        --  print("❌ Error listing config files: " .. tostring(err))
     end
 
-    print("\n📋 Total configs found: " .. #configs)
+    --  print("\n📋 Total configs found: " .. #configs)
     return configs
 end
 
@@ -3260,30 +3461,30 @@ local function analyzeTeams()
         local LocalData = require(RS.Client.Framework.Services.LocalData)
         local playerData = LocalData:Get()
 
-        print("🔍 [Team Detection] playerData exists:", playerData ~= nil)
+        --  print("🔍 [Team Detection] playerData exists:", playerData ~= nil)
         if not playerData then
-            print("❌ [Team Detection] No playerData")
+            --  print("❌ [Team Detection] No playerData")
             return
         end
 
-        print("🔍 [Team Detection] playerData.Teams exists:", playerData.Teams ~= nil)
+        --  print("🔍 [Team Detection] playerData.Teams exists:", playerData.Teams ~= nil)
         if not playerData.Teams then
-            print("❌ [Team Detection] No Teams in playerData")
+            --  print("❌ [Team Detection] No Teams in playerData")
             return
         end
 
-        print("📊 [Team Detection] Teams count:", #playerData.Teams)
-        print("📊 [Team Detection] Teams type:", type(playerData.Teams))
+        --  print("📊 [Team Detection] Teams count:", #playerData.Teams)
+        --  print("📊 [Team Detection] Teams type:", type(playerData.Teams))
 
         -- Iterate through teams array (indexed [1], [2], [3], etc.)
         for teamIndex = 1, #playerData.Teams do
             local teamData = playerData.Teams[teamIndex]
-            print("🔍 [Team Detection] Team #" .. teamIndex .. " exists:", teamData ~= nil)
+            --  print("🔍 [Team Detection] Team #" .. teamIndex .. " exists:", teamData ~= nil)
 
             if teamData then
                 -- Team name: custom name or default "Team 1", "Team 2", etc.
                 local teamName = teamData.Name or ("Team " .. teamIndex)
-                print("✅ [Team Detection] Found team: " .. teamName)
+                --  print("✅ [Team Detection] Found team: " .. teamName)
 
                 local hatchScore = 0
                 local statsScore = 0
@@ -3293,22 +3494,22 @@ local function analyzeTeams()
                 local totalBubbles = 0
 
                 -- Check Pets field
-                print("  - Pets exists:", teamData.Pets ~= nil)
-                print("  - Pets type:", type(teamData.Pets))
+                --  print("  - Pets exists:", teamData.Pets ~= nil)
+                --  print("  - Pets type:", type(teamData.Pets))
 
                 -- Analyze pets in this team (teamData.Pets is an array of pet IDs)
                 if teamData.Pets and type(teamData.Pets) == "table" then
-                    print("  - Pets count:", #teamData.Pets)
+                    --  print("  - Pets count:", #teamData.Pets)
 
                     for petIdx, petId in ipairs(teamData.Pets) do
-                        print("    - Pet #" .. petIdx .. " ID:", petId)
+                        --  print("    - Pet #" .. petIdx .. " ID:", petId)
 
                         -- Find the pet in player's pet collection
                         if playerData.Pets then
                             for _, pet in pairs(playerData.Pets) do
                                 if pet.Id == petId then
                                     petCount = petCount + 1
-                                    print("      ✅ Found matching pet in collection")
+                                    --  print("      ✅ Found matching pet in collection")
 
                                     -- Add base stats to team total
                                     if pet.Stat then
@@ -3319,12 +3520,12 @@ local function analyzeTeams()
 
                                     -- Check enchants (enchants is an array with .Id and .Level)
                                     if pet.Enchants and type(pet.Enchants) == "table" then
-                                        print("      - Enchants count:", #pet.Enchants)
+                                        --  print("      - Enchants count:", #pet.Enchants)
                                         for _, enchant in ipairs(pet.Enchants) do
                                             if enchant and enchant.Id then
                                                 local enchantId = tostring(enchant.Id):lower()
                                                 local enchantLevel = enchant.Level or 1
-                                                print("        - Enchant:", enchantId, "Level:", enchantLevel)
+                                                --  print("        - Enchant:", enchantId, "Level:", enchantLevel)
 
                                                 -- HATCH-FOCUSED ENCHANTS (Luck/Egg enchants)
                                                 if enchantId:find("high%-roller") then
@@ -3385,8 +3586,8 @@ local function analyzeTeams()
                 -- Add base stats to score (scaled down to not overwhelm enchant scores)
                 statsScore = statsScore + (totalCoins / 10000) + (totalGems / 1000) + (totalBubbles / 10000)
 
-                print("  📊 Team stats - Pets:", petCount, "Hatch Score:", hatchScore, "Stats Score:", statsScore)
-                print("  💰 Base Stats - Coins:", totalCoins, "Gems:", totalGems, "Bubbles:", totalBubbles)
+                --  print("  📊 Team stats - Pets:", petCount, "Hatch Score:", hatchScore, "Stats Score:", statsScore)
+                --  print("  💰 Base Stats - Coins:", totalCoins, "Gems:", totalGems, "Bubbles:", totalBubbles)
 
                 -- Only add team if it has pets
                 if petCount > 0 then
@@ -3418,7 +3619,7 @@ local function analyzeTeams()
     end)
 
     if not success then
-        print("❌ [Team Detection] Error:", error)
+        --  print("❌ [Team Detection] Error:", error)
     end
 
     -- Count teams properly (it's a dictionary, not an array)
@@ -3427,9 +3628,9 @@ local function analyzeTeams()
         teamCount = teamCount + 1
     end
 
-    print("✅ [Team Detection] Final teams count:", teamCount)
-    print("🏆 [Team Detection] Best Hatch Team:", hatchBestTeam or "None", "(Index:", hatchBestIndex or "?", ") Score:", hatchBestScore)
-    print("💰 [Team Detection] Best Stats Team:", statsBestTeam or "None", "(Index:", statsBestIndex or "?", ") Score:", statsBestScore)
+    --  print("✅ [Team Detection] Final teams count:", teamCount)
+    --  print("🏆 [Team Detection] Best Hatch Team:", hatchBestTeam or "None", "(Index:", hatchBestIndex or "?", ") Score:", hatchBestScore)
+    --  print("💰 [Team Detection] Best Stats Team:", statsBestTeam or "None", "(Index:", statsBestIndex or "?", ") Score:", statsBestScore)
 
     return teams, hatchBestTeam, statsBestTeam, hatchBestIndex, statsBestIndex
 end
@@ -3492,7 +3693,7 @@ local function scanEggs()
             end
 
             if foundEggs > 0 then
--- print("✅ Found " .. foundEggs .. " eggs in Chunker folders")
+-- --  print("✅ Found " .. foundEggs .. " eggs in Chunker folders")
             end
         end
     end)
@@ -3674,6 +3875,82 @@ local function shouldAttemptPickupId(id, cooldown)
     return true
 end
 
+setPerformanceMode = function(enabled)
+    state.performanceMode = enabled
+
+    if enabled then
+        pcall(function()
+            state.performanceLightingBackup = {
+                GlobalShadows = Lighting.GlobalShadows,
+                Brightness = Lighting.Brightness,
+                EnvironmentDiffuseScale = Lighting.EnvironmentDiffuseScale,
+                EnvironmentSpecularScale = Lighting.EnvironmentSpecularScale,
+            }
+            Lighting.GlobalShadows = false
+            Lighting.Brightness = 1
+            Lighting.EnvironmentDiffuseScale = 0
+            Lighting.EnvironmentSpecularScale = 0
+        end)
+
+        -- Disable post-processing effects
+        state.performancePostEffects = {}
+        pcall(function()
+            for _, obj in ipairs(Lighting:GetChildren()) do
+                if obj:IsA("PostEffect") and obj.Enabled then
+                    table.insert(state.performancePostEffects, obj)
+                    obj.Enabled = false
+                end
+            end
+        end)
+
+        -- Disable expensive VFX emitters across workspace
+        state.performanceFxObjects = {}
+        pcall(function()
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles")) and obj.Enabled then
+                    table.insert(state.performanceFxObjects, obj)
+                    obj.Enabled = false
+                end
+            end
+        end)
+
+        if setfpscap then
+            pcall(function() setfpscap(5) end)
+        end
+    else
+        -- Restore lighting
+        if state.performanceLightingBackup then
+            pcall(function()
+                Lighting.GlobalShadows = state.performanceLightingBackup.GlobalShadows
+                Lighting.Brightness = state.performanceLightingBackup.Brightness
+                Lighting.EnvironmentDiffuseScale = state.performanceLightingBackup.EnvironmentDiffuseScale
+                Lighting.EnvironmentSpecularScale = state.performanceLightingBackup.EnvironmentSpecularScale
+            end)
+        end
+
+        -- Restore post effects that were enabled before
+        pcall(function()
+            for _, obj in ipairs(state.performancePostEffects or {}) do
+                if obj and obj.Parent then obj.Enabled = true end
+            end
+        end)
+
+        -- Restore VFX that were enabled before
+        pcall(function()
+            for _, obj in ipairs(state.performanceFxObjects or {}) do
+                if obj and obj.Parent then obj.Enabled = true end
+            end
+        end)
+
+        state.performancePostEffects = {}
+        state.performanceFxObjects = {}
+
+        if setfpscap then
+            pcall(function() setfpscap(30) end)
+        end
+    end
+end
+
 -- === ST. PATRICK EVENT HELPERS ===
 local StPatEggDropdown
 
@@ -3763,6 +4040,68 @@ local function restoreStPatReturnTeleporter()
     end)
 end
 
+local function getStPatSpawnObject()
+    local eventFolder = Workspace:FindFirstChild("StPatricksEvent")
+    if not eventFolder then
+        return nil
+    end
+    return eventFolder:FindFirstChild("Spawn")
+end
+
+local function getStPatSpawnPosition()
+    local spawnObj = getStPatSpawnObject()
+    if not spawnObj then
+        return nil
+    end
+
+    if spawnObj:IsA("BasePart") then
+        return spawnObj.Position
+    end
+
+    if spawnObj:IsA("Model") then
+        return getModelPosition(spawnObj)
+    end
+
+    return nil
+end
+
+local function isInStPatEventArea(hrp)
+    if not hrp then
+        return false
+    end
+
+    local spawnPos = getStPatSpawnPosition()
+    if not spawnPos then
+        return false
+    end
+
+    return (hrp.Position - spawnPos).Magnitude <= 350
+end
+
+local function teleportToStPatEvent(remote, usePickupWarmup)
+    local now = tick()
+    if now - (state.lastStpatWorldTeleport or 0) < 5 then
+        return false
+    end
+
+    local spawnObj = getStPatSpawnObject()
+    local teleportPath = spawnObj and spawnObj:GetFullName() or "Workspace.StPatricksEvent.Spawn"
+
+    pcall(function()
+        remote:FireServer("Teleport", teleportPath)
+    end)
+
+    state.lastStpatWorldTeleport = now
+    state.stpatLastEggPosition = nil
+    state.stpatLastEggTarget = nil
+
+    if usePickupWarmup then
+        state.stpatPickupWarmupUntil = now + 2
+    end
+
+    return true
+end
+
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║                  TAB DECLARATIONS                          ║
 -- ╚══════════════════════════════════════════════════════════════╝
@@ -3784,7 +4123,7 @@ local DataTab     = Window:CreateTab("📋 Data",        4483362458)  -- 15
 
 -- === MAIN TAB ===
 
-local StatsSection = MainTab:CreateSection("📊 Live Stats")
+MainTab:CreateSection("📊 Live Stats")
 
 state.labels.runtime = MainTab:CreateLabel("Runtime: 00:00:00")
 state.labels.bubbles = MainTab:CreateLabel("Bubbles: 0")
@@ -3792,7 +4131,7 @@ state.labels.hatches = MainTab:CreateLabel("Hatches: 0")
 
 -- === FARM TAB ===
 
-local FarmSection = FarmTab:CreateSection("🤖 Auto Farm")
+FarmTab:CreateSection("🤖 Auto Farm")
 
 local AutoBlowToggle = FarmTab:CreateToggle({
    Name = "🧼 Auto Blow Bubbles",
@@ -3883,7 +4222,7 @@ state.uiElements.AutoSellBubblesToggle = AutoSellBubblesToggle
 --    end,
 -- })
 
-local ClaimSection = FarmTab:CreateSection("🎁 Auto Claim")
+FarmTab:CreateSection("🎁 Auto Claim")
 
 local AutoClaimToggle = FarmTab:CreateToggle({
    Name = "🎁 Auto Claim Playtime Gifts",
@@ -3901,7 +4240,7 @@ local AutoClaimToggle = FarmTab:CreateToggle({
 })
 state.uiElements.AutoClaimPlaytimeToggle = AutoClaimToggle
 
-local AntiAFKSection = FarmTab:CreateSection("🛡️ Anti-AFK")
+FarmTab:CreateSection("🛡️ Anti-AFK")
 
 local AntiAFKToggle = FarmTab:CreateToggle({
     Name = "🛡️ Prevent AFK Kick",
@@ -3912,6 +4251,17 @@ local AntiAFKToggle = FarmTab:CreateToggle({
     end,
 })
 state.uiElements.AntiAFKToggle = AntiAFKToggle
+
+MainTab:CreateSection("🚀 Performance")
+
+state.uiElements.PerformanceModeToggle = MainTab:CreateToggle({
+    Name = "🚀 Ultra Performance Mode (5 FPS cap)",
+    CurrentValue = false,
+    Flag = "PerformanceMode",
+    Callback = function(Value)
+        setPerformanceMode(Value)
+    end,
+})
 
 -- === EVENT TAB ===
 EventTab:CreateSection("🍀 St. Patrick's Event")
@@ -3924,8 +4274,11 @@ state.uiElements.StPatAutoPickupToggle = EventTab:CreateToggle({
         state.stpatAutoPickup = Value
         if Value then
             sinkStPatReturnTeleporter()
+            state.lastStpatWorldTeleport = 0
+            state.stpatPickupWarmupUntil = tick() + 2
         else
             restoreStPatReturnTeleporter()
+            state.stpatPickupWarmupUntil = 0
         end
     end,
 })
@@ -3985,6 +4338,7 @@ StPatEggDropdown = EventTab:CreateDropdown({
         if Option and Option[1] and Option[1] ~= "Scanning..." and Option[1] ~= "None found" then
             state.stpatSelectedEgg = Option[1]
             state.stpatLastEggPosition = nil
+            state.stpatLastEggTarget = nil
         end
     end,
 })
@@ -4008,6 +4362,33 @@ state.uiElements.StPatAutoEggToggle = EventTab:CreateToggle({
         state.stpatAutoEgg = Value
         state.lastStpatEggHatch = 0
         state.stpatLastEggPosition = nil
+        state.stpatLastEggTarget = nil
+    end,
+})
+
+EventTab:CreateSection("⭐ Priority Event Eggs")
+
+state.uiElements.StPatPriorityEggsDropdown = EventTab:CreateDropdown({
+    Name = "Priority eggs (override normal egg when spawned)",
+    Options = {"Lucky Egg", "Fortune Egg", "4X Luck Fortune Egg"},
+    CurrentOption = state.stpatPriorityEggs,
+    MultipleOptions = true,
+    Flag = "StPatPriorityEggs",
+    Callback = function(Options)
+        state.stpatPriorityEggs = Options or {}
+        state.stpatLastEggTarget = nil
+        state.stpatLastEggPosition = nil
+    end,
+})
+
+state.uiElements.StPatPriorityEggModeToggle = EventTab:CreateToggle({
+    Name = "⭐ Enable Priority Event Egg Detection",
+    CurrentValue = false,
+    Flag = "StPatPriorityEggMode",
+    Callback = function(Value)
+        state.stpatPriorityEggMode = Value
+        state.stpatLastEggTarget = nil
+        state.stpatLastEggPosition = nil
     end,
 })
 
@@ -4024,7 +4405,7 @@ state.uiElements.StPatAutoChestToggle = EventTab:CreateToggle({
 })
 
 -- === AUTO POTIONS ===
-local PotionSection = FarmTab:CreateSection("🧪 Auto Potions")
+FarmTab:CreateSection("🧪 Auto Potions")
 
 local PotionDropdown = FarmTab:CreateDropdown({
    Name = "Potions to auto-use (multi-select)",
@@ -4060,7 +4441,7 @@ state.uiElements.AutoPotionToggle = AutoPotionToggle
 
 -- === ENCHANT TAB ===
 
-local EnchantSection = EnchantTab:CreateSection("✨ Auto Enchant")
+EnchantTab:CreateSection("✨ Auto Enchant")
 
 local EnchantMainDropdown = EnchantTab:CreateDropdown({
    Name = "Enchant #1 (target)",
@@ -4162,7 +4543,7 @@ state.uiElements.AutoEnchantToggle = AutoEnchantToggle
 
 -- === FISHING TAB ===
 
-local FishingSection = FishingTab:CreateSection("🎣 Auto Fishing")
+FishingTab:CreateSection("🎣 Auto Fishing")
 
 local FishingIslandDropdown = FishingTab:CreateDropdown({
    Name = "Select Fishing Island",
@@ -4272,7 +4653,7 @@ state.uiElements.AutoFishToggle = AutoFishToggle
 
 -- === WORLD TAB ===
 
-local WorldAutomationSection = WorldTab:CreateSection("🗺️ World Automation")
+WorldTab:CreateSection("🗺️ World Automation")
 
 local DiscoverWorldDropdown = WorldTab:CreateDropdown({
     Name = "Discover Islands In",
@@ -4343,7 +4724,7 @@ state.uiElements.AutoUnlockWorldsToggle = AutoUnlockWorldsToggle
 
 -- === SEASON TAB ===
 
-local SeasonSection = SeasonTab:CreateSection("📅 Season Automation")
+SeasonTab:CreateSection("📅 Season Automation")
 
 local SeasonFallbackEggDropdown = SeasonTab:CreateDropdown({
     Name = "Fallback Egg For Season Hatch",
@@ -4404,7 +4785,7 @@ state.uiElements.AutoSeasonInfiniteToggle = AutoSeasonInfiniteToggle
 
 -- === OBBYS TAB ===
 
-local ObbySection = ObbysTab:CreateSection("🏁 Obby Farming")
+ObbysTab:CreateSection("🏁 Obby Farming")
 
 local ObbySelectionDropdown = ObbysTab:CreateDropdown({
     Name = "Select Obby Difficulties",
@@ -4448,7 +4829,7 @@ state.uiElements.AutoObbyChestToggle = AutoObbyChestToggle
 
 -- === EGGS TAB ===
 
-local EggsSection = EggsTab:CreateSection("🥚 Egg Management")
+EggsTab:CreateSection("🥚 Egg Management")
 
 local EggDropdown = EggsTab:CreateDropdown({
    Name = "Egg List (choose your egg to auto hatch)",
@@ -4527,7 +4908,7 @@ local DisableHatchAnimToggle = EggsTab:CreateToggle({
    end,
 })
 
-local PriorityEggSection = EggsTab:CreateSection("⭐ Egg Prioritizer Management")
+EggsTab:CreateSection("⭐ Egg Prioritizer Management")
 
 local PriorityEggDropdown = EggsTab:CreateDropdown({
    Name = "Eggs to prioritize over normal egg",
@@ -4558,7 +4939,7 @@ state.uiElements.PriorityEggModeToggle = PriorityEggToggle
 
 -- === RIFTS TAB ===
 
-local RiftsSection = RiftsTab:CreateSection("🌌 Rifts Management")
+RiftsTab:CreateSection("🌌 Rifts Management")
 
 local RiftDropdown = RiftsTab:CreateDropdown({
    Name = "Rifts List (choose a rift in current active rift list)",
@@ -4606,7 +4987,7 @@ local RiftAutoHatchToggle = RiftsTab:CreateToggle({
 })
 state.uiElements.RiftAutoHatchToggle = RiftAutoHatchToggle
 
-local PriorityRiftSection = RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
+RiftsTab:CreateSection("⭐ Rift Prioritizer Management")
 
 local PriorityRiftDropdown = RiftsTab:CreateDropdown({
    Name = "Rifts to prioritize over normal rift",
@@ -4646,7 +5027,7 @@ state.uiElements.RiftPriorityModeToggle = PriorityRiftToggle
 
 -- === WEBHOOK TAB ===
 
-local WebSection = WebTab:CreateSection("💬 Hatch Notifications")
+WebTab:CreateSection("💬 Hatch Notifications")
 
 local WebhookInput = WebTab:CreateInput({
    Name = "Webhook URL",
@@ -4694,13 +5075,13 @@ state.uiElements.ChanceThresholdInput = ChanceThresholdInput
 
 local RarityDropdown = WebTab:CreateDropdown({
    Name = "Select Rarities to Notify",
-   Options = {"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity"},
-   CurrentOption = {"Legendary", "Secret", "Infinity"},
+    Options = {"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity", "Celestial"},
+    CurrentOption = {"Legendary", "Secret", "Infinity", "Celestial"},
    MultipleOptions = true,
    Flag = "WebhookRarities",
    Callback = function(Options)
       -- Reset all to false
-      state.webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=false, Secret=false, Infinity=false}
+        state.webhookRarities = {Common=false, Unique=false, Rare=false, Epic=false, Legendary=false, Secret=false, Infinity=false, Celestial=false}
       -- Enable selected ones
       for _, rarity in ipairs(Options) do
          state.webhookRarities[rarity] = true
@@ -4781,7 +5162,7 @@ WebTab:CreateButton({
 
 -- === POWERUPS TAB ===
 
-local PowerupSection = PowerupsTab:CreateSection("⚡ Auto Use Powerups")
+PowerupsTab:CreateSection("⚡ Auto Use Powerups")
 
 local PowerupDropdown = PowerupsTab:CreateDropdown({
    Name = "Powerups to auto-use",
@@ -4816,7 +5197,7 @@ state.uiElements.AutoPowerupToggle = PowerupToggle
 
 -- === COMPETITIVE TAB ===
 
-local CompAutoSection = CompTab:CreateSection("🤖 Auto Competitive")
+CompTab:CreateSection("🤖 Auto Competitive")
 
 local CompAutoToggle = CompTab:CreateToggle({
    Name = "✨ Enable Auto Competitive",
@@ -4846,7 +5227,7 @@ local CompRerollToggle = CompTab:CreateToggle({
 state.uiElements.CompRerollToggle = CompRerollToggle
 
 
-local CompQuestSection = CompTab:CreateSection("🎯 Quest Type Selection")
+CompTab:CreateSection("🎯 Quest Type Selection")
 
 
 local CompHatchToggle = CompTab:CreateToggle({
@@ -4884,7 +5265,7 @@ local CompPlaytimeToggle = CompTab:CreateToggle({
 state.uiElements.CompPlaytimeToggle = CompPlaytimeToggle
 
 
-local CompWebhookSection = CompTab:CreateSection("📊 Competitive Webhook")
+CompTab:CreateSection("📊 Competitive Webhook")
 
 local CompWebhookInput = CompTab:CreateInput({
    Name = "Competitive Webhook URL",
@@ -4927,7 +5308,7 @@ local CompTestWebhookButton = CompTab:CreateButton({
 
 -- === CONFIG TAB ===
 
-local ConfigSection = ConfigTab:CreateSection("💾 Save/Load Configuration")
+ConfigTab:CreateSection("💾 Save/Load Configuration")
 
 local selectedConfig = nil
 
@@ -4953,13 +5334,13 @@ ConfigTab:CreateButton({
    Name = "🔄 Refresh Config List",
    Callback = function()
       local configs = listConfigs()
-      print("📋 Found " .. #configs .. " config(s)")
+      --  print("📋 Found " .. #configs .. " config(s)")
 
       if #configs > 0 then
          table.insert(configs, "— Create New —")
          pcall(function()
             ConfigDropdown:Refresh(configs, true)  -- true = keep current selection if possible
-            print("✅ Dropdown refreshed with " .. (#configs - 1) .. " config(s)")
+            --  print("✅ Dropdown refreshed with " .. (#configs - 1) .. " config(s)")
             -- Set first config as selected if nothing is selected
             if not selectedConfig or selectedConfig == "No configs found" then
                selectedConfig = configs[1]
@@ -4969,7 +5350,7 @@ ConfigTab:CreateButton({
          pcall(function()
             ConfigDropdown:Refresh({"No configs found"}, true)
             selectedConfig = nil
-            print("📋 No configs found")
+            --  print("📋 No configs found")
          end)
       end
    end,
@@ -4995,7 +5376,7 @@ ConfigTab:CreateButton({
       -- If "Create New" is selected, use the input field
       if selectedConfig == "— Create New —" or not selectedConfig or selectedConfig == "No configs found" then
          if newConfigName == "" then
-            print("❌ Enter a name in 'New Config Name' field!")
+            --  print("❌ Enter a name in 'New Config Name' field!")
             return
          end
          nameToSave = newConfigName
@@ -5003,7 +5384,7 @@ ConfigTab:CreateButton({
 
       local success, message = saveConfig(nameToSave)
       if success then
-         print("✅ Config saved: " .. nameToSave)
+         --  print("✅ Config saved: " .. nameToSave)
          -- Auto-refresh dropdown
          task.wait(0.1)  -- Small delay to ensure file is written
          local configs = listConfigs()
@@ -5011,10 +5392,10 @@ ConfigTab:CreateButton({
             table.insert(configs, "— Create New —")
             ConfigDropdown:Refresh(configs, true)
             selectedConfig = nameToSave
-            print("🔄 Dropdown refreshed, showing " .. (#configs - 1) .. " config(s)")
+            --  print("🔄 Dropdown refreshed, showing " .. (#configs - 1) .. " config(s)")
          end
       else
-         print("❌ Save failed: " .. message)
+         --  print("❌ Save failed: " .. message)
       end
    end,
 })
@@ -5024,32 +5405,32 @@ ConfigTab:CreateButton({
    Name = "📂 Load Config",
    Callback = function()
       if not selectedConfig or selectedConfig == "No configs found" or selectedConfig == "— Create New —" then
-         print("❌ Select a config from the dropdown first!")
+         --  print("❌ Select a config from the dropdown first!")
          return
       end
 
       local success, message = loadConfig(selectedConfig)
       if success then
-         print("✅ Config loaded: " .. selectedConfig)
+         --  print("✅ Config loaded: " .. selectedConfig)
       else
-         print("❌ Load failed: " .. message)
+         --  print("❌ Load failed: " .. message)
       end
    end,
 })
 
-local ConfigListSection = ConfigTab:CreateSection("📋 Auto-Refresh")
+ConfigTab:CreateSection("📋 Auto-Refresh")
 
 
-local AutoLoadSection = ConfigTab:CreateSection("🚀 Auto-Load")
+ConfigTab:CreateSection("🚀 Auto-Load")
 
 ConfigTab:CreateButton({
    Name = "🚀 Set Selected as Auto-Load",
    Callback = function()
       if selectedConfig and selectedConfig ~= "No configs found" and selectedConfig ~= "— Create New —" then
          writefile("LorioBGSI_AutoLoad.txt", selectedConfig)
-         print("✅ Auto-load set to: " .. selectedConfig)
+         --  print("✅ Auto-load set to: " .. selectedConfig)
       else
-         print("❌ Select a config first!")
+         --  print("❌ Select a config first!")
       end
    end,
 })
@@ -5059,7 +5440,7 @@ ConfigTab:CreateButton({
    Callback = function()
       if isfile("LorioBGSI_AutoLoad.txt") then
          pcall(function() delfile("LorioBGSI_AutoLoad.txt") end)
-         print("✅ Auto-load disabled")
+         --  print("✅ Auto-load disabled")
       end
    end,
 })
@@ -5067,7 +5448,7 @@ ConfigTab:CreateButton({
 
 -- === DATA TAB ===
 
-local DataSection = DataTab:CreateSection("🐾 Pet Information")
+DataTab:CreateSection("🐾 Pet Information")
 
 if petData then
    local count = 0
@@ -5081,23 +5462,23 @@ else
 end
 
 -- 🔍 Remote Discovery Section
-local RemoteSection = DataTab:CreateSection("✅ Remotes Found!")
+DataTab:CreateSection("✅ Remotes Found!")
 
 DataTab:CreateButton({
    Name = "📡 Scan All Remotes",
    Callback = function()
       pcall(function()
          local RS = game:GetService("ReplicatedStorage")
--- print("\n🔍 === ALL REMOTES IN GAME ===")
+-- --  print("\n🔍 === ALL REMOTES IN GAME ===")
          local count = 0
          for _, obj in pairs(RS:GetDescendants()) do
             if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") or obj:IsA("BindableEvent") then
                count = count + 1
--- print("   📡 [" .. count .. "] " .. obj:GetFullName())
+-- --  print("   📡 [" .. count .. "] " .. obj:GetFullName())
             end
          end
--- print("\nTotal found: " .. count)
--- print("=== END SCAN ===\n")
+-- --  print("\nTotal found: " .. count)
+-- --  print("=== END SCAN ===\n")
       end)
 
       -- Rayfield:Notify({
@@ -5115,7 +5496,7 @@ DataTab:CreateButton({
          local RS = game:GetService("ReplicatedStorage")
          local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
          Remote:FireServer("BlowBubble")
--- print("✅ Sent BlowBubble command!")
+-- --  print("✅ Sent BlowBubble command!")
       end)
 
       -- Rayfield:Notify({
@@ -5134,7 +5515,7 @@ DataTab:CreateButton({
             local RS = game:GetService("ReplicatedStorage")
             local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
             Remote:FireServer("HatchEgg", state.eggPriority, 99)
--- print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
+-- --  print("✅ Sent HatchEgg command for: " .. state.eggPriority .. " x99")
          end)
 
       -- Rayfield:Notify({
@@ -5153,7 +5534,7 @@ DataTab:CreateButton({
 })
 
 -- === STARTUP: LOAD ALL CHUNKS AND SCAN EGGS ===
--- print("🔍 Loading all game chunks and scanning for eggs...")
+-- --  print("🔍 Loading all game chunks and scanning for eggs...")
 
 -- Load saved stats message ID (persists across rejoins)
 loadStatsMessageId()
@@ -5167,10 +5548,10 @@ task.spawn(function()
             table.insert(configs, "— Create New —")
             ConfigDropdown:Refresh(configs, true)
             selectedConfig = configs[1]
-            print("✅ Config list loaded: " .. (#configs - 1) .. " config(s) found")
+            --  print("✅ Config list loaded: " .. (#configs - 1) .. " config(s) found")
         else
             ConfigDropdown:Refresh({"No configs found"}, true)
-            print("📋 No saved configs found")
+            --  print("📋 No saved configs found")
         end
     end)
 end)
@@ -5184,7 +5565,7 @@ task.spawn(function()
             if configName and configName ~= "" then
                 local success, message = loadConfig(configName)
                 if success then
-                    print("✅ Auto-loaded config: " .. configName)
+                    --  print("✅ Auto-loaded config: " .. configName)
                     selectedConfig = configName
       -- Rayfield:Notify({
       -- Title = "Config Auto-Loaded",
@@ -5198,7 +5579,7 @@ task.spawn(function()
 end)
 
 -- Load egg and rift data from game modules (auto-updates with game versions)
--- print("📦 Fetching egg, rift, potion, powerup, enchant and team data from game...")
+-- --  print("📦 Fetching egg, rift, potion, powerup, enchant and team data from game...")
 loadGameEggData()
 loadGameRiftData()
 loadGamePotionData()
@@ -5221,13 +5602,13 @@ task.spawn(function()
                 if world:IsA("Model") then
                     local primary = world.PrimaryPart or world:FindFirstChildWhichIsA("BasePart")
                     if primary then
--- print("  Loading chunks for:", world.Name)
+-- --  print("  Loading chunks for:", world.Name)
                         player:RequestStreamAroundAsync(primary.Position)
                         task.wait(0.5)
                     end
                 end
             end
--- print("✅ All chunks loaded!")
+-- --  print("✅ All chunks loaded!")
         end
 
         -- Now scan all eggs and build database
@@ -5274,7 +5655,7 @@ task.spawn(function()
                     end
                 end
             end
--- print("✅ Egg database built: " .. eggCount .. " eggs cataloged")
+-- --  print("✅ Egg database built: " .. eggCount .. " eggs cataloged")
         end
     end)
 end)
@@ -5481,23 +5862,23 @@ task.spawn(function()
         -- ✅ Auto Enchant (all pets in equipped team, one at a time)
         if state.autoEnchantEnabled and state.enchantMain then
             local success, err = pcall(function()
-                print("🔮 [Enchant] Starting auto-enchant cycle")
+                --  print("🔮 [Enchant] Starting auto-enchant cycle")
 
                 -- Get LocalData to access team and pet info
                 local LocalData = require(RS.Client.Framework.Services.LocalData)
                 local playerData = LocalData:Get()
 
                 if not playerData then
-                    print("❌ [Enchant] No playerData")
+                    --  print("❌ [Enchant] No playerData")
                     return
                 end
-                print("✅ [Enchant] Got playerData")
+                --  print("✅ [Enchant] Got playerData")
 
                 if not playerData.Teams then
-                    print("❌ [Enchant] No Teams in playerData")
+                    --  print("❌ [Enchant] No Teams in playerData")
                     return
                 end
-                print("✅ [Enchant] Teams exist, count:", #playerData.Teams)
+                --  print("✅ [Enchant] Teams exist, count:", #playerData.Teams)
 
                 -- Try multiple methods to find equipped team
                 local equippedTeamIndex = nil
@@ -5507,7 +5888,7 @@ task.spawn(function()
                 if playerData.TeamEquipped then
                     equippedTeamIndex = playerData.TeamEquipped
                     team = playerData.Teams[equippedTeamIndex]
-                    print("✅ [Enchant] Method 1: Found team via TeamEquipped, index:", equippedTeamIndex)
+                    --  print("✅ [Enchant] Method 1: Found team via TeamEquipped, index:", equippedTeamIndex)
                 end
 
                 -- Method 2: Find team with Equipped = true
@@ -5516,7 +5897,7 @@ task.spawn(function()
                         if t.Equipped == true then
                             equippedTeamIndex = idx
                             team = t
-                            print("✅ [Enchant] Method 2: Found team via Equipped flag, index:", idx)
+                            --  print("✅ [Enchant] Method 2: Found team via Equipped flag, index:", idx)
                             break
                         end
                     end
@@ -5524,26 +5905,26 @@ task.spawn(function()
 
                 -- Check if team exists and has pets
                 if not team then
-                    print("❌ [Enchant] No equipped team found")
+                    --  print("❌ [Enchant] No equipped team found")
                     return
                 end
 
                 if not team.Pets or #team.Pets == 0 then
-                    print("❌ [Enchant] Team has no pets")
+                    --  print("❌ [Enchant] Team has no pets")
                     return
                 end
 
-                print("✅ [Enchant] Team has", #team.Pets, "pets")
-                print("🔢 [Enchant] Current pet index:", state.currentEnchantPetIndex)
+                --  print("✅ [Enchant] Team has", #team.Pets, "pets")
+                --  print("🔢 [Enchant] Current pet index:", state.currentEnchantPetIndex)
 
                 -- Get current pet ID from team's pet array
                 local currentPetId = team.Pets[state.currentEnchantPetIndex]
                 if not currentPetId then
-                    print("❌ [Enchant] Invalid pet index, resetting to 1")
+                    --  print("❌ [Enchant] Invalid pet index, resetting to 1")
                     state.currentEnchantPetIndex = 1
                     return
                 end
-                print("✅ [Enchant] Current pet ID:", currentPetId)
+                --  print("✅ [Enchant] Current pet ID:", currentPetId)
 
                 -- Find pet data by matching ID
                 local petData = nil
@@ -5557,21 +5938,21 @@ task.spawn(function()
                 end
 
                 if not petData then
-                    print("❌ [Enchant] Pet not found in collection, skipping to next")
+                    --  print("❌ [Enchant] Pet not found in collection, skipping to next")
                     state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
                     return
                 end
-                print("✅ [Enchant] Found pet data")
+                --  print("✅ [Enchant] Found pet data")
 
                 -- Check current enchants
                 local currentEnchants = petData.Enchants or {}
-                print("🔮 [Enchant] Pet has", #currentEnchants, "enchants")
+                --  print("🔮 [Enchant] Pet has", #currentEnchants, "enchants")
 
                 -- Debug: print current enchants
                 for i, ench in ipairs(currentEnchants) do
                     if ench and ench.Id then
                         local level = ench.Level or 1
-                        print("  Enchant #" .. i .. ":", ench.Id, "Level:", level)
+                        --  print("  Enchant #" .. i .. ":", ench.Id, "Level:", level)
                     end
                 end
 
@@ -5583,10 +5964,10 @@ task.spawn(function()
                 local mainTargetName = state.enchantMain and tostring(state.enchantMain):lower() or nil
                 local secondTargetName = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
 
-                print("🎯 [Enchant] Target Slot 1:", mainTargetName or "none",
+                --  print("🎯 [Enchant] Target Slot 1:", mainTargetName or "none",
                       "(Tier:", state.enchantMainTier or 1, "Enabled:", state.enchantMainEnabled,
                       "Auto-satisfied:", not state.enchantMainEnabled, ")")
-                print("🎯 [Enchant] Target Slot 2:", secondTargetName or "none",
+                --  print("🎯 [Enchant] Target Slot 2:", secondTargetName or "none",
                       "(Tier:", state.enchantSecondTier or 1, "Enabled:", state.enchantSecondEnabled,
                       "Auto-satisfied:", not state.enchantSecondEnabled, ")")
 
@@ -5600,7 +5981,7 @@ task.spawn(function()
                         if state.enchantMainEnabled and mainTargetName and not slot1Satisfied then
                             if enchantId == mainTargetName and enchantLevel == state.enchantMainTier then
                                 slot1Satisfied = true
-                                print("✅ [Enchant] Slot 1 satisfied:", enchant.Id, "Level:", enchantLevel)
+                                --  print("✅ [Enchant] Slot 1 satisfied:", enchant.Id, "Level:", enchantLevel)
                             end
                         end
 
@@ -5608,7 +5989,7 @@ task.spawn(function()
                         if state.enchantSecondEnabled and secondTargetName and not slot2Satisfied then
                             if enchantId == secondTargetName and enchantLevel == state.enchantSecondTier then
                                 slot2Satisfied = true
-                                print("✅ [Enchant] Slot 2 satisfied:", enchant.Id, "Level:", enchantLevel)
+                                --  print("✅ [Enchant] Slot 2 satisfied:", enchant.Id, "Level:", enchantLevel)
                             end
                         end
 
@@ -5621,14 +6002,14 @@ task.spawn(function()
 
                 -- Pet is ready if all enabled slots are satisfied
                 local hasDesiredEnchant = slot1Satisfied and slot2Satisfied
-                print("📊 [Enchant] Result - Slot1:", slot1Satisfied, "Slot2:", slot2Satisfied, "Ready:", hasDesiredEnchant)
+                --  print("📊 [Enchant] Result - Slot1:", slot1Satisfied, "Slot2:", slot2Satisfied, "Ready:", hasDesiredEnchant)
 
                 -- If pet has desired enchant, move to next pet
                 if hasDesiredEnchant then
-                    print("➡️ [Enchant] Moving to next pet")
+                    --  print("➡️ [Enchant] Moving to next pet")
                     state.currentEnchantPetIndex = state.currentEnchantPetIndex + 1
                     if state.currentEnchantPetIndex > #team.Pets then
-                        print("🔄 [Enchant] Reached end of team, looping back to pet 1")
+                        --  print("🔄 [Enchant] Reached end of team, looping back to pet 1")
                         state.currentEnchantPetIndex = 1
                     end
                 else
@@ -5637,34 +6018,34 @@ task.spawn(function()
 
                     -- Reroll slot 1 if it's enabled and not satisfied
                     if state.enchantMainEnabled and not slot1Satisfied then
-                        print("🎲 [Enchant] Rerolling slot 1 for pet:", currentPetId)
+                        --  print("🎲 [Enchant] Rerolling slot 1 for pet:", currentPetId)
                         local rerollSuccess, rerollErr = pcall(function()
                             RemoteEvent:FireServer("RerollEnchant", currentPetId, 1)
                         end)
                         if not rerollSuccess then
-                            print("❌ [Enchant] Slot 1 reroll failed:", rerollErr)
+                            --  print("❌ [Enchant] Slot 1 reroll failed:", rerollErr)
                         else
-                            print("✅ [Enchant] Slot 1 rerolled")
+                            --  print("✅ [Enchant] Slot 1 rerolled")
                         end
                     end
 
                     -- Reroll slot 2 if it's enabled and not satisfied
                     if state.enchantSecondEnabled and not slot2Satisfied then
-                        print("🎲 [Enchant] Rerolling slot 2 for pet:", currentPetId)
+                        --  print("🎲 [Enchant] Rerolling slot 2 for pet:", currentPetId)
                         local rerollSuccess, rerollErr = pcall(function()
                             RemoteEvent:FireServer("RerollEnchant", currentPetId, 2)
                         end)
                         if not rerollSuccess then
-                            print("❌ [Enchant] Slot 2 reroll failed:", rerollErr)
+                            --  print("❌ [Enchant] Slot 2 reroll failed:", rerollErr)
                         else
-                            print("✅ [Enchant] Slot 2 rerolled")
+                            --  print("✅ [Enchant] Slot 2 rerolled")
                         end
                     end
                 end
             end)
 
             if not success then
-                print("❌ [Enchant] Error:", err)
+                --  print("❌ [Enchant] Error:", err)
             end
         end
 
@@ -5936,7 +6317,23 @@ task.spawn(function()
         -- ✅ St. Patrick: Auto Collect Pickups
         if state.stpatAutoPickup then
             pcall(function()
+                local now = tick()
                 local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                if not hrp then
+                    return
+                end
+
+                if not isInStPatEventArea(hrp) then
+                    if teleportToStPatEvent(Remote, true) then
+                        sinkStPatReturnTeleporter()
+                    end
+                    return
+                end
+
+                if now < (state.stpatPickupWarmupUntil or 0) then
+                    return
+                end
+
                 local targets = getRenderedChunkerPickupTargets()
                 local attempted = 0
                 for _, target in pairs(targets) do
@@ -5975,36 +6372,77 @@ task.spawn(function()
             end
         end
 
-        -- ✅ St. Patrick: Auto Hatch Selected Event Egg
-        if state.stpatAutoEgg and state.stpatSelectedEgg then
+        -- ✅ St. Patrick: Auto Hatch Selected Event Egg (with priority override)
+        if state.stpatAutoEgg then
             local now = tick()
             if now - state.lastStpatEggHatch >= 0.3 then
                 pcall(function()
                     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                    if not hrp then return end
-                    for _, egg in pairs(state.currentEventEggs) do
-                        if egg.name == state.stpatSelectedEgg and egg.instance and egg.instance:IsDescendantOf(Workspace) then
-                            local shouldTeleport = false
-                            if not state.stpatLastEggPosition then
-                                shouldTeleport = true
-                                state.stpatLastEggPosition = egg.instance:GetPivot().Position
-                            else
-                                local dist = (hrp.Position - state.stpatLastEggPosition).Magnitude
-                                if dist > 20 then
-                                    shouldTeleport = true
-                                    state.stpatLastEggPosition = egg.instance:GetPivot().Position
+                    if not hrp then
+                        return
+                    end
+
+                    if not isInStPatEventArea(hrp) then
+                        teleportToStPatEvent(Remote, false)
+                        return
+                    end
+
+                    if now - (state.lastStpatEggScan or 0) >= 0.4 then
+                        scanStPatEventEggs()
+                        state.lastStpatEggScan = now
+                    end
+
+                    local targetEggName = state.stpatSelectedEgg
+
+                    -- Priority mode overrides normal selected egg while priority egg is spawned
+                    if state.stpatPriorityEggMode and type(state.stpatPriorityEggs) == "table" and #state.stpatPriorityEggs > 0 then
+                        local foundPriority = nil
+                        for _, priorityName in ipairs(state.stpatPriorityEggs) do
+                            for _, eventEgg in ipairs(state.currentEventEggs) do
+                                if eventEgg.name == priorityName and eventEgg.instance and eventEgg.instance:IsDescendantOf(Workspace) then
+                                    foundPriority = priorityName
+                                    break
                                 end
                             end
+                            if foundPriority then break end
+                        end
+                        if foundPriority then
+                            targetEggName = foundPriority
+                        end
+                    end
+
+                    if not targetEggName then return end
+
+                    if state.stpatLastEggTarget ~= targetEggName then
+                        state.stpatLastEggTarget = targetEggName
+                        state.stpatLastEggPosition = nil
+                    end
+
+                    local matchedEgg = false
+                    for _, egg in pairs(state.currentEventEggs) do
+                        if egg.name == targetEggName and egg.instance and egg.instance:IsDescendantOf(Workspace) then
+                            matchedEgg = true
+                            local eggPos = egg.instance:GetPivot().Position
+                            local shouldTeleport = (not state.stpatLastEggPosition)
+                                or ((eggPos - state.stpatLastEggPosition).Magnitude > 8)
+                                or ((hrp.Position - eggPos).Magnitude > 25)
+
                             if shouldTeleport then
                                 tpToModel(egg.instance)
                                 task.wait(0.15)
                             end
+
+                            state.stpatLastEggPosition = eggPos
                             Remote:FireServer("HatchEgg", egg.name, 99)
                             if state.stpatHideEggAnim then
                                 task.defer(stopHatchAnimation)
                             end
                             break
                         end
+                    end
+
+                    if not matchedEgg then
+                        scanStPatEventEggs()
                     end
                 end)
                 state.lastStpatEggHatch = now
@@ -6514,7 +6952,7 @@ task.spawn(function()
                         end
                     end
                     if not stillHere then
--- print("[Rift] Priority rift '" .. state.farmingPriorityRift .. "' despawned - reverting")
+-- --  print("[Rift] Priority rift '" .. state.farmingPriorityRift .. "' despawned - reverting")
                         state.chestFarmActive = false
                         state.currentChestRift = nil
                         state.eggPriority = state.previousEggPriority
@@ -6526,7 +6964,7 @@ task.spawn(function()
                                 if egg.name == state.previousEggPriority then
                                     tpToModel(egg.instance)
                                     state.lastEggPosition = egg.instance:GetPivot().Position
--- print("[Rift] Teleported back to normal egg: " .. state.previousEggPriority)
+-- --  print("[Rift] Teleported back to normal egg: " .. state.previousEggPriority)
                                     break
                                 end
                             end
@@ -6537,7 +6975,7 @@ task.spawn(function()
                 -- If we found a priority rift that's spawned, farm it
                 if priorityRiftName and priorityRiftInstance then
                     if not priorityRiftInstance:IsDescendantOf(Workspace) then
--- print("[Rift] Priority rift instance not in workspace, skipping")
+-- --  print("[Rift] Priority rift instance not in workspace, skipping")
                         return
                     end
 
@@ -6546,7 +6984,7 @@ task.spawn(function()
                         state.previousEggPriority = state.eggPriority
                         state.previousRiftPriority = state.riftPriority
                         state.farmingPriorityRift = priorityRiftName
--- print("[Rift] Switching to priority rift: " .. priorityRiftName)
+-- --  print("[Rift] Switching to priority rift: " .. priorityRiftName)
                     end
 
                     -- Teleport to rift
@@ -6609,7 +7047,7 @@ task.spawn(function()
                         pcall(function() Remote:FireServer("UnlockRiftChest", state.riftPriority, true) end)
                     end
                 else
--- print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
+-- --  print("[Rift] Selected rift '" .. tostring(state.riftPriority) .. "' not found in spawned rifts")
                 end
             end)
         end
@@ -6640,7 +7078,7 @@ task.spawn(function()
                         if state.previousEggPriority == nil or state.previousEggPriority ~= state.eggPriority then
                             if state.eggPriority and state.eggPriority ~= priorityEggName then
                                 state.previousEggPriority = state.eggPriority
--- print("[Egg] Switching to priority egg: " .. priorityEggName)
+-- --  print("[Egg] Switching to priority egg: " .. priorityEggName)
                             end
                         end
 
@@ -6657,7 +7095,7 @@ task.spawn(function()
                 else
                     -- No priority egg found, revert to previous if we had one
                     if state.previousEggPriority and state.previousEggPriority ~= state.eggPriority then
--- print("[Egg] Priority egg gone, reverting to: " .. state.previousEggPriority)
+-- --  print("[Egg] Priority egg gone, reverting to: " .. state.previousEggPriority)
                         state.eggPriority = state.previousEggPriority
                         state.previousEggPriority = nil
                         state.lastEggPosition = nil
@@ -6673,7 +7111,7 @@ task.spawn(function()
                     if egg.name == state.eggPriority then
                         -- Validate egg still exists
                         if not egg.instance:IsDescendantOf(Workspace) then
--- print("[Egg] Normal egg instance not in workspace, rescanning")
+-- --  print("[Egg] Normal egg instance not in workspace, rescanning")
                             return
                         end
 
@@ -6721,7 +7159,7 @@ task.spawn(function()
             if state.chestFarmActive then
                 state.chestFarmActive = false
                 state.currentChestRift = nil
--- print("📦 Stopped chest farming")
+-- --  print("📦 Stopped chest farming")
             end
         end
     end
@@ -6736,7 +7174,7 @@ task.spawn(function()
         if state.autoClaimPlaytime then
             pcall(function()
                 Remote:FireServer("ClaimAllPlaytime")
--- print("✅ Claimed playtime gifts")
+-- --  print("✅ Claimed playtime gifts")
             end)
         end
     end
@@ -6889,7 +7327,7 @@ task.spawn(function()
 end)
 
 -- === INITIAL SETUP ===
--- print("✅ Performing initial scans...")
+-- --  print("✅ Performing initial scans...")
 
 -- Populate priority dropdowns with game data (all eggs/rifts, not just spawned ones)
 task.spawn(function()
@@ -6941,9 +7379,9 @@ task.spawn(function()
         pcall(function()
             EggDropdown:Refresh(eggNames, true)
         end)
--- print("✅ Found " .. #eggNames .. " spawned eggs")
+-- --  print("✅ Found " .. #eggNames .. " spawned eggs")
     else
--- print("⚠️ No eggs found yet")
+-- --  print("⚠️ No eggs found yet")
     end
 end)
 
@@ -6960,9 +7398,9 @@ task.spawn(function()
         pcall(function()
             RiftDropdown:Refresh(riftNames, true)
         end)
--- print("✅ Found " .. #riftNames .. " spawned rifts")
+-- --  print("✅ Found " .. #riftNames .. " spawned rifts")
     else
--- print("⚠️ No rifts spawned yet")
+-- --  print("⚠️ No rifts spawned yet")
     end
 end)
 
@@ -6980,7 +7418,7 @@ task.spawn(function()
             if bestIsland then
                 state.fishingIsland = bestIsland
                 log("🏆 [Fishing] Auto-selected best island: " .. bestIsland)
--- print("🏆 Auto-selected best fishing island: " .. bestIsland)
+-- --  print("🏆 Auto-selected best fishing island: " .. bestIsland)
             else
                 -- Fallback: use first island
                 state.fishingIsland = islands[1]
@@ -6988,10 +7426,10 @@ task.spawn(function()
             end
         end)
         log("✅ [Fishing] Found " .. #islands .. " fishing islands: " .. table.concat(islands, ", "))
--- print("✅ Found " .. #islands .. " fishing islands")
+-- --  print("✅ Found " .. #islands .. " fishing islands")
     else
         log("⚠️ [Fishing] No fishing islands found")
--- print("⚠️ No fishing islands found yet")
+-- --  print("⚠️ No fishing islands found yet")
     end
 end)
 
@@ -7188,40 +7626,40 @@ end)
 -- Rayfield config disabled - using custom JSON config system
 -- Rayfield:LoadConfiguration()
 
--- print("✅ ==========================================")
--- print("✅ Lorio (BGSI) - READY!")
--- print("✅ ==========================================")
--- print("📱 Lorio is mobile-optimized (Rayfield)")
--- print("   • Single column layout")
--- print("   • Auto-resizes to your screen")
--- print("   • Touch-friendly buttons")
--- print("✅ ==========================================")
--- print("🔄 AUTO-SCANNING:")
--- print("   • Rifts: Every 2 seconds")
--- print("   • Eggs: Every 2 seconds")
--- print("   • Stats: Every 1 second")
--- print("   • Admin Events: Every 3 seconds")
--- print("   • Playtime Gifts: Every 60 seconds")
--- print("   • Fishing: Auto-selects best island")
--- print("   • Anti-AFK: Every 15-19 minutes")
--- print("✅ ==========================================")
--- print("📋 Tabs:")
--- print("   🏠 Main - Live stats (ALL 18 currencies!)")
--- print("   🔧 Farm - Auto blow, pickup, fishing, anti-AFK, event detector")
--- print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
--- print("   🌌 Rifts - Auto-scanned rifts + priority mode")
--- print("   📊 Webhook - Pet hatches, stats, rarity filter")
--- print("   📋 Data - Pet information")
--- print("✅ ==========================================")
--- print("🎉 WEBHOOK FEATURES:")
--- print("   ⚡ INSTANT pet hatch detection (event-driven!)")
--- print("   🎯 Multi-egg support (3x, 7x hatches)")
--- print("   ✨ Shiny/Mythic stat multipliers (x2.5, x10, x25)")
--- print("   🎨 Rarity filtering (multi-select)")
--- print("   🎲 Chance threshold (only rare pets)")
--- print("   📊 User stats webhook (editable, no spam)")
--- print("   🔒 No duplicates, no freezing, no missed pets")
--- print("✅ ==========================================")
+-- --  print("✅ ==========================================")
+-- --  print("✅ Lorio (BGSI) - READY!")
+-- --  print("✅ ==========================================")
+-- --  print("📱 Lorio is mobile-optimized (Rayfield)")
+-- --  print("   • Single column layout")
+-- --  print("   • Auto-resizes to your screen")
+-- --  print("   • Touch-friendly buttons")
+-- --  print("✅ ==========================================")
+-- --  print("🔄 AUTO-SCANNING:")
+-- --  print("   • Rifts: Every 2 seconds")
+-- --  print("   • Eggs: Every 2 seconds")
+-- --  print("   • Stats: Every 1 second")
+-- --  print("   • Admin Events: Every 3 seconds")
+-- --  print("   • Playtime Gifts: Every 60 seconds")
+-- --  print("   • Fishing: Auto-selects best island")
+-- --  print("   • Anti-AFK: Every 15-19 minutes")
+-- --  print("✅ ==========================================")
+-- --  print("📋 Tabs:")
+-- --  print("   🏠 Main - Live stats (ALL 18 currencies!)")
+-- --  print("   🔧 Farm - Auto blow, pickup, fishing, anti-AFK, event detector")
+-- --  print("   🥚 Eggs - Auto-scanned eggs + auto hatch")
+-- --  print("   🌌 Rifts - Auto-scanned rifts + priority mode")
+-- --  print("   📊 Webhook - Pet hatches, stats, rarity filter")
+-- --  print("   📋 Data - Pet information")
+-- --  print("✅ ==========================================")
+-- --  print("🎉 WEBHOOK FEATURES:")
+-- --  print("   ⚡ INSTANT pet hatch detection (event-driven!)")
+-- --  print("   🎯 Multi-egg support (3x, 7x hatches)")
+-- --  print("   ✨ Shiny/Mythic stat multipliers (x2.5, x10, x25)")
+-- --  print("   🎨 Rarity filtering (multi-select)")
+-- --  print("   🎲 Chance threshold (only rare pets)")
+-- --  print("   📊 User stats webhook (editable, no spam)")
+-- --  print("   🔒 No duplicates, no freezing, no missed pets")
+-- --  print("✅ ==========================================")
 
       -- Rayfield:Notify({
       -- Title = "Lorio (BGSI) Ready!",
@@ -7230,11 +7668,11 @@ end)
       -- Image = 4483362458,
       -- })
 
--- print("Lorio (BGSI) loaded successfully!")
--- print("💡 Rifts and eggs will auto-refresh every 2 seconds")
--- print("💡 Enable webhook for pet hatch notifications!")
--- print("🎣 Fishing: Auto-selects best island + upgrades on level up")
--- print("🎣 Fishing logs: lorio_bgsi_fishing_log.txt")
+-- --  print("Lorio (BGSI) loaded successfully!")
+-- --  print("💡 Rifts and eggs will auto-refresh every 2 seconds")
+-- --  print("💡 Enable webhook for pet hatch notifications!")
+-- --  print("🎣 Fishing: Auto-selects best island + upgrades on level up")
+-- --  print("🎣 Fishing logs: lorio_bgsi_fishing_log.txt")
 
 -- === WORLD + SEASON AUTOMATION TASKS ===
 task.spawn(function()
@@ -7397,7 +7835,7 @@ end)
 
 -- === COMPETITIVE BACKGROUND TASK ===
 task.spawn(function()
-    print("🏆 [Competitive] System initialized")
+    --  print("🏆 [Competitive] System initialized")
 
     while true do
         task.wait(0.5)  -- Check every 0.5 seconds for fast rerolls
@@ -7456,7 +7894,7 @@ task.spawn(function()
                             local questInfo = parseQuest(quest)
 
                             if questInfo and shouldSkipQuest(questInfo) then
-                                print(string.format("🔄 [Competitive] Rerolling slot %d (Type: %s - disabled)", slotNum, questInfo.type))
+                                --  print(string.format("🔄 [Competitive] Rerolling slot %d (Type: %s - disabled)", slotNum, questInfo.type))
 
                                 -- Fire reroll remote
                                 pcall(function()
@@ -7495,13 +7933,13 @@ task.spawn(function()
                                 state.compHatchActive = true
 
                                 local syncMsg = matchesSeason and " (synced with season quest)" or ""
-                                print(string.format("🥚 [Competitive] Starting hatch quest: %s%s", bestEgg, syncMsg))
-                                print(string.format("   └─ Progress: %d/%d", activeCompQuest.progress, activeCompQuest.amount))
+                                --  print(string.format("🥚 [Competitive] Starting hatch quest: %s%s", bestEgg, syncMsg))
+                                --  print(string.format("   └─ Progress: %d/%d", activeCompQuest.progress, activeCompQuest.amount))
                             end
                         else
                             -- All comp hatch quests complete
                             if state.compHatchActive then
-                                print("✅ [Competitive] All hatch quests completed!")
+                                --  print("✅ [Competitive] All hatch quests completed!")
                                 state.compHatchActive = false
                                 state.compCurrentHatchEgg = nil
                             end
@@ -7521,7 +7959,7 @@ task.spawn(function()
 
                     if currentTime - state.compLastWebhook >= state.compWebhookInterval then
                         state.compLastWebhook = currentTime
-                        print("📊 [Competitive] Sending webhook stats...")
+                        --  print("📊 [Competitive] Sending webhook stats...")
                         pcall(function()
                             sendCompetitiveWebhook(false)
                         end)
@@ -7530,7 +7968,7 @@ task.spawn(function()
             end)
 
             if not success then
-                print("❌ [Competitive] Error: " .. tostring(err))
+                --  print("❌ [Competitive] Error: " .. tostring(err))
             end
         end
     end
@@ -7538,7 +7976,7 @@ end)
 
 -- === COMPETITIVE HATCH EXECUTION LOOP ===
 task.spawn(function()
-    print("🥚 [Competitive Hatch] System initialized")
+    --  print("🥚 [Competitive Hatch] System initialized")
 
     while true do
         task.wait(0.3)  -- Hatch every 0.3 seconds
@@ -7604,35 +8042,35 @@ task.spawn(function()
     -- Capture controller once at startup
     VirtualUser:CaptureController()
 
-    print("🛡️ [Anti-AFK] System initialized")
-    print("🛡️ [Anti-AFK] Waiting for toggle to be enabled...")
+    --  print("🛡️ [Anti-AFK] System initialized")
+    --  print("🛡️ [Anti-AFK] Waiting for toggle to be enabled...")
 
     while true do
         if state.antiAFK then
             -- Random interval between 1-2 minutes (60-120 seconds)
             local interval = math.random(60, 120)
-            print("🛡️ [Anti-AFK] ✅ ENABLED - Next input in " .. interval .. " seconds (" .. math.floor(interval/60) .. "m " .. (interval%60) .. "s)")
+            --  print("🛡️ [Anti-AFK] ✅ ENABLED - Next input in " .. interval .. " seconds (" .. math.floor(interval/60) .. "m " .. (interval%60) .. "s)")
 
             -- Wait for the interval
             task.wait(interval)
 
             -- Check if still enabled after waiting
             if state.antiAFK then
-                print("🛡️ [Anti-AFK] Simulating user input...")
+                --  print("🛡️ [Anti-AFK] Simulating user input...")
 
                 -- Simulate right-click input to prevent AFK kick
                 local success, err = pcall(function()
                     VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
                     task.wait(0.1)
                     VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    print("🛡️ [Anti-AFK]   └─ ✅ INPUT SIMULATED - AFK timer reset!")
+                    --  print("🛡️ [Anti-AFK]   └─ ✅ INPUT SIMULATED - AFK timer reset!")
                 end)
 
                 if not success then
-                    print("🛡️ [Anti-AFK]   └─ ❌ Error during input simulation: " .. tostring(err))
+                    --  print("🛡️ [Anti-AFK]   └─ ❌ Error during input simulation: " .. tostring(err))
                 end
             else
-                print("🛡️ [Anti-AFK] Toggle was disabled during wait period")
+                --  print("🛡️ [Anti-AFK] Toggle was disabled during wait period")
             end
         else
             -- Check every 10 seconds when disabled
