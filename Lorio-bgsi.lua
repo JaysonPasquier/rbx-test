@@ -116,7 +116,7 @@ local state = {
     antiAFK = false,  -- NEW: Anti-AFK toggle (prevents Roblox kick)
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     autoCollectFlowers = false,  -- NEW: Auto collect event flowers
-    autoWheelSpin = false,  -- NEW: Auto wheel spin (Spring event)
+    autoWheelSpin = false,  -- Auto Lucky wheel spin + skip animation
     autoFlowersEgg = false,  -- NEW: Auto collect flowers + egg hatching combo
     flowersEggChoice = "Spring Egg",  -- NEW: Which egg to use (Spring Egg or Petal Egg)
     lastFlowerEggTeleport = 0,  -- NEW: Timestamp for 10-second re-teleport to egg
@@ -129,7 +129,7 @@ local state = {
     stpatAutoChest = false,
     stpatSelectedEgg = nil,
     stpatPriorityEggMode = false,
-    stpatPriorityEggs = {"4X Luck Fortune Egg"},
+    stpatPriorityEggs = {"4X Luck Gaelic Egg"},
     stpatLastEggPosition = nil,
     stpatReturnOrigCf = nil,
     stpatReturnSunk = false,
@@ -270,7 +270,9 @@ local XL_CHANCES = {
     Rare = 0.133333,
     Epic = 0.4,
     Legendary = 5,      -- 5%
-    Secret = 20         -- 20%
+    Secret = 20,        -- 20%
+    Infinity = 20,
+    Celestial = 20
 }
 
 -- Pet stat multipliers for variants
@@ -2380,7 +2382,7 @@ local function parseQuest(quest)
 
             -- Also check in task name/type for egg names
             if not questInfo.specificEgg then
-                for _, eggName in pairs({"Common Egg", "Hell Egg", "Volcano Egg", "Ice Egg", "Sakura Egg", "Super Egg", "Heaven Egg", "Infinity Egg"}) do
+                for _, eggName in pairs({"Common Egg", "Hell Egg", "Volcano Egg", "Ice Egg", "Sakura Egg", "Super Egg", "Heaven Egg", "Infinity Egg", "Lucky Egg", "Fortune Egg", "4X Luck Gaelic Egg", "Gaelic Egg"}) do
                     if taskType:find(eggName) then
                         questInfo.specificEgg = eggName
                         break
@@ -2390,7 +2392,7 @@ local function parseQuest(quest)
 
             -- Check for rarity in type
             if not questInfo.rarity then
-                for _, rarity in pairs({"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity"}) do
+                for _, rarity in pairs({"Common", "Unique", "Rare", "Epic", "Legendary", "Secret", "Infinity", "Celestial"}) do
                     if taskType:find(rarity) then
                         questInfo.rarity = rarity
                         break
@@ -3081,6 +3083,7 @@ local function saveConfig(configName)
         riftAutoHatch = state.riftAutoHatch,
 
         -- St. Patrick event settings
+        autoWheelSpin = state.autoWheelSpin,
         stpatAutoPickup = state.stpatAutoPickup,
         stpatAutoShop = state.stpatAutoShop,
         stpatShopTier = state.stpatShopTier,
@@ -3216,14 +3219,25 @@ local function loadConfig(configName)
     state.riftAutoHatch = config.riftAutoHatch or false
 
     -- St. Patrick event settings
+    state.autoWheelSpin = config.autoWheelSpin or false
     state.stpatAutoPickup = config.stpatAutoPickup or false
     state.stpatAutoShop = config.stpatAutoShop or false
     state.stpatShopTier = config.stpatShopTier or 1
     state.stpatSecretShop = config.stpatSecretShop or false
     state.stpatAutoEgg = config.stpatAutoEgg or false
     state.stpatSelectedEgg = config.stpatSelectedEgg
+    if state.stpatSelectedEgg == "4X Luck Fortune Egg" or state.stpatSelectedEgg == "4X Gaelic Egg" then
+        state.stpatSelectedEgg = "4X Luck Gaelic Egg"
+    end
     state.stpatPriorityEggMode = config.stpatPriorityEggMode or false
     state.stpatPriorityEggs = config.stpatPriorityEggs or state.stpatPriorityEggs
+    if type(state.stpatPriorityEggs) == "table" then
+        for i, name in ipairs(state.stpatPriorityEggs) do
+            if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" then
+                state.stpatPriorityEggs[i] = "4X Luck Gaelic Egg"
+            end
+        end
+    end
     state.stpatHideEggAnim = config.stpatHideEggAnim or false
     state.stpatAutoChest = config.stpatAutoChest or false
 
@@ -3311,6 +3325,7 @@ local function loadConfig(configName)
     if ui.AntiAFKToggle then pcall(function() ui.AntiAFKToggle:Set(state.antiAFK) end) end
     if ui.PerformanceModeToggle then pcall(function() ui.PerformanceModeToggle:Set(state.performanceMode) end) end
     if ui.AutoFishToggle then pcall(function() ui.AutoFishToggle:Set(state.autoFishEnabled) end) end
+    if ui.AutoLuckyWheelToggle then pcall(function() ui.AutoLuckyWheelToggle:Set(state.autoWheelSpin) end) end
     if ui.StPatAutoPickupToggle then pcall(function() ui.StPatAutoPickupToggle:Set(state.stpatAutoPickup) end) end
     if ui.StPatAutoShopToggle then pcall(function() ui.StPatAutoShopToggle:Set(state.stpatAutoShop) end) end
     if ui.StPatSecretShopToggle then pcall(function() ui.StPatSecretShopToggle:Set(state.stpatSecretShop) end) end
@@ -3956,6 +3971,26 @@ local StPatEggDropdown
 
 local function scanStPatEventEggs()
     local eggs = {}
+    local allowedNames = {
+        ["Lucky Egg"] = true,
+        ["Fortune Egg"] = true,
+        ["4X Luck Gaelic Egg"] = true,
+        ["4X Gaelic Egg"] = true,
+        ["4X Luck Fortune Egg"] = true,
+        ["Gaelic Egg"] = true,
+    }
+
+    local function isTargetEgg(name)
+        if type(name) ~= "string" then
+            return false
+        end
+        if allowedNames[name] then
+            return true
+        end
+        local lower = string.lower(name)
+        return lower:find("gaelic", 1, true) ~= nil and lower:find("egg", 1, true) ~= nil
+    end
+
     local rendered = Workspace:FindFirstChild("Rendered")
     if not rendered then
         state.currentEventEggs = eggs
@@ -3967,7 +4002,7 @@ local function scanStPatEventEggs()
             for _, model in pairs(folder:GetChildren()) do
                 if model:IsA("Model") then
                     local name = model.Name
-                    if name == "Lucky Egg" or name == "Fortune Egg" or name == "4X Luck Fortune Egg" then
+                    if isTargetEgg(name) then
                         table.insert(eggs, { name = name, instance = model })
                     end
                 end
@@ -3980,7 +4015,7 @@ local function scanStPatEventEggs()
         for _, model in pairs(generic:GetChildren()) do
             if model:IsA("Model") then
                 local name = model.Name
-                if name == "Lucky Egg" or name == "Fortune Egg" or name == "4X Luck Fortune Egg" then
+                if isTargetEgg(name) then
                     local alreadyFound = false
                     for _, e in pairs(eggs) do
                         if e.name == name then
@@ -4266,6 +4301,20 @@ state.uiElements.PerformanceModeToggle = MainTab:CreateToggle({
 -- === EVENT TAB ===
 EventTab:CreateSection("🍀 St. Patrick's Event")
 
+state.uiElements.AutoLuckyWheelToggle = EventTab:CreateToggle({
+    Name = "🎡 Auto Lucky Wheel (Spin + Skip)",
+    CurrentValue = false,
+    Flag = "AutoLuckyWheel",
+    Callback = function(Value)
+        state.autoWheelSpin = Value
+        if Value then
+            log("🎡 [LuckyWheel] Auto Lucky Wheel enabled")
+        else
+            log("🎡 [LuckyWheel] Auto Lucky Wheel disabled")
+        end
+    end,
+})
+
 state.uiElements.StPatAutoPickupToggle = EventTab:CreateToggle({
     Name = "🍀 Auto Collect Pickups",
     CurrentValue = false,
@@ -4370,7 +4419,7 @@ EventTab:CreateSection("⭐ Priority Event Eggs")
 
 state.uiElements.StPatPriorityEggsDropdown = EventTab:CreateDropdown({
     Name = "Priority eggs (override normal egg when spawned)",
-    Options = {"Lucky Egg", "Fortune Egg", "4X Luck Fortune Egg"},
+    Options = {"Lucky Egg", "Fortune Egg", "4X Luck Gaelic Egg", "Gaelic Egg"},
     CurrentOption = state.stpatPriorityEggs,
     MultipleOptions = true,
     Flag = "StPatPriorityEggs",
@@ -5808,6 +5857,54 @@ task.spawn(function()
     local potionDebugNextLog = {}
     local lastPotionGlobalDebug = 0
     local powerupRetryGuard = {}
+    local lastLuckySpinAttempt = 0
+    local lastLuckyClaimAttempt = 0
+    local lastLuckyWheelDetectionLog = 0
+    local lastLuckyWheelDebugLog = 0
+
+    local function isLuckyWheelReady(playerData)
+        local now = getServerUnixTime()
+        local luckyReadyAt = playerData and playerData.LuckyNextWheelSpin
+        local genericReadyAt = playerData and playerData.NextWheelSpin
+
+        local readyAt = nil
+        if type(luckyReadyAt) == "number" and luckyReadyAt > 0 then
+            readyAt = luckyReadyAt
+        elseif type(genericReadyAt) == "number" and genericReadyAt > 0 then
+            readyAt = genericReadyAt
+        end
+
+        if type(readyAt) == "number" and readyAt > 0 then
+            return now >= readyAt, math.max(0, readyAt - now)
+        end
+
+        return true, 0
+    end
+
+    local function extractWheelPayloadText(value, depth)
+        depth = depth or 0
+        if depth > 4 then
+            return ""
+        end
+
+        local valueType = type(value)
+        if valueType == "string" then
+            return value
+        end
+        if valueType == "number" or valueType == "boolean" then
+            return tostring(value)
+        end
+        if valueType ~= "table" then
+            return ""
+        end
+
+        local parts = {}
+        for key, item in pairs(value) do
+            table.insert(parts, tostring(key))
+            table.insert(parts, extractWheelPayloadText(item, depth + 1))
+        end
+        return table.concat(parts, " ")
+    end
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles
@@ -5964,12 +6061,8 @@ task.spawn(function()
                 local mainTargetName = state.enchantMain and tostring(state.enchantMain):lower() or nil
                 local secondTargetName = state.enchantSecond and tostring(state.enchantSecond):lower() or nil
 
-                --  print("🎯 [Enchant] Target Slot 1:", mainTargetName or "none",
-                      "(Tier:", state.enchantMainTier or 1, "Enabled:", state.enchantMainEnabled,
-                      "Auto-satisfied:", not state.enchantMainEnabled, ")")
-                --  print("🎯 [Enchant] Target Slot 2:", secondTargetName or "none",
-                      "(Tier:", state.enchantSecondTier or 1, "Enabled:", state.enchantSecondEnabled,
-                      "Auto-satisfied:", not state.enchantSecondEnabled, ")")
+                    --  print("🎯 [Enchant] Target Slot 1:", mainTargetName or "none", "(Tier:", state.enchantMainTier or 1, "Enabled:", state.enchantMainEnabled, "Auto-satisfied:", not state.enchantMainEnabled, ")")
+                    --  print("🎯 [Enchant] Target Slot 2:", secondTargetName or "none", "(Tier:", state.enchantSecondTier or 1, "Enabled:", state.enchantSecondEnabled, "Auto-satisfied:", not state.enchantSecondEnabled, ")")
 
                 -- Check if pet has the desired enchants
                 for _, enchant in ipairs(currentEnchants) do
@@ -6296,20 +6389,84 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Wheel Spin (Spring Event)
-        if state.autoWheelSpin and state.springEventActive then
+        -- ✅ Auto Lucky Wheel (spin + skip)
+        if state.autoWheelSpin then
             pcall(function()
-                -- Use RemoteFunction for InvokeServer (returns winning slot index)
-                local success, result = pcall(function()
-                    return RemoteFunc:InvokeServer("SpringWheelSpin")
-                end)
+                local nowTick = tick()
 
-                -- If spin succeeded, immediately claim reward with RemoteEvent (skip animation)
-                if success and result then
+                -- Claim queue frequently to skip wheel animations when available.
+                if nowTick - lastLuckyClaimAttempt >= 0.5 then
+                    lastLuckyClaimAttempt = nowTick
+                    pcall(function()
+                        Remote:FireServer("ClaimLuckyWheelSpinQueue")
+                    end)
+                    pcall(function()
+                        Remote:FireServer("ClaimWheelSpinQueue")
+                    end)
+                end
+
+                if nowTick - lastLuckySpinAttempt < 1 then
+                    return
+                end
+
+                lastLuckySpinAttempt = nowTick
+                local playerData = getPlayerData()
+                local ready, remaining = isLuckyWheelReady(playerData)
+                if not ready then
+                    if nowTick - lastLuckyWheelDebugLog >= 6 then
+                        lastLuckyWheelDebugLog = nowTick
+                        log(string.format("🎡 [LuckyWheel] Waiting on cooldown (%.1fs remaining)", remaining or 0))
+                    end
+                    return
+                end
+
+                local spinCommand = nil
+                local success, result = false, nil
+
+                -- Prefer Lucky wheel command, fallback to generic wheel command if needed.
+                for _, cmd in ipairs({"LuckyWheelSpin", "WheelSpin"}) do
+                    local cmdSuccess, cmdResult = pcall(function()
+                        return RemoteFunc:InvokeServer(cmd)
+                    end)
+
+                    if cmdSuccess and cmdResult then
+                        spinCommand = cmd
+                        success = true
+                        result = cmdResult
+                        break
+                    end
+
+                    if nowTick - lastLuckyWheelDebugLog >= 6 then
+                        lastLuckyWheelDebugLog = nowTick
+                        if not cmdSuccess then
+                            log("🎡 [LuckyWheel] Invoke failed for " .. cmd)
+                        else
+                            log("🎡 [LuckyWheel] Invoke returned no spin for " .. cmd)
+                        end
+                    end
+                end
+
+                if success then
                     task.wait(0.1)
                     pcall(function()
-                        Remote:FireServer("ClaimSpringWheelSpinQueue")
+                        Remote:FireServer("ClaimLuckyWheelSpinQueue")
                     end)
+                    pcall(function()
+                        Remote:FireServer("ClaimWheelSpinQueue")
+                    end)
+
+                    if nowTick - lastLuckyWheelDebugLog >= 6 then
+                        lastLuckyWheelDebugLog = nowTick
+                        log("🎡 [LuckyWheel] Spin triggered via " .. tostring(spinCommand))
+                    end
+
+                    local payloadText = string.lower(extractWheelPayloadText(result))
+                    if payloadText:find("celestial", 1, true) and payloadText:find("pet", 1, true) then
+                        if nowTick - lastLuckyWheelDetectionLog >= 2 then
+                            lastLuckyWheelDetectionLog = nowTick
+                            log("✨ [LuckyWheel] Celestial pet detected in wheel result payload")
+                        end
+                    end
                 end
             end)
         end
@@ -6393,18 +6550,47 @@ task.spawn(function()
                     end
 
                     local targetEggName = state.stpatSelectedEgg
+                    local function normalizeStPatEggName(name)
+                        if type(name) ~= "string" then
+                            return ""
+                        end
+                        if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" then
+                            return "4X Luck Gaelic Egg"
+                        end
+                        return name
+                    end
 
                     -- Priority mode overrides normal selected egg while priority egg is spawned
                     if state.stpatPriorityEggMode and type(state.stpatPriorityEggs) == "table" and #state.stpatPriorityEggs > 0 then
                         local foundPriority = nil
+                        local bestPriorityScore = -1
+
+                        local function getStPatPriorityScore(name)
+                            local normalized = normalizeStPatEggName(name)
+                            if normalized == "4X Luck Gaelic Egg" then
+                                return 300
+                            elseif normalized == "Gaelic Egg" then
+                                return 200
+                            elseif normalized == "Fortune Egg" then
+                                return 100
+                            elseif normalized == "Lucky Egg" then
+                                return 50
+                            end
+                            return 0
+                        end
+
                         for _, priorityName in ipairs(state.stpatPriorityEggs) do
                             for _, eventEgg in ipairs(state.currentEventEggs) do
-                                if eventEgg.name == priorityName and eventEgg.instance and eventEgg.instance:IsDescendantOf(Workspace) then
-                                    foundPriority = priorityName
-                                    break
+                                local normalizedEventEggName = normalizeStPatEggName(eventEgg.name)
+                                local normalizedPriorityName = normalizeStPatEggName(priorityName)
+                                if normalizedEventEggName == normalizedPriorityName and eventEgg.instance and eventEgg.instance:IsDescendantOf(Workspace) then
+                                    local score = getStPatPriorityScore(eventEgg.name)
+                                    if score > bestPriorityScore then
+                                        bestPriorityScore = score
+                                        foundPriority = eventEgg.name
+                                    end
                                 end
                             end
-                            if foundPriority then break end
                         end
                         if foundPriority then
                             targetEggName = foundPriority
