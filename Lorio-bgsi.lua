@@ -113,35 +113,52 @@ local state = {
     statsMessageId = nil,  -- NEW: Discord message ID for editing stats webhook
     webhookPingEnabled = false,  -- NEW: Enable Discord user ping
     webhookPingUserId = "",  -- NEW: Discord user ID to ping
+    webhookDebugEnabled = false,  -- Keep verbose webhook debug off by default (performance)
     antiAFK = false,  -- NEW: Anti-AFK toggle (prevents Roblox kick)
     autoFishEnabled = false,  -- NEW: Auto fishing toggle
     autoCollectFlowers = false,  -- NEW: Auto collect event flowers
-    autoWheelSpin = false,  -- Auto Lucky wheel spin + skip animation
+    autoWheelSpin = false,  -- Legacy field (unused for Easter event)
     autoFlowersEgg = false,  -- NEW: Auto collect flowers + egg hatching combo
     flowersEggChoice = "Spring Egg",  -- NEW: Which egg to use (Spring Egg or Petal Egg)
     lastFlowerEggTeleport = 0,  -- NEW: Timestamp for 10-second re-teleport to egg
     springEventActive = false,  -- NEW: Track if Spring event is active
-    stpatAutoPickup = false,
-    stpatAutoShop = false,
-    stpatShopTier = 1,
-    stpatSecretShop = false,
-    stpatAutoEgg = false,
-    stpatAutoChest = false,
-    stpatSelectedEgg = nil,
-    stpatPriorityEggMode = false,
-    stpatPriorityEggs = {"4X Luck Gaelic Egg"},
-    stpatLastEggPosition = nil,
-    stpatReturnOrigCf = nil,
-    stpatReturnSunk = false,
-    stpatHideEggAnim = false,
-    lastStpatShopBuy = 0,
-    lastStpatSecretShopBuy = 0,
-    lastStpatEggHatch = 0,
-    lastStpatChestClaim = 0,
-    lastStpatWorldTeleport = 0,
-    stpatPickupWarmupUntil = 0,
-    stpatLastEggTarget = nil,
-    lastStpatEggScan = 0,
+    easterAutoPickup = false,
+    easterAutoShop = false,
+    easterShopTier = 1,
+    easterSecretShop = false,
+    easterAutoEgg = false,
+    easterAutoChest = false,
+    easterAutoHunt = false,
+    easterAutoJester = false,
+    easterAutoClaimRewards = false,
+    easterAutoMastery = false,
+    easterAdvancedShop = false,
+    easterPickupZone = "Spawn Island",
+    easterSelectedEgg = nil,
+    easterPriorityEggMode = false,
+    easterPriorityEggs = {"4x Luck Easter Bunny Egg"},
+    easterShopId = "easter-shop",
+    easterHatchAmount = 3,
+    easterLowLagHatch = false,
+    easterLastEggPosition = nil,
+    easterReturnOrigCf = nil,
+    easterReturnSunk = false,
+    easterHideEggAnim = false,
+    lastEasterShopBuy = 0,
+    lastEasterSecretShopBuy = 0,
+    lastEasterEggHatch = 0,
+    lastEasterChestClaim = 0,
+    lastEasterHuntAction = 0,
+    lastEasterJesterAttempt = 0,
+    lastEasterRewardClaim = 0,
+    lastEasterMasteryUpgrade = 0,
+    lastEasterAdvancedShopBuy = 0,
+    lastEasterWorldTeleport = 0,
+    easterPickupWarmupUntil = 0,
+    easterLastEggTarget = nil,
+    lastEasterEggScan = 0,
+    easterHuntStatusText = "Hunt: waiting for data",
+    easterMilestoneStatusText = "Milestones: waiting for data",
     currentEventEggs = {},
     performanceMode = false,
     performanceLightingBackup = nil,
@@ -198,6 +215,8 @@ local state = {
     gamePotionData = {},
     selectedPotions = {},
     autoPotionEnabled = false,
+    potionDebugEnabled = false,
+    potionCycleIndex = 1,
     lastPotionCheck = 0,
     potionCounts = {},
     activePotions = {},
@@ -791,6 +810,9 @@ end
 
 -- Potion debug logger (console + both txt logs)
 local function potionDebug(message)
+    if not state.potionDebugEnabled then
+        return
+    end
     local text = "🧪 [PotionDebug] " .. tostring(message)
     --  print(text)
     pcall(function() log(text) end)
@@ -799,6 +821,9 @@ end
 
 -- Webhook debug logger (console + both txt logs)
 local function webhookDebug(message)
+    if not state.webhookDebugEnabled then
+        return
+    end
     local text = "📡 [WebhookDebug] " .. tostring(message)
     --  print(text)
     pcall(function() log(text) end)
@@ -1233,6 +1258,16 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
             for _, imageIndex in ipairs(candidateIndexes) do
                 local assetId = tostring(images[imageIndex] or "")
                 if assetId ~= "" then
+                    local thumbKey = "thumb:" .. assetId
+                    local cachedThumb = petImageCache[thumbKey]
+                    if cachedThumb ~= nil then
+                        if cachedThumb ~= false then
+                            petImageUrl = cachedThumb
+                            break
+                        end
+                        continue
+                    end
+
                     local thumbApi = "https://thumbnails.roblox.com/v1/assets?assetIds="
                         .. assetId
                         .. "&size=420x420&format=Png&isCircular=false"
@@ -1255,13 +1290,16 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
 
                         if imageUrl and imageUrl ~= "" and (not stateVal or stateVal == "Completed") then
                             petImageUrl = imageUrl
+                            petImageCache[thumbKey] = imageUrl
                             webhookDebug("Using Roblox thumbnail URL (slot " .. tostring(imageIndex) .. "): " .. tostring(petImageUrl))
                             break
                         else
+                            petImageCache[thumbKey] = false
                             webhookDebug("Thumbnail fallback: bad/empty result for slot " .. tostring(imageIndex) .. " assetId=" .. assetId .. " state=" .. tostring(stateVal))
                         end
                     else
                         local status = thumbResp and thumbResp.StatusCode or "nil"
+                        petImageCache[thumbKey] = false
                         webhookDebug("Thumbnail fallback: request failed for slot " .. tostring(imageIndex) .. " assetId=" .. assetId .. " status=" .. tostring(status))
                     end
                 end
@@ -1277,7 +1315,7 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
         -- Get user avatar URL (fetch once, cache forever)
         local avatarUrl = playerAvatarCache
 
-        if not avatarUrl then
+        if avatarUrl ~= false and not avatarUrl then
             -- First time only: fetch avatar from Roblox API
             local avatarSuccess, avatarResponse = pcall(function()
                 return request({
@@ -1291,7 +1329,11 @@ local function SendPetHatchWebhook(petName, displayEgg, chanceEgg, rarityFromGUI
                 if avatarData and avatarData.data and avatarData.data[1] and avatarData.data[1].imageUrl then
                     avatarUrl = avatarData.data[1].imageUrl
                     playerAvatarCache = avatarUrl  -- Cache for all future webhooks!
+                else
+                    playerAvatarCache = false
                 end
+            else
+                playerAvatarCache = false
             end
         end
 
@@ -2382,7 +2424,7 @@ local function parseQuest(quest)
 
             -- Also check in task name/type for egg names
             if not questInfo.specificEgg then
-                for _, eggName in pairs({"Common Egg", "Hell Egg", "Volcano Egg", "Ice Egg", "Sakura Egg", "Super Egg", "Heaven Egg", "Infinity Egg", "Lucky Egg", "Fortune Egg", "4X Luck Gaelic Egg", "Gaelic Egg"}) do
+                for _, eggName in pairs({"Common Egg", "Hell Egg", "Volcano Egg", "Ice Egg", "Sakura Egg", "Super Egg", "Heaven Egg", "Infinity Egg", "Painted Egg", "Basket Egg", "Easter Bunny Egg", "4x Luck Easter Bunny Egg"}) do
                     if taskType:find(eggName) then
                         questInfo.specificEgg = eggName
                         break
@@ -3082,18 +3124,26 @@ local function saveConfig(configName)
         priorityRifts = state.priorityRifts,
         riftAutoHatch = state.riftAutoHatch,
 
-        -- St. Patrick event settings
-        autoWheelSpin = state.autoWheelSpin,
-        stpatAutoPickup = state.stpatAutoPickup,
-        stpatAutoShop = state.stpatAutoShop,
-        stpatShopTier = state.stpatShopTier,
-        stpatSecretShop = state.stpatSecretShop,
-        stpatAutoEgg = state.stpatAutoEgg,
-        stpatSelectedEgg = state.stpatSelectedEgg,
-        stpatPriorityEggMode = state.stpatPriorityEggMode,
-        stpatPriorityEggs = state.stpatPriorityEggs,
-        stpatHideEggAnim = state.stpatHideEggAnim,
-        stpatAutoChest = state.stpatAutoChest,
+        -- Easter event settings
+        easterAutoPickup = state.easterAutoPickup,
+        easterAutoShop = state.easterAutoShop,
+        easterShopTier = state.easterShopTier,
+        easterSecretShop = state.easterSecretShop,
+        easterAutoEgg = state.easterAutoEgg,
+        easterSelectedEgg = state.easterSelectedEgg,
+        easterPriorityEggMode = state.easterPriorityEggMode,
+        easterPriorityEggs = state.easterPriorityEggs,
+        easterHideEggAnim = state.easterHideEggAnim,
+        easterAutoChest = state.easterAutoChest,
+        easterAutoHunt = state.easterAutoHunt,
+        easterAutoJester = state.easterAutoJester,
+        easterAutoClaimRewards = state.easterAutoClaimRewards,
+        easterAutoMastery = state.easterAutoMastery,
+        easterAdvancedShop = state.easterAdvancedShop,
+        easterShopId = state.easterShopId,
+        easterPickupZone = state.easterPickupZone,
+        easterHatchAmount = state.easterHatchAmount,
+        easterLowLagHatch = state.easterLowLagHatch,
 
         -- Team settings
         hatchTeam = state.hatchTeam,
@@ -3218,28 +3268,51 @@ local function loadConfig(configName)
     state.priorityRifts = config.priorityRifts or state.priorityRifts
     state.riftAutoHatch = config.riftAutoHatch or false
 
-    -- St. Patrick event settings
-    state.autoWheelSpin = config.autoWheelSpin or false
-    state.stpatAutoPickup = config.stpatAutoPickup or false
-    state.stpatAutoShop = config.stpatAutoShop or false
-    state.stpatShopTier = config.stpatShopTier or 1
-    state.stpatSecretShop = config.stpatSecretShop or false
-    state.stpatAutoEgg = config.stpatAutoEgg or false
-    state.stpatSelectedEgg = config.stpatSelectedEgg
-    if state.stpatSelectedEgg == "4X Luck Fortune Egg" or state.stpatSelectedEgg == "4X Gaelic Egg" then
-        state.stpatSelectedEgg = "4X Luck Gaelic Egg"
+    -- Easter event settings (with backward compatibility for old StPat keys)
+    state.autoWheelSpin = false
+    state.easterAutoPickup = (config.easterAutoPickup ~= nil) and config.easterAutoPickup or (config.stpatAutoPickup or false)
+    state.easterAutoShop = (config.easterAutoShop ~= nil) and config.easterAutoShop or (config.stpatAutoShop or false)
+    state.easterShopTier = (config.easterShopTier ~= nil) and config.easterShopTier or (config.stpatShopTier or 1)
+    state.easterSecretShop = (config.easterSecretShop ~= nil) and config.easterSecretShop or (config.stpatSecretShop or false)
+    state.easterAutoEgg = (config.easterAutoEgg ~= nil) and config.easterAutoEgg or (config.stpatAutoEgg or false)
+    state.easterSelectedEgg = config.easterSelectedEgg or config.stpatSelectedEgg
+
+    local function normalizeLegacyEggName(name)
+        if type(name) ~= "string" then
+            return name
+        end
+        if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" or name == "4X Luck Gaelic Egg" then
+            return "4x Luck Easter Bunny Egg"
+        elseif name == "Gaelic Egg" or name == "Fortune Egg" then
+            return "Easter Bunny Egg"
+        elseif name == "Lucky Egg" then
+            return "Basket Egg"
+        end
+        return name
     end
-    state.stpatPriorityEggMode = config.stpatPriorityEggMode or false
-    state.stpatPriorityEggs = config.stpatPriorityEggs or state.stpatPriorityEggs
-    if type(state.stpatPriorityEggs) == "table" then
-        for i, name in ipairs(state.stpatPriorityEggs) do
-            if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" then
-                state.stpatPriorityEggs[i] = "4X Luck Gaelic Egg"
-            end
+
+    state.easterSelectedEgg = normalizeLegacyEggName(state.easterSelectedEgg)
+    state.easterPriorityEggMode = (config.easterPriorityEggMode ~= nil) and config.easterPriorityEggMode or (config.stpatPriorityEggMode or false)
+    state.easterPriorityEggs = config.easterPriorityEggs or config.stpatPriorityEggs or state.easterPriorityEggs
+    if type(state.easterPriorityEggs) == "table" then
+        for i, name in ipairs(state.easterPriorityEggs) do
+            state.easterPriorityEggs[i] = normalizeLegacyEggName(name)
         end
     end
-    state.stpatHideEggAnim = config.stpatHideEggAnim or false
-    state.stpatAutoChest = config.stpatAutoChest or false
+    state.easterHideEggAnim = (config.easterHideEggAnim ~= nil) and config.easterHideEggAnim or (config.stpatHideEggAnim or false)
+    state.easterAutoChest = (config.easterAutoChest ~= nil) and config.easterAutoChest or (config.stpatAutoChest or false)
+    state.easterAutoHunt = config.easterAutoHunt or false
+    state.easterAutoJester = config.easterAutoJester or false
+    state.easterAutoClaimRewards = config.easterAutoClaimRewards or false
+    state.easterAutoMastery = config.easterAutoMastery or false
+    state.easterAdvancedShop = config.easterAdvancedShop or false
+    state.easterShopId = config.easterShopId or "easter-shop"
+    state.easterPickupZone = config.easterPickupZone or "Spawn Island"
+    if state.easterPickupZone == "Second Island" or state.easterPickupZone == "Second Island (Easter Island)" then
+        state.easterPickupZone = "Easter Island"
+    end
+    state.easterHatchAmount = math.clamp(tonumber(config.easterHatchAmount) or 3, 1, 99)
+    state.easterLowLagHatch = config.easterLowLagHatch or false
 
     state.hatchTeam = config.hatchTeam
     state.statsTeam = config.statsTeam
@@ -3325,14 +3398,19 @@ local function loadConfig(configName)
     if ui.AntiAFKToggle then pcall(function() ui.AntiAFKToggle:Set(state.antiAFK) end) end
     if ui.PerformanceModeToggle then pcall(function() ui.PerformanceModeToggle:Set(state.performanceMode) end) end
     if ui.AutoFishToggle then pcall(function() ui.AutoFishToggle:Set(state.autoFishEnabled) end) end
-    if ui.AutoLuckyWheelToggle then pcall(function() ui.AutoLuckyWheelToggle:Set(state.autoWheelSpin) end) end
-    if ui.StPatAutoPickupToggle then pcall(function() ui.StPatAutoPickupToggle:Set(state.stpatAutoPickup) end) end
-    if ui.StPatAutoShopToggle then pcall(function() ui.StPatAutoShopToggle:Set(state.stpatAutoShop) end) end
-    if ui.StPatSecretShopToggle then pcall(function() ui.StPatSecretShopToggle:Set(state.stpatSecretShop) end) end
-    if ui.StPatHideEggAnimToggle then pcall(function() ui.StPatHideEggAnimToggle:Set(state.stpatHideEggAnim) end) end
-    if ui.StPatAutoEggToggle then pcall(function() ui.StPatAutoEggToggle:Set(state.stpatAutoEgg) end) end
-    if ui.StPatPriorityEggModeToggle then pcall(function() ui.StPatPriorityEggModeToggle:Set(state.stpatPriorityEggMode) end) end
-    if ui.StPatAutoChestToggle then pcall(function() ui.StPatAutoChestToggle:Set(state.stpatAutoChest) end) end
+    if ui.EasterAutoPickupToggle then pcall(function() ui.EasterAutoPickupToggle:Set(state.easterAutoPickup) end) end
+    if ui.EasterAutoShopToggle then pcall(function() ui.EasterAutoShopToggle:Set(state.easterAutoShop) end) end
+    if ui.EasterSecretShopToggle then pcall(function() ui.EasterSecretShopToggle:Set(state.easterSecretShop) end) end
+    if ui.EasterHideEggAnimToggle then pcall(function() ui.EasterHideEggAnimToggle:Set(state.easterHideEggAnim) end) end
+    if ui.EasterAutoEggToggle then pcall(function() ui.EasterAutoEggToggle:Set(state.easterAutoEgg) end) end
+    if ui.EasterPriorityEggModeToggle then pcall(function() ui.EasterPriorityEggModeToggle:Set(state.easterPriorityEggMode) end) end
+    if ui.EasterAutoChestToggle then pcall(function() ui.EasterAutoChestToggle:Set(state.easterAutoChest) end) end
+    if ui.EasterAutoHuntToggle then pcall(function() ui.EasterAutoHuntToggle:Set(state.easterAutoHunt) end) end
+    if ui.EasterAutoJesterToggle then pcall(function() ui.EasterAutoJesterToggle:Set(state.easterAutoJester) end) end
+    if ui.EasterAutoClaimRewardsToggle then pcall(function() ui.EasterAutoClaimRewardsToggle:Set(state.easterAutoClaimRewards) end) end
+    if ui.EasterAutoMasteryToggle then pcall(function() ui.EasterAutoMasteryToggle:Set(state.easterAutoMastery) end) end
+    if ui.EasterAdvancedShopToggle then pcall(function() ui.EasterAdvancedShopToggle:Set(state.easterAdvancedShop) end) end
+    if ui.EasterLowLagHatchToggle then pcall(function() ui.EasterLowLagHatchToggle:Set(state.easterLowLagHatch) end) end
     if ui.AutoObbyFarmToggle then pcall(function() ui.AutoObbyFarmToggle:Set(state.autoObbyFarm) end) end
     if ui.AutoObbyChestToggle then pcall(function() ui.AutoObbyChestToggle:Set(state.autoObbyChestClaim) end) end
     if ui.AutoDiscoverIslandsToggle then pcall(function() ui.AutoDiscoverIslandsToggle:Set(state.autoDiscoverIslands) end) end
@@ -3375,20 +3453,57 @@ local function loadConfig(configName)
     if ui.StatsTeamDropdown and state.statsTeam then pcall(function() ui.StatsTeamDropdown:Set(state.statsTeam) end) end
     if ui.EnchantMainDropdown and state.enchantMain then pcall(function() ui.EnchantMainDropdown:Set(state.enchantMain) end) end
     if ui.EnchantSecondDropdown and state.enchantSecond then pcall(function() ui.EnchantSecondDropdown:Set(state.enchantSecond) end) end
-    if ui.StPatShopTierDropdown then
-        local slot = math.clamp(tonumber(state.stpatShopTier) or 1, 1, 6)
-        local labels = {
-            "1 - Pot O' Coins x3",
-            "2 - Shadow Crystal x5",
-            "3 - St Patricks Elixir",
-            "4 - Secret Elixir",
-            "5 - Ultra Infinity Elixir",
-            "6 - Lucky Tophat",
+    if ui.EasterShopTierDropdown then
+        local slot = math.clamp(tonumber(state.easterShopTier) or 1, 1, 6)
+        local shopOptions = {
+            ["easter-shop"] = {
+                "1 - Cracked Egg x3",
+                "2 - Shadow Crystal x5",
+                "3 - Easter Elixir IV",
+                "4 - Ultra Infinity Elixir",
+                "5 - Infinity Elixir",
+                "6 - Molten Split",
+            },
+            ["carrot-shop"] = {
+                "1 - Carrot Shop Slot 1",
+                "2 - Carrot Shop Slot 2",
+            },
+            ["secretegg-shop"] = {
+                "1 - Molten Split (Mythic)",
+            },
         }
-        pcall(function() ui.StPatShopTierDropdown:Set(labels[slot]) end)
+        local selectedOptions = shopOptions[state.easterShopId] or shopOptions["easter-shop"]
+        slot = math.clamp(slot, 1, #selectedOptions)
+        pcall(function()
+            ui.EasterShopTierDropdown:Refresh(selectedOptions, true)
+            ui.EasterShopTierDropdown:Set(selectedOptions[slot])
+        end)
     end
-    if ui.StPatEggSelectDropdown and state.stpatSelectedEgg then pcall(function() ui.StPatEggSelectDropdown:Set(state.stpatSelectedEgg) end) end
-    if ui.StPatPriorityEggsDropdown and state.stpatPriorityEggs and #state.stpatPriorityEggs > 0 then pcall(function() ui.StPatPriorityEggsDropdown:Set(state.stpatPriorityEggs) end) end
+    if ui.EasterEggSelectDropdown and state.easterSelectedEgg then pcall(function() ui.EasterEggSelectDropdown:Set(state.easterSelectedEgg) end) end
+    if ui.EasterPriorityEggsDropdown and state.easterPriorityEggs and #state.easterPriorityEggs > 0 then pcall(function() ui.EasterPriorityEggsDropdown:Set(state.easterPriorityEggs) end) end
+    if ui.EasterShopSelectDropdown and state.easterShopId then
+        local map = {
+            ["easter-shop"] = "Easter Shop",
+            ["carrot-shop"] = "Carrot Shop",
+            ["secretegg-shop"] = "Secret Egg Shop",
+        }
+        pcall(function() ui.EasterShopSelectDropdown:Set(map[state.easterShopId] or "Easter Shop") end)
+    end
+    if ui.EasterPickupZoneDropdown then pcall(function() ui.EasterPickupZoneDropdown:Set(state.easterPickupZone) end) end
+    if ui.EasterHatchAmountDropdown then
+        local value = math.clamp(tonumber(state.easterHatchAmount) or 3, 1, 99)
+        local label = "3"
+        if value <= 1 then
+            label = "1"
+        elseif value <= 3 then
+            label = "3"
+        elseif value <= 10 then
+            label = "10"
+        else
+            label = "99"
+        end
+        pcall(function() ui.EasterHatchAmountDropdown:Set(label) end)
+    end
 
     -- Update rarity dropdown with selected rarities
     if ui.RarityDropdown and state.webhookRarities then
@@ -3819,13 +3934,18 @@ local function getRenderedChunkerPickupTargets()
         return targets
     end
 
-    -- There can be multiple folders named Chunker under Rendered.
-    for _, folder in pairs(rendered:GetChildren()) do
-        if folder.Name == "Chunker" then
-            for _, child in pairs(folder:GetChildren()) do
-                if child:IsA("Model") and child:IsDescendantOf(Workspace) and isUuidName(child.Name) then
+    local seenIds = {}
+
+    -- Primary source used by game client pickup renderer.
+    local renderedPickups = rendered:FindFirstChild("Pickups")
+    if renderedPickups then
+        for _, child in pairs(renderedPickups:GetChildren()) do
+            if child:IsA("Model") and child:IsDescendantOf(Workspace) then
+                local id = tostring(child.Name or "")
+                if id ~= "" and not seenIds[id] then
+                    seenIds[id] = true
                     table.insert(targets, {
-                        id = child.Name,
+                        id = id,
                         model = child,
                     })
                 end
@@ -3833,7 +3953,219 @@ local function getRenderedChunkerPickupTargets()
         end
     end
 
+    -- There can be multiple folders named Chunker under Rendered.
+    for _, folder in pairs(rendered:GetChildren()) do
+        if folder.Name == "Chunker" then
+            for _, child in pairs(folder:GetChildren()) do
+                if child:IsA("Model") and child:IsDescendantOf(Workspace) and isUuidName(child.Name) then
+                    if not seenIds[child.Name] then
+                        seenIds[child.Name] = true
+                        table.insert(targets, {
+                            id = child.Name,
+                            model = child,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
     return targets
+end
+
+local function getAnyObjectPosition(obj)
+    if not obj or not obj:IsDescendantOf(Workspace) then
+        return nil
+    end
+
+    if obj:IsA("BasePart") then
+        return obj.Position
+    end
+
+    if obj:IsA("Model") then
+        local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
+        if part then
+            return part.Position
+        end
+        local ok, pivot = pcall(function()
+            return obj:GetPivot()
+        end)
+        if ok and pivot then
+            return pivot.Position
+        end
+    end
+
+    return nil
+end
+
+local function getSafeGroundedPosition(basePos)
+    if not basePos then
+        return nil
+    end
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.IgnoreWater = false
+    local ignore = {}
+    if player and player.Character then
+        table.insert(ignore, player.Character)
+    end
+    rayParams.FilterDescendantsInstances = ignore
+
+    local origin = basePos + Vector3.new(0, 140, 0)
+    local result = Workspace:Raycast(origin, Vector3.new(0, -500, 0), rayParams)
+    if result then
+        return result.Position + Vector3.new(0, 5, 0)
+    end
+
+    return basePos + Vector3.new(0, 8, 0)
+end
+
+local function findPreferredIslandAnchor(container)
+    if not container or not container:IsDescendantOf(Workspace) then
+        return nil
+    end
+
+    local centerPos = getAnyObjectPosition(container)
+    local bestPart, bestScore
+    bestScore = -math.huge
+    for _, obj in ipairs(container:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local name = string.lower(obj.Name)
+            local score = 0
+            if name:find("fountain", 1, true) then score = score + 900 end
+            if name:find("center", 1, true) or name:find("middle", 1, true) then score = score + 700 end
+            if name:find("spawn", 1, true) or name:find("hub", 1, true) then score = score + 550 end
+            if name:find("decor", 1, true) or name:find("decoration", 1, true) or name:find("statue", 1, true) then score = score + 450 end
+
+            if obj.Anchored then score = score + 80 end
+            if obj.CanCollide then score = score + 80 end
+            if obj.Transparency < 0.95 then score = score + 60 end
+            score = score + math.clamp(obj.Size.X + obj.Size.Y + obj.Size.Z, 0, 70)
+
+            if centerPos then
+                local dist = (obj.Position - centerPos).Magnitude
+                score = score - math.clamp(dist * 0.35, 0, 220)
+            end
+
+            if score > bestScore then
+                bestScore = score
+                bestPart = obj
+            end
+        end
+    end
+
+    return bestPart
+end
+
+local function getEasterPickupZonePosition(zoneName)
+    local worlds = Workspace:FindFirstChild("Worlds")
+    local easterWorld = worlds and worlds:FindFirstChild("Easter Paradise")
+    local spawnObj = easterWorld and easterWorld:FindFirstChild("Spawn", true)
+    local defaultPos = getAnyObjectPosition(spawnObj)
+    local defaultZoneModel = (spawnObj and spawnObj:IsA("Model")) and spawnObj or nil
+    if zoneName == "Spawn Island" or not zoneName then
+        return defaultPos, defaultZoneModel
+    end
+
+    local islands = easterWorld and easterWorld:FindFirstChild("Islands")
+    if not islands then
+        return defaultPos, defaultZoneModel
+    end
+
+    local islandContainer = islands:FindFirstChild(zoneName)
+    if not islandContainer and type(zoneName) == "string" and zoneName ~= "" then
+        local function normalizeName(name)
+            local s = string.lower(tostring(name or ""))
+            s = s:gsub("[%s%p]", "")
+            s = s:gsub("island", "")
+            return s
+        end
+
+        local wanted = normalizeName(zoneName)
+        for _, child in ipairs(islands:GetChildren()) do
+            local childNorm = normalizeName(child.Name)
+            if childNorm == wanted or childNorm:find(wanted, 1, true) or wanted:find(childNorm, 1, true) then
+                islandContainer = child
+                break
+            end
+        end
+    end
+
+    if not islandContainer then
+        return defaultPos, defaultZoneModel
+    end
+
+    local islandModel = islandContainer:FindFirstChild("Island") or islandContainer
+    local anchorPart = findPreferredIslandAnchor(islandContainer) or findPreferredIslandAnchor(islandModel)
+    local pos = anchorPart and anchorPart.Position or getAnyObjectPosition(islandModel)
+    local safePos = getSafeGroundedPosition(pos or defaultPos)
+    return safePos or defaultPos, islandModel
+end
+
+local function getEasterPickupTeleportPath(zoneName)
+    local selected = zoneName
+    if selected == "Second Island (Easter Island)" or selected == "Second Island" then
+        selected = "Easter Island"
+    end
+
+    local paths = {
+        ["Spawn Island"] = "Workspace.Worlds.Easter Paradise.Spawn",
+        ["Carrot Island"] = "Workspace.Worlds.Easter Paradise.Islands.Carrot Island.Island.Portal.Spawn",
+        ["Easter Island"] = "Workspace.Worlds.Easter Paradise.Islands.Easter Island.Island.Portal.Spawn",
+        ["Dark Egg Island"] = "Workspace.Worlds.Easter Paradise.Islands.Dark Egg Island.Island.Portal.Spawn",
+    }
+
+    return paths[selected] or paths["Spawn Island"]
+end
+
+local function getRenderedChunkerPickupTargetsInZone(zonePosition, radius, zoneModel)
+    local allTargets = getRenderedChunkerPickupTargets()
+    if not zonePosition then
+        return allTargets
+    end
+
+    local filtered = {}
+    local hasBounds = false
+    local boundsCf, boundsSize
+    if zoneModel and zoneModel:IsDescendantOf(Workspace) then
+        local ok, cf, size = pcall(function()
+            return zoneModel:GetBoundingBox()
+        end)
+        if ok and cf and size then
+            hasBounds = true
+            boundsCf = cf
+            boundsSize = size
+        end
+    end
+
+    local maxDistance = tonumber(radius) or 700
+    for _, target in ipairs(allTargets) do
+        local pos = target.model and getAnyObjectPosition(target.model)
+        if pos then
+            local inZone = false
+            local inRadius = (pos - zonePosition).Magnitude <= maxDistance
+            if hasBounds then
+                local localPos = boundsCf:PointToObjectSpace(pos)
+                local halfX = (boundsSize.X * 0.5) + 50
+                local halfY = (boundsSize.Y * 0.5) + 40
+                local halfZ = (boundsSize.Z * 0.5) + 50
+                inZone = math.abs(localPos.X) <= halfX
+                    and math.abs(localPos.Y) <= halfY
+                    and math.abs(localPos.Z) <= halfZ
+                if not inZone and inRadius then
+                    inZone = true
+                end
+            else
+                inZone = inRadius
+            end
+
+            if inZone then
+                table.insert(filtered, target)
+            end
+        end
+    end
+    return filtered
 end
 
 local function getModelPosition(model)
@@ -3866,13 +4198,25 @@ local function movePlayerNearPickup(pickupModel, hrp)
         return
     end
 
-    -- Distance safety: bring player close to pickup instead of editing pickup parent/transform.
-    if (hrp.Position - pickupPos).Magnitude > 40 then
+    local character = hrp.Parent
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local toPickup = pickupPos - hrp.Position
+    local horizontal = Vector3.new(toPickup.X, 0, toPickup.Z)
+    local direction = horizontal.Magnitude > 0.01 and horizontal.Unit or Vector3.new(0, 0, 1)
+    local nearPos = pickupPos - (direction * 3.2)
+
+    -- Land beside the pickup, then move into it immediately for reliable collection.
+    pcall(function()
+        hrp.CFrame = CFrame.new(nearPos + Vector3.new(0, 3, 0), pickupPos + Vector3.new(0, 3, 0))
+    end)
+
+    if humanoid then
         pcall(function()
-            hrp.CFrame = CFrame.new(pickupPos + Vector3.new(0, 4, 0))
+            humanoid:MoveTo(pickupPos + Vector3.new(0, 0.5, 0))
         end)
-        task.wait(0.03)
     end
+
+    task.wait(0.015)
 end
 
 local function shouldAttemptPickupId(id, cooldown)
@@ -3887,6 +4231,41 @@ local function shouldAttemptPickupId(id, cooldown)
     end
 
     state.pickupAttemptTimes[id] = now
+    return true
+end
+
+local function shouldAttemptPickupTarget(target, cooldown)
+    if not target or type(target.id) ~= "string" or target.id == "" then
+        return false
+    end
+
+    local key = target.id
+    if target.model then
+        local ok, debugId = pcall(function()
+            return target.model:GetDebugId(0)
+        end)
+        if ok and type(debugId) == "string" and debugId ~= "" then
+            key = target.id .. "|" .. debugId
+        end
+    end
+
+    local now = tick()
+    local last = state.pickupAttemptTimes[key]
+    if last and (now - last) < cooldown then
+        return false
+    end
+
+    state.pickupAttemptTimes[key] = now
+
+    -- Keep pickup cooldown table small in long sessions.
+    if math.random(1, 40) == 1 then
+        for k, t in pairs(state.pickupAttemptTimes) do
+            if (now - (t or 0)) > 12 then
+                state.pickupAttemptTimes[k] = nil
+            end
+        end
+    end
+
     return true
 end
 
@@ -3966,18 +4345,16 @@ setPerformanceMode = function(enabled)
     end
 end
 
--- === ST. PATRICK EVENT HELPERS ===
-local StPatEggDropdown
+-- === EASTER EVENT HELPERS ===
+local EasterEggDropdown
 
-local function scanStPatEventEggs()
+local function scanEasterEventEggs()
     local eggs = {}
     local allowedNames = {
-        ["Lucky Egg"] = true,
-        ["Fortune Egg"] = true,
-        ["4X Luck Gaelic Egg"] = true,
-        ["4X Gaelic Egg"] = true,
-        ["4X Luck Fortune Egg"] = true,
-        ["Gaelic Egg"] = true,
+        ["Painted Egg"] = true,
+        ["Basket Egg"] = true,
+        ["Easter Bunny Egg"] = true,
+        ["4x Luck Easter Bunny Egg"] = true,
     }
 
     local function isTargetEgg(name)
@@ -3988,7 +4365,7 @@ local function scanStPatEventEggs()
             return true
         end
         local lower = string.lower(name)
-        return lower:find("gaelic", 1, true) ~= nil and lower:find("egg", 1, true) ~= nil
+        return lower:find("easter", 1, true) ~= nil and lower:find("egg", 1, true) ~= nil
     end
 
     local rendered = Workspace:FindFirstChild("Rendered")
@@ -4033,7 +4410,7 @@ local function scanStPatEventEggs()
 
     state.currentEventEggs = eggs
 
-    if StPatEggDropdown then
+    if EasterEggDropdown then
         local names = {}
         local seen = {}
         for _, e in pairs(eggs) do
@@ -4044,47 +4421,48 @@ local function scanStPatEventEggs()
         end
         if #names == 0 then names = {"None found"} end
         pcall(function()
-            StPatEggDropdown:Refresh(names, false)
+            EasterEggDropdown:Refresh(names, false)
         end)
     end
 
     return eggs
 end
 
-local function sinkStPatReturnTeleporter()
-    if state.stpatReturnSunk then return end
+local function sinkEasterReturnTeleporter()
+    if state.easterReturnSunk then return end
     pcall(function()
-        local eventFolder = Workspace:FindFirstChild("StPatricksEvent")
-        local returnModel = eventFolder and eventFolder:FindFirstChild("Return")
+        local world = Workspace:FindFirstChild("Worlds") and Workspace.Worlds:FindFirstChild("Easter Paradise")
+        local returnModel = world and world:FindFirstChild("Return", true)
         if not returnModel then return end
-        state.stpatReturnOrigCf = returnModel:GetPivot()
-        returnModel:PivotTo(state.stpatReturnOrigCf - Vector3.new(0, 500, 0))
-        state.stpatReturnSunk = true
+        state.easterReturnOrigCf = returnModel:GetPivot()
+        returnModel:PivotTo(state.easterReturnOrigCf - Vector3.new(0, 500, 0))
+        state.easterReturnSunk = true
     end)
 end
 
-local function restoreStPatReturnTeleporter()
-    if not state.stpatReturnSunk then return end
+local function restoreEasterReturnTeleporter()
+    if not state.easterReturnSunk then return end
     pcall(function()
-        local eventFolder = Workspace:FindFirstChild("StPatricksEvent")
-        local returnModel = eventFolder and eventFolder:FindFirstChild("Return")
-        if returnModel and state.stpatReturnOrigCf then
-            returnModel:PivotTo(state.stpatReturnOrigCf)
+        local world = Workspace:FindFirstChild("Worlds") and Workspace.Worlds:FindFirstChild("Easter Paradise")
+        local returnModel = world and world:FindFirstChild("Return", true)
+        if returnModel and state.easterReturnOrigCf then
+            returnModel:PivotTo(state.easterReturnOrigCf)
         end
-        state.stpatReturnSunk = false
+        state.easterReturnSunk = false
     end)
 end
 
-local function getStPatSpawnObject()
-    local eventFolder = Workspace:FindFirstChild("StPatricksEvent")
-    if not eventFolder then
+local function getEasterSpawnObject()
+    local worlds = Workspace:FindFirstChild("Worlds")
+    local easterWorld = worlds and worlds:FindFirstChild("Easter Paradise")
+    if not easterWorld then
         return nil
     end
-    return eventFolder:FindFirstChild("Spawn")
+    return easterWorld:FindFirstChild("Spawn", true)
 end
 
-local function getStPatSpawnPosition()
-    local spawnObj = getStPatSpawnObject()
+local function getEasterSpawnPosition()
+    local spawnObj = getEasterSpawnObject()
     if not spawnObj then
         return nil
     end
@@ -4100,41 +4478,225 @@ local function getStPatSpawnPosition()
     return nil
 end
 
-local function isInStPatEventArea(hrp)
+local function isInEasterEventArea(hrp)
     if not hrp then
         return false
     end
 
-    local spawnPos = getStPatSpawnPosition()
+    local worlds = Workspace:FindFirstChild("Worlds")
+    local easterWorld = worlds and worlds:FindFirstChild("Easter Paradise")
+    if easterWorld and easterWorld:IsDescendantOf(Workspace) then
+        local ok, cf, size = pcall(function()
+            return easterWorld:GetBoundingBox()
+        end)
+        if ok and cf and size then
+            local p = cf:PointToObjectSpace(hrp.Position)
+            local halfX = (size.X * 0.5) + 120
+            local halfY = (size.Y * 0.5) + 120
+            local halfZ = (size.Z * 0.5) + 120
+            return math.abs(p.X) <= halfX and math.abs(p.Y) <= halfY and math.abs(p.Z) <= halfZ
+        end
+    end
+
+    local spawnPos = getEasterSpawnPosition()
     if not spawnPos then
         return false
     end
 
-    return (hrp.Position - spawnPos).Magnitude <= 350
+    return (hrp.Position - spawnPos).Magnitude <= 2500
 end
 
-local function teleportToStPatEvent(remote, usePickupWarmup)
-    local now = tick()
-    if now - (state.lastStpatWorldTeleport or 0) < 5 then
+local function isInSelectedEasterPickupZone(hrp)
+    if not hrp then
         return false
     end
 
-    local spawnObj = getStPatSpawnObject()
-    local teleportPath = spawnObj and spawnObj:GetFullName() or "Workspace.StPatricksEvent.Spawn"
+    local zonePos, zoneModel = getEasterPickupZonePosition(state.easterPickupZone)
+    if not zonePos then
+        return false
+    end
+
+    if zoneModel and zoneModel:IsDescendantOf(Workspace) then
+        local ok, cf, size = pcall(function()
+            return zoneModel:GetBoundingBox()
+        end)
+        if ok and cf and size then
+            local p = cf:PointToObjectSpace(hrp.Position)
+            local halfX = (size.X * 0.5) + 30
+            local halfY = (size.Y * 0.5) + 40
+            local halfZ = (size.Z * 0.5) + 30
+            if math.abs(p.X) <= halfX and math.abs(p.Y) <= halfY and math.abs(p.Z) <= halfZ then
+                return true
+            end
+        end
+    end
+
+    return (hrp.Position - zonePos).Magnitude <= 1200
+end
+
+local function teleportToEasterEvent(remote, usePickupWarmup)
+    local now = tick()
+    if now - (state.lastEasterWorldTeleport or 0) < 5 then
+        return false
+    end
+
+    local spawnObj = getEasterSpawnObject()
+    local teleportPath = spawnObj and spawnObj:GetFullName() or "Workspace.Worlds.Easter Paradise.Spawn"
+
+    pcall(function()
+        remote:FireServer("WorldTeleport", "Easter Paradise")
+    end)
 
     pcall(function()
         remote:FireServer("Teleport", teleportPath)
     end)
 
-    state.lastStpatWorldTeleport = now
-    state.stpatLastEggPosition = nil
-    state.stpatLastEggTarget = nil
+    state.lastEasterWorldTeleport = now
+    state.easterLastEggPosition = nil
+    state.easterLastEggTarget = nil
 
     if usePickupWarmup then
-        state.stpatPickupWarmupUntil = now + 2
+        state.easterPickupWarmupUntil = now + 2
     end
 
     return true
+end
+
+local EASTER_HUNT_EGGS = {
+    "Pixel Egg",
+    "Lights Out Egg",
+    "Unreleased Egg",
+    "Bunny Egg",
+    "Cloudy Egg",
+    "Jester Egg",
+    "Mystery Egg",
+    "FRIEND Egg",
+    "Nerd Egg",
+}
+
+local EASTER_HUNT_REMOTE_BY_EGG = {
+    ["Pixel Egg"] = "EasterPixelEgg",
+    ["Lights Out Egg"] = "EasterLightsOutEgg",
+    ["Unreleased Egg"] = "EasterUnreleasedEgg",
+    ["Bunny Egg"] = "EasterBunnyEgg",
+    ["Cloudy Egg"] = "EasterCloudyEgg",
+    ["Mystery Egg"] = "EasterMysteryEgg",
+    -- Jester/Nerd/FRIEND require puzzle or social inputs and are handled separately.
+}
+
+local function getEasterHuntProgress(playerData)
+    local found = (((playerData or {}).Easter2026 or {}).Found) or {}
+    local missing = {}
+    for _, eggName in ipairs(EASTER_HUNT_EGGS) do
+        if found[eggName] == nil then
+            table.insert(missing, eggName)
+        end
+    end
+
+    local claimed = (((playerData or {}).Easter2026 or {}).Claimed) == true
+    return missing, claimed
+end
+
+local function updateEasterProgressText(playerData)
+    local missing, claimed = getEasterHuntProgress(playerData)
+    local foundCount = #EASTER_HUNT_EGGS - #missing
+    local nextEgg = missing[1] or "None"
+    state.easterHuntStatusText = string.format("Hunt: %d/9 found | Next: %s%s", foundCount, tostring(nextEgg), claimed and " | Rewards claimed" or "")
+
+    local quests = (playerData and playerData.Quests) or {}
+    local milestoneText = "Milestones: no easter quest detected"
+    for _, quest in pairs(quests) do
+        local idText = tostring(quest and (quest.Id or quest.Name or quest.Type) or "")
+        local idLower = string.lower(idText)
+        if idLower:find("easter", 1, true) then
+            local progress = tonumber(quest.Progress) or 0
+            local amount = tonumber(quest.Amount) or 0
+            milestoneText = string.format("Milestones: %s (%s/%s)", idText ~= "" and idText or "Easter", tostring(progress), tostring(amount))
+            break
+        end
+    end
+    state.easterMilestoneStatusText = milestoneText
+end
+
+local function tryEasterHuntAction(remote, playerData)
+    if not state.easterAutoHunt then
+        return
+    end
+
+    local now = tick()
+    if now - (state.lastEasterHuntAction or 0) < 2 then
+        return
+    end
+
+    local missing, claimed = getEasterHuntProgress(playerData)
+    if #missing == 0 then
+        if state.easterAutoClaimRewards and not claimed then
+            pcall(function()
+                remote:FireServer("EasterClaimRewards")
+            end)
+        end
+        state.lastEasterHuntAction = now
+        return
+    end
+
+    for _, eggName in ipairs(missing) do
+        local command = EASTER_HUNT_REMOTE_BY_EGG[eggName]
+        if command then
+            pcall(function()
+                remote:FireServer(command)
+            end)
+            state.lastEasterHuntAction = now
+            return
+        end
+    end
+
+    state.lastEasterHuntAction = now
+end
+
+local function tryEasterJesterAction(remote, playerData)
+    if not state.easterAutoJester then
+        return
+    end
+
+    local now = tick()
+    if now - (state.lastEasterJesterAttempt or 0) < 10 then
+        return
+    end
+
+    local found = (((playerData or {}).Easter2026 or {}).Found) or {}
+    if found["Jester Egg"] == nil then
+        pcall(function()
+            remote:FireServer("Teleport", "Workspace.Worlds.Easter Paradise.Card Castle.Decoration.JesterEnterSpawn")
+        end)
+        pcall(function()
+            remote:FireServer("EasterJesterEgg")
+        end)
+    end
+
+    state.lastEasterJesterAttempt = now
+end
+
+local function tryEasterRewardsAndMastery(remote)
+    local now = tick()
+
+    if state.easterAutoClaimRewards and now - (state.lastEasterRewardClaim or 0) >= 6 then
+        pcall(function()
+            remote:FireServer("EasterClaimRewards")
+        end)
+        pcall(function()
+            remote:FireServer("ClaimWorldReward", "Easter Paradise")
+        end)
+        state.lastEasterRewardClaim = now
+    end
+
+    if state.easterAutoMastery and now - (state.lastEasterMasteryUpgrade or 0) >= 1.5 then
+        for _, masteryName in ipairs({"Easter Paradise", "Carrot Island", "Easter Island", "Dark Egg Island"}) do
+            pcall(function()
+                remote:FireServer("UpgradeMastery", masteryName)
+            end)
+        end
+        state.lastEasterMasteryUpgrade = now
+    end
 end
 
 -- ╔══════════════════════════════════════════════════════════════╗
@@ -4142,7 +4704,7 @@ end
 -- ╚══════════════════════════════════════════════════════════════╝
 local MainTab     = Window:CreateTab("🏠 Main",        4483362458)  -- 1
 local FarmTab     = Window:CreateTab("🔧 Farm",        4483362458)  -- 2
-local EventTab    = Window:CreateTab("🍀 Event",       4483362458)  -- 3
+local EventTab    = Window:CreateTab("🐰 Event",       4483362458)  -- 3
 local EggsTab     = Window:CreateTab("🥚 Eggs",        4483362458)  -- 4
 local EnchantTab  = Window:CreateTab("✨ Enchant",     4483362458)  -- 5
 local FishingTab  = Window:CreateTab("🎣 Fishing",     4483362458)  -- 6
@@ -4299,159 +4861,294 @@ state.uiElements.PerformanceModeToggle = MainTab:CreateToggle({
 })
 
 -- === EVENT TAB ===
-EventTab:CreateSection("🍀 St. Patrick's Event")
+EventTab:CreateSection("🐰 Easter Event")
 
-state.uiElements.AutoLuckyWheelToggle = EventTab:CreateToggle({
-    Name = "🎡 Auto Lucky Wheel (Spin + Skip)",
+state.uiElements.EasterAutoPickupToggle = EventTab:CreateToggle({
+    Name = "🐰 Auto Collect Event Pickups",
     CurrentValue = false,
-    Flag = "AutoLuckyWheel",
+    Flag = "EasterAutoPickup",
     Callback = function(Value)
-        state.autoWheelSpin = Value
+        state.easterAutoPickup = Value
         if Value then
-            log("🎡 [LuckyWheel] Auto Lucky Wheel enabled")
+            sinkEasterReturnTeleporter()
+            state.lastEasterWorldTeleport = 0
+            state.easterPickupWarmupUntil = tick() + 2
         else
-            log("🎡 [LuckyWheel] Auto Lucky Wheel disabled")
+            restoreEasterReturnTeleporter()
+            state.easterPickupWarmupUntil = 0
         end
     end,
 })
 
-state.uiElements.StPatAutoPickupToggle = EventTab:CreateToggle({
-    Name = "🍀 Auto Collect Pickups",
-    CurrentValue = false,
-    Flag = "StPatAutoPickup",
-    Callback = function(Value)
-        state.stpatAutoPickup = Value
-        if Value then
-            sinkStPatReturnTeleporter()
-            state.lastStpatWorldTeleport = 0
-            state.stpatPickupWarmupUntil = tick() + 2
-        else
-            restoreStPatReturnTeleporter()
-            state.stpatPickupWarmupUntil = 0
+state.uiElements.EasterPickupZoneDropdown = EventTab:CreateDropdown({
+    Name = "Pickup Zone",
+    Options = {"Spawn Island", "Second Island (Easter Island)", "Easter Island", "Dark Egg Island"},
+    CurrentOption = {"Spawn Island"},
+    MultipleOptions = false,
+    Flag = "EasterPickupZone",
+    Callback = function(Option)
+        local selected = Option and Option[1]
+        if selected and selected ~= "" then
+            if selected == "Second Island (Easter Island)" or selected == "Second Island" then
+                selected = "Easter Island"
+            end
+            state.easterPickupZone = selected
+            state.lastEasterWorldTeleport = 0
         end
     end,
 })
 
 EventTab:CreateSection("🛒 Event Shop")
 
-state.uiElements.StPatShopTierDropdown = EventTab:CreateDropdown({
-    Name = "Shop Slot to Buy (1-6)",
-    Options = {
-        "1 - Pot O' Coins x3",
+local EASTER_SHOP_SLOT_OPTIONS = {
+    ["easter-shop"] = {
+        "1 - Cracked Egg x3",
         "2 - Shadow Crystal x5",
-        "3 - St Patricks Elixir",
-        "4 - Secret Elixir",
-        "5 - Ultra Infinity Elixir",
-        "6 - Lucky Tophat",
+        "3 - Easter Elixir IV",
+        "4 - Ultra Infinity Elixir",
+        "5 - Infinity Elixir",
+        "6 - Molten Split",
     },
-    CurrentOption = {"1 - Pot O' Coins x3"},
+    ["carrot-shop"] = {
+        "1 - Carrot Shop Slot 1",
+        "2 - Carrot Shop Slot 2",
+    },
+    ["secretegg-shop"] = {
+        "1 - Molten Split (Mythic)",
+    },
+}
+
+local function getShopSlotOptions(shopId)
+    return EASTER_SHOP_SLOT_OPTIONS[shopId] or EASTER_SHOP_SLOT_OPTIONS["easter-shop"]
+end
+
+local function setEasterShopDefaults(shopId)
+    local options = getShopSlotOptions(shopId)
+    state.easterShopTier = 1
+    if state.uiElements.EasterShopTierDropdown then
+        pcall(function()
+            state.uiElements.EasterShopTierDropdown:Refresh(options, true)
+            state.uiElements.EasterShopTierDropdown:Set(options[1])
+        end)
+    end
+end
+
+state.uiElements.EasterShopTierDropdown = EventTab:CreateDropdown({
+    Name = "Item To Buy",
+    Options = {
+        "1 - Cracked Egg x3",
+        "2 - Shadow Crystal x5",
+        "3 - Easter Elixir IV",
+        "4 - Ultra Infinity Elixir",
+        "5 - Infinity Elixir",
+        "6 - Molten Split",
+    },
+    CurrentOption = {"1 - Cracked Egg x3"},
     MultipleOptions = false,
-    Flag = "StPatShopTier",
+    Flag = "EasterShopTier",
     Callback = function(Option)
         if Option and Option[1] then
             local slot = tonumber(Option[1]:match("^(%d+)"))
-            if slot then state.stpatShopTier = slot end
+            if slot then state.easterShopTier = slot end
         end
     end,
 })
 
-state.uiElements.StPatAutoShopToggle = EventTab:CreateToggle({
+state.uiElements.EasterAutoShopToggle = EventTab:CreateToggle({
     Name = "🛒 Auto Buy Selected Shop Slot",
     CurrentValue = false,
-    Flag = "StPatAutoShop",
+    Flag = "EasterAutoShop",
     Callback = function(Value)
-        state.stpatAutoShop = Value
-        state.lastStpatShopBuy = 0
+        state.easterAutoShop = Value
+        state.lastEasterShopBuy = 0
     end,
 })
 
-state.uiElements.StPatSecretShopToggle = EventTab:CreateToggle({
+state.uiElements.EasterSecretShopToggle = EventTab:CreateToggle({
     Name = "🔮 Auto Buy Secret Shop Item",
     CurrentValue = false,
-    Flag = "StPatSecretShop",
+    Flag = "EasterSecretShop",
     Callback = function(Value)
-        state.stpatSecretShop = Value
-        state.lastStpatSecretShopBuy = 0
+        state.easterSecretShop = Value
+        state.lastEasterSecretShopBuy = 0
+    end,
+})
+
+state.uiElements.EasterShopSelectDropdown = EventTab:CreateDropdown({
+    Name = "Shop Pool",
+    Options = {"Easter Shop", "Carrot Shop", "Secret Egg Shop"},
+    CurrentOption = {"Easter Shop"},
+    MultipleOptions = false,
+    Flag = "EasterShopSelect",
+    Callback = function(Option)
+        local selected = Option and Option[1] or "Easter Shop"
+        if selected == "Carrot Shop" then
+            state.easterShopId = "carrot-shop"
+        elseif selected == "Secret Egg Shop" then
+            state.easterShopId = "secretegg-shop"
+        else
+            state.easterShopId = "easter-shop"
+        end
+        setEasterShopDefaults(state.easterShopId)
+    end,
+})
+
+state.uiElements.EasterAdvancedShopToggle = EventTab:CreateToggle({
+    Name = "🛍️ Advanced Shop Mode (uses selected pool)",
+    CurrentValue = false,
+    Flag = "EasterAdvancedShop",
+    Callback = function(Value)
+        state.easterAdvancedShop = Value
+        state.lastEasterAdvancedShopBuy = 0
     end,
 })
 
 EventTab:CreateSection("🥚 Event Eggs")
 
-StPatEggDropdown = EventTab:CreateDropdown({
+EasterEggDropdown = EventTab:CreateDropdown({
     Name = "🥚 Select Egg to Auto Hatch",
     Options = {"Scanning..."},
     CurrentOption = {"Scanning..."},
     MultipleOptions = false,
-    Flag = "StPatEggSelect",
+    Flag = "EasterEggSelect",
     Callback = function(Option)
         if Option and Option[1] and Option[1] ~= "Scanning..." and Option[1] ~= "None found" then
-            state.stpatSelectedEgg = Option[1]
-            state.stpatLastEggPosition = nil
-            state.stpatLastEggTarget = nil
+            state.easterSelectedEgg = Option[1]
+            state.easterLastEggPosition = nil
+            state.easterLastEggTarget = nil
         end
     end,
 })
-state.uiElements.StPatEggSelectDropdown = StPatEggDropdown
+state.uiElements.EasterEggSelectDropdown = EasterEggDropdown
 
-state.uiElements.StPatHideEggAnimToggle = EventTab:CreateToggle({
+state.uiElements.EasterHideEggAnimToggle = EventTab:CreateToggle({
     Name = "⚡ Disable egg hatching animation",
     CurrentValue = false,
-    Flag = "StPatHideEggAnim",
+    Flag = "EasterHideEggAnim",
     Callback = function(Value)
-        state.stpatHideEggAnim = Value
+        state.easterHideEggAnim = Value
         state.disableHatchAnimation = Value
     end,
 })
 
-state.uiElements.StPatAutoEggToggle = EventTab:CreateToggle({
+state.uiElements.EasterAutoEggToggle = EventTab:CreateToggle({
     Name = "🥚 Auto Hatch Selected Egg",
     CurrentValue = false,
-    Flag = "StPatAutoEgg",
+    Flag = "EasterAutoEgg",
     Callback = function(Value)
-        state.stpatAutoEgg = Value
-        state.lastStpatEggHatch = 0
-        state.stpatLastEggPosition = nil
-        state.stpatLastEggTarget = nil
+        state.easterAutoEgg = Value
+        state.lastEasterEggHatch = 0
+        state.easterLastEggPosition = nil
+        state.easterLastEggTarget = nil
+    end,
+})
+
+state.uiElements.EasterHatchAmountDropdown = EventTab:CreateDropdown({
+    Name = "Hatch Amount",
+    Options = {"1", "3", "10", "99"},
+    CurrentOption = {"3"},
+    MultipleOptions = false,
+    Flag = "EasterHatchAmount",
+    Callback = function(Option)
+        local value = tonumber(Option and Option[1])
+        if value then
+            state.easterHatchAmount = math.clamp(value, 1, 99)
+        end
+    end,
+})
+
+state.uiElements.EasterLowLagHatchToggle = EventTab:CreateToggle({
+    Name = "🧊 Low Lag Hatch Mode",
+    CurrentValue = false,
+    Flag = "EasterLowLagHatch",
+    Callback = function(Value)
+        state.easterLowLagHatch = Value
     end,
 })
 
 EventTab:CreateSection("⭐ Priority Event Eggs")
 
-state.uiElements.StPatPriorityEggsDropdown = EventTab:CreateDropdown({
+state.uiElements.EasterPriorityEggsDropdown = EventTab:CreateDropdown({
     Name = "Priority eggs (override normal egg when spawned)",
-    Options = {"Lucky Egg", "Fortune Egg", "4X Luck Gaelic Egg", "Gaelic Egg"},
-    CurrentOption = state.stpatPriorityEggs,
+    Options = {"Painted Egg", "Basket Egg", "Easter Bunny Egg", "4x Luck Easter Bunny Egg"},
+    CurrentOption = state.easterPriorityEggs,
     MultipleOptions = true,
-    Flag = "StPatPriorityEggs",
+    Flag = "EasterPriorityEggs",
     Callback = function(Options)
-        state.stpatPriorityEggs = Options or {}
-        state.stpatLastEggTarget = nil
-        state.stpatLastEggPosition = nil
+        state.easterPriorityEggs = Options or {}
+        state.easterLastEggTarget = nil
+        state.easterLastEggPosition = nil
     end,
 })
 
-state.uiElements.StPatPriorityEggModeToggle = EventTab:CreateToggle({
+state.uiElements.EasterPriorityEggModeToggle = EventTab:CreateToggle({
     Name = "⭐ Enable Priority Event Egg Detection",
     CurrentValue = false,
-    Flag = "StPatPriorityEggMode",
+    Flag = "EasterPriorityEggMode",
     Callback = function(Value)
-        state.stpatPriorityEggMode = Value
-        state.stpatLastEggTarget = nil
-        state.stpatLastEggPosition = nil
+        state.easterPriorityEggMode = Value
+        state.easterLastEggTarget = nil
+        state.easterLastEggPosition = nil
     end,
 })
 
-EventTab:CreateSection("🍀 Pot O Gold Chest")
+EventTab:CreateSection("🐰 Easter Chest")
 
-state.uiElements.StPatAutoChestToggle = EventTab:CreateToggle({
-    Name = "🍀 Auto Claim Pot O Gold",
+state.uiElements.EasterAutoChestToggle = EventTab:CreateToggle({
+    Name = "🐰 Auto Claim Easter Chest",
     CurrentValue = false,
-    Flag = "StPatAutoChest",
+    Flag = "EasterAutoChest",
     Callback = function(Value)
-        state.stpatAutoChest = Value
-        state.lastStpatChestClaim = 0
+        state.easterAutoChest = Value
+        state.lastEasterChestClaim = 0
     end,
 })
+
+EventTab:CreateSection("🧩 Egg Hunt")
+
+state.uiElements.EasterAutoHuntToggle = EventTab:CreateToggle({
+    Name = "🧩 Auto Egg Hunt Actions",
+    CurrentValue = false,
+    Flag = "EasterAutoHunt",
+    Callback = function(Value)
+        state.easterAutoHunt = Value
+        state.lastEasterHuntAction = 0
+    end,
+})
+
+state.uiElements.EasterAutoJesterToggle = EventTab:CreateToggle({
+    Name = "🃏 Auto Jester Attempt (best effort)",
+    CurrentValue = false,
+    Flag = "EasterAutoJester",
+    Callback = function(Value)
+        state.easterAutoJester = Value
+        state.lastEasterJesterAttempt = 0
+    end,
+})
+
+state.uiElements.EasterAutoClaimRewardsToggle = EventTab:CreateToggle({
+    Name = "🎁 Auto Claim Easter Rewards",
+    CurrentValue = false,
+    Flag = "EasterAutoClaimRewards",
+    Callback = function(Value)
+        state.easterAutoClaimRewards = Value
+        state.lastEasterRewardClaim = 0
+    end,
+})
+
+state.uiElements.EasterAutoMasteryToggle = EventTab:CreateToggle({
+    Name = "📈 Auto Upgrade Easter Mastery",
+    CurrentValue = false,
+    Flag = "EasterAutoMastery",
+    Callback = function(Value)
+        state.easterAutoMastery = Value
+        state.lastEasterMasteryUpgrade = 0
+    end,
+})
+
+EventTab:CreateSection("📊 Easter Progress")
+state.labels.easterHunt = EventTab:CreateLabel("Hunt: waiting for data")
+state.labels.easterMilestone = EventTab:CreateLabel("Milestones: waiting for data")
 
 -- === AUTO POTIONS ===
 FarmTab:CreateSection("🧪 Auto Potions")
@@ -5340,7 +6037,7 @@ local CompWebhookIntervalInput = CompTab:CreateInput({
 state.uiElements.CompWebhookIntervalInput = CompWebhookIntervalInput
 
 
-local CompTestWebhookButton = CompTab:CreateButton({
+CompTab:CreateButton({
    Name = "📡 Test Competitive Webhook",
    Callback = function()
       if state.compWebhookUrl == "" then
@@ -5406,13 +6103,13 @@ ConfigTab:CreateButton({
 })
 
 -- Input for new config name (when creating new)
-local newConfigName = ""
+state.pendingConfigName = state.pendingConfigName or ""
 ConfigTab:CreateInput({
    Name = "New Config Name (for Create New)",
    PlaceholderText = "MyNewConfig",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text)
-      newConfigName = Text
+        state.pendingConfigName = Text
    end,
 })
 
@@ -5424,11 +6121,11 @@ ConfigTab:CreateButton({
 
       -- If "Create New" is selected, use the input field
       if selectedConfig == "— Create New —" or not selectedConfig or selectedConfig == "No configs found" then
-         if newConfigName == "" then
+            if state.pendingConfigName == "" then
             --  print("❌ Enter a name in 'New Config Name' field!")
             return
          end
-         nameToSave = newConfigName
+            nameToSave = state.pendingConfigName
       end
 
       local success, message = saveConfig(nameToSave)
@@ -5500,14 +6197,15 @@ ConfigTab:CreateButton({
 DataTab:CreateSection("🐾 Pet Information")
 
 if petData then
-   local count = 0
-   for name, data in pairs(petData) do
-      if data.Rarity and count < 10 then
-         DataTab:CreateLabel(name .. " [" .. data.Rarity .. "]")
-         count += 1
-      end
-   end
-else
+    pcall(function()
+        local shown = 0
+        for name, data in pairs(petData) do
+            if data.Rarity and shown < 10 then
+                DataTab:CreateLabel(name .. " [" .. data.Rarity .. "]")
+                shown += 1
+            end
+        end
+    end)
 end
 
 -- 🔍 Remote Discovery Section
@@ -5712,8 +6410,8 @@ end)
 -- === MAIN LOOPS ===
 
 -- ✅ AUTO-SCAN: Rifts and Eggs (every 2 seconds) - Only refresh if count changed
-local lastRiftCount = 0
-local lastEggCount = 0
+state.lastRiftCount = state.lastRiftCount or 0
+state.lastEggCount = state.lastEggCount or 0
 
 task.spawn(function()
     while task.wait(2) do
@@ -5726,8 +6424,8 @@ task.spawn(function()
 
         -- Only refresh if items added/removed (not just reordered)
         local newCount = #riftNames
-        if newCount ~= lastRiftCount or (newCount > 0 and lastRiftCount == 0) then
-            lastRiftCount = newCount
+        if newCount ~= state.lastRiftCount or (newCount > 0 and state.lastRiftCount == 0) then
+            state.lastRiftCount = newCount
             if newCount > 0 then
                 pcall(function()
                     RiftDropdown:Refresh(riftNames, false)  -- false = don't clear selection
@@ -5744,8 +6442,8 @@ task.spawn(function()
 
         -- Only refresh if items added/removed (not just reordered)
         local newCount = #eggNames
-        if newCount ~= lastEggCount or (newCount > 0 and lastEggCount == 0) then
-            lastEggCount = newCount
+        if newCount ~= state.lastEggCount or (newCount > 0 and state.lastEggCount == 0) then
+            state.lastEggCount = newCount
             if newCount > 0 then
                 pcall(function()
                     EggDropdown:Refresh(eggNames, false)  -- false = don't clear selection
@@ -5753,9 +6451,9 @@ task.spawn(function()
             end
         end
 
-        -- Keep Event tab egg dropdown updated from loaded St. Patrick eggs
+        -- Keep Event tab egg dropdown updated from loaded Easter eggs
         pcall(function()
-            scanStPatEventEggs()
+            scanEasterEventEggs()
         end)
     end
 end)
@@ -5767,9 +6465,22 @@ task.spawn(function()
         local h,m,s = math.floor(runtime/3600), math.floor((runtime%3600)/60), math.floor(runtime%60)
 
         pcall(function()
+            local pd = getPlayerData()
+            if pd then
+                updateEasterProgressText(pd)
+            end
+        end)
+
+        pcall(function()
             state.labels.runtime:Set("⏱️ Runtime: " .. string.format("%02d:%02d:%02d", h,m,s))
             state.labels.bubbles:Set("🧱 Bubbles: " .. formatNumber(state.stats.bubbles))
             state.labels.hatches:Set("🥚 Hatches: " .. formatNumber(state.stats.hatches))
+            if state.labels.easterHunt then
+                state.labels.easterHunt:Set("🧩 " .. tostring(state.easterHuntStatusText or "Hunt: waiting for data"))
+            end
+            if state.labels.easterMilestone then
+                state.labels.easterMilestone:Set("📈 " .. tostring(state.easterMilestoneStatusText or "Milestones: waiting for data"))
+            end
         end)
 
         updateStats()
@@ -5851,60 +6562,99 @@ task.spawn(function()
     local RS = game:GetService("ReplicatedStorage")
     -- ✅ FIX: Use Remote MODULE (not RemoteEvent) - this is what the game uses!
     local Remote = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteEvent")
-    local RemoteFunc = RS.Shared.Framework.Network.Remote:WaitForChild("RemoteFunction")
     local PickupCollectRemote = RS:WaitForChild("Remotes"):WaitForChild("Pickups"):WaitForChild("CollectPickup")
     local potionRetryGuard = {}
     local potionDebugNextLog = {}
     local lastPotionGlobalDebug = 0
     local powerupRetryGuard = {}
-    local lastLuckySpinAttempt = 0
-    local lastLuckyClaimAttempt = 0
-    local lastLuckyWheelDetectionLog = 0
-    local lastLuckyWheelDebugLog = 0
 
-    local function isLuckyWheelReady(playerData)
-        local now = getServerUnixTime()
-        local luckyReadyAt = playerData and playerData.LuckyNextWheelSpin
-        local genericReadyAt = playerData and playerData.NextWheelSpin
+    -- Run potion automation in a separate lightweight worker to avoid stuttering the fast loop.
+    task.spawn(function()
+        while task.wait(0.35) do
+            if state.autoPotionEnabled then
+                pcall(function()
+                    local selectedPotionNames = getSelectedPotionNames(state.selectedPotions)
+                    if #selectedPotionNames == 0 then
+                        local nowTick = tick()
+                        if nowTick - lastPotionGlobalDebug >= 12 then
+                            lastPotionGlobalDebug = nowTick
+                            potionDebug("Auto potion enabled but no potions are selected.")
+                        end
+                        return
+                    end
 
-        local readyAt = nil
-        if type(luckyReadyAt) == "number" and luckyReadyAt > 0 then
-            readyAt = luckyReadyAt
-        elseif type(genericReadyAt) == "number" and genericReadyAt > 0 then
-            readyAt = genericReadyAt
-        end
+                    local playerData = getPlayerData()
+                    if not playerData then
+                        local nowTick = tick()
+                        if nowTick - lastPotionGlobalDebug >= 6 then
+                            lastPotionGlobalDebug = nowTick
+                            potionDebug("LocalData:Get() returned nil; cannot evaluate ActivePotions yet.")
+                        end
+                        return
+                    end
 
-        if type(readyAt) == "number" and readyAt > 0 then
-            return now >= readyAt, math.max(0, readyAt - now)
-        end
+                    if state.potionCycleIndex > #selectedPotionNames then
+                        state.potionCycleIndex = 1
+                    end
 
-        return true, 0
-    end
+                    local selectedPotion = selectedPotionNames[state.potionCycleIndex]
+                    state.potionCycleIndex = (state.potionCycleIndex % #selectedPotionNames) + 1
 
-    local function extractWheelPayloadText(value, depth)
-        depth = depth or 0
-        if depth > 4 then
-            return ""
-        end
+                    local potionName, requestedLevel = normalizePotionSelection(selectedPotion)
+                    if not potionName then
+                        return
+                    end
 
-        local valueType = type(value)
-        if valueType == "string" then
-            return value
-        end
-        if valueType == "number" or valueType == "boolean" then
-            return tostring(value)
-        end
-        if valueType ~= "table" then
-            return ""
-        end
+                    local serverNow = getServerUnixTime()
+                    if type(state.gamePotionData) == "table" and not state.gamePotionData[potionName] and potionName ~= "Flowers" then
+                        local nextAllowedDebug = potionDebugNextLog[potionName] or 0
+                        if serverNow >= nextAllowedDebug then
+                            potionDebug("Skipping unknown potion name from UI: " .. tostring(potionName))
+                            potionDebugNextLog[potionName] = serverNow + 10
+                        end
+                        return
+                    end
 
-        local parts = {}
-        for key, item in pairs(value) do
-            table.insert(parts, tostring(key))
-            table.insert(parts, extractWheelPayloadText(item, depth + 1))
+                    local remaining, activeLevel = getActivePotionRemaining(playerData, potionName)
+                    state.activePotions[potionName] = {
+                        remaining = remaining,
+                        level = activeLevel,
+                        checkedAt = serverNow,
+                    }
+
+                    local guardUntil = potionRetryGuard[potionName] or 0
+                    local nextAllowedDebug = potionDebugNextLog[potionName] or 0
+
+                    if remaining > 0 then
+                        if serverNow >= nextAllowedDebug then
+                            potionDebug(string.format("%s active (level %s), %.0fs remaining. Skipping use.", potionName, tostring(activeLevel or "?"), remaining))
+                            potionDebugNextLog[potionName] = serverNow + 12
+                        end
+                        return
+                    end
+
+                    if serverNow < guardUntil then
+                        if serverNow >= nextAllowedDebug then
+                            potionDebug(string.format("%s waiting for LocalData refresh (guard %.1fs left).", potionName, guardUntil - serverNow))
+                            potionDebugNextLog[potionName] = serverNow + 5
+                        end
+                        return
+                    end
+
+                    local levelToUse = getBestOwnedPotionLevel(playerData, potionName, requestedLevel)
+                    if levelToUse then
+                        potionDebug(string.format("Using %s at level %d (requested=%s)", potionName, levelToUse, tostring(requestedLevel)))
+                        Remote:FireServer("UsePotion", potionName, levelToUse)
+                        potionRetryGuard[potionName] = serverNow + 3
+                        potionDebugNextLog[potionName] = serverNow + 2
+                    else
+                        potionDebug(string.format("Skipping %s (requested=%s) because no owned level was found.", potionName, tostring(requestedLevel)))
+                        potionDebugNextLog[potionName] = serverNow + 8
+                    end
+                end)
+            end
         end
-        return table.concat(parts, " ")
-    end
+    end)
 
     while task.wait(0.1) do
         -- ✅ Auto Blow Bubbles
@@ -5926,7 +6676,7 @@ task.spawn(function()
                         break
                     end
 
-                    if shouldAttemptPickupId(target.id, 0.35) then
+                    if shouldAttemptPickupTarget(target, 0.08) then
                         if target.model and hrp then
                             movePlayerNearPickup(target.model, hrp)
                         end
@@ -6231,93 +6981,7 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Use Potions
-        local selectedPotionNames = getSelectedPotionNames(state.selectedPotions)
-        if state.autoPotionEnabled then
-            pcall(function()
-                local nowTick = tick()
-                if nowTick - (state.lastPotionCheck or 0) < 1 then
-                    return
-                end
-                state.lastPotionCheck = nowTick
-
-                if #selectedPotionNames == 0 then
-                    if nowTick - lastPotionGlobalDebug >= 8 then
-                        lastPotionGlobalDebug = nowTick
-                        potionDebug("Auto potion enabled but no potions are selected.")
-                    end
-                    return
-                end
-
-                if nowTick - lastPotionGlobalDebug >= 8 then
-                    lastPotionGlobalDebug = nowTick
-                    potionDebug("Selected potions: " .. table.concat(selectedPotionNames, ", "))
-                end
-
-                local playerData = getPlayerData()
-                if not playerData then
-                    if nowTick - lastPotionGlobalDebug >= 3 then
-                        lastPotionGlobalDebug = nowTick
-                        potionDebug("LocalData:Get() returned nil; cannot evaluate ActivePotions yet.")
-                    end
-                    return
-                end
-
-                for _, selectedPotion in ipairs(selectedPotionNames) do
-                    local potionName, requestedLevel = normalizePotionSelection(selectedPotion)
-                    if potionName then
-                        if type(state.gamePotionData) == "table" and not state.gamePotionData[potionName] and potionName ~= "Flowers" then
-                            local nextAllowedDebug = potionDebugNextLog[potionName] or 0
-                            local serverNow = getServerUnixTime()
-                            if serverNow >= nextAllowedDebug then
-                                potionDebug("Skipping unknown potion name from UI: " .. tostring(potionName))
-                                potionDebugNextLog[potionName] = serverNow + 10
-                            end
-                            continue
-                        end
-
-                        local remaining, activeLevel = getActivePotionRemaining(playerData, potionName)
-                        local guardUntil = potionRetryGuard[potionName] or 0
-                        local serverNow = getServerUnixTime()
-                        local nextAllowedDebug = potionDebugNextLog[potionName] or 0
-
-                        if remaining > 0 then
-                            if serverNow >= nextAllowedDebug then
-                                potionDebug(string.format("%s active (level %s), %.0fs remaining. Skipping use.", potionName, tostring(activeLevel or "?"), remaining))
-                                potionDebugNextLog[potionName] = serverNow + 12
-                            end
-                            continue
-                        end
-
-                        if serverNow < guardUntil then
-                            if serverNow >= nextAllowedDebug then
-                                potionDebug(string.format("%s waiting for LocalData refresh (guard %.1fs left).", potionName, guardUntil - serverNow))
-                                potionDebugNextLog[potionName] = serverNow + 5
-                            end
-                            continue
-                        end
-
-                        -- If it's still active (or we just sent a use request), skip.
-                        local levelToUse = getBestOwnedPotionLevel(playerData, potionName, requestedLevel)
-
-                        -- If no exact requested level is found, try without forcing level.
-                        if levelToUse then
-                            potionDebug(string.format("Using %s at level %d (requested=%s)", potionName, levelToUse, tostring(requestedLevel)))
-                            Remote:FireServer("UsePotion", potionName, levelToUse)
-                        else
-                            potionDebug(string.format("Skipping %s (requested=%s) because no owned level was found.", potionName, tostring(requestedLevel)))
-                            potionDebugNextLog[potionName] = serverNow + 8
-                            continue
-                        end
-
-                        -- Prevent rapid resend before LocalData refreshes ActivePotions.
-                        potionRetryGuard[potionName] = serverNow + 3
-                        potionDebugNextLog[potionName] = serverNow + 2
-                        task.wait(0.12)
-                    end
-                end
-            end)
-        end
+        -- Auto potions run in dedicated background worker above.
 
         -- ✅ Auto Use Powerups
         if state.autoPowerupEnabled then
@@ -6389,202 +7053,151 @@ task.spawn(function()
             end)
         end
 
-        -- ✅ Auto Lucky Wheel (spin + skip)
-        if state.autoWheelSpin then
+        -- ✅ Easter: Auto Collect Pickups (Teleport path + Farm pickup logic)
+        if state.easterAutoPickup then
             pcall(function()
-                local nowTick = tick()
-
-                -- Claim queue frequently to skip wheel animations when available.
-                if nowTick - lastLuckyClaimAttempt >= 0.5 then
-                    lastLuckyClaimAttempt = nowTick
-                    pcall(function()
-                        Remote:FireServer("ClaimLuckyWheelSpinQueue")
-                    end)
-                    pcall(function()
-                        Remote:FireServer("ClaimWheelSpinQueue")
-                    end)
-                end
-
-                if nowTick - lastLuckySpinAttempt < 1 then
-                    return
-                end
-
-                lastLuckySpinAttempt = nowTick
-                local playerData = getPlayerData()
-                local ready, remaining = isLuckyWheelReady(playerData)
-                if not ready then
-                    if nowTick - lastLuckyWheelDebugLog >= 6 then
-                        lastLuckyWheelDebugLog = nowTick
-                        log(string.format("🎡 [LuckyWheel] Waiting on cooldown (%.1fs remaining)", remaining or 0))
+                local now = tick()
+                local lastTp = state.lastEasterPickupPortalTeleport or 0
+                if (now - lastTp) >= 1.5 then
+                    local path = getEasterPickupTeleportPath(state.easterPickupZone)
+                    if path and path ~= "" then
+                        pcall(function()
+                            Remote:FireServer("Teleport", path)
+                        end)
+                        state.lastEasterPickupPortalTeleport = now
                     end
-                    return
                 end
 
-                local spinCommand = nil
-                local success, result = false, nil
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                local pickupTargets = getRenderedChunkerPickupTargets()
+                local attempted = 0
 
-                -- Prefer Lucky wheel command, fallback to generic wheel command if needed.
-                for _, cmd in ipairs({"LuckyWheelSpin", "WheelSpin"}) do
-                    local cmdSuccess, cmdResult = pcall(function()
-                        return RemoteFunc:InvokeServer(cmd)
-                    end)
-
-                    if cmdSuccess and cmdResult then
-                        spinCommand = cmd
-                        success = true
-                        result = cmdResult
+                for _, target in pairs(pickupTargets) do
+                    if attempted >= 30 then
                         break
                     end
 
-                    if nowTick - lastLuckyWheelDebugLog >= 6 then
-                        lastLuckyWheelDebugLog = nowTick
-                        if not cmdSuccess then
-                            log("🎡 [LuckyWheel] Invoke failed for " .. cmd)
-                        else
-                            log("🎡 [LuckyWheel] Invoke returned no spin for " .. cmd)
-                        end
-                    end
-                end
-
-                if success then
-                    task.wait(0.1)
-                    pcall(function()
-                        Remote:FireServer("ClaimLuckyWheelSpinQueue")
-                    end)
-                    pcall(function()
-                        Remote:FireServer("ClaimWheelSpinQueue")
-                    end)
-
-                    if nowTick - lastLuckyWheelDebugLog >= 6 then
-                        lastLuckyWheelDebugLog = nowTick
-                        log("🎡 [LuckyWheel] Spin triggered via " .. tostring(spinCommand))
-                    end
-
-                    local payloadText = string.lower(extractWheelPayloadText(result))
-                    if payloadText:find("celestial", 1, true) and payloadText:find("pet", 1, true) then
-                        if nowTick - lastLuckyWheelDetectionLog >= 2 then
-                            lastLuckyWheelDetectionLog = nowTick
-                            log("✨ [LuckyWheel] Celestial pet detected in wheel result payload")
-                        end
-                    end
-                end
-            end)
-        end
-
-        -- ✅ St. Patrick: Auto Collect Pickups
-        if state.stpatAutoPickup then
-            pcall(function()
-                local now = tick()
-                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                if not hrp then
-                    return
-                end
-
-                if not isInStPatEventArea(hrp) then
-                    if teleportToStPatEvent(Remote, true) then
-                        sinkStPatReturnTeleporter()
-                    end
-                    return
-                end
-
-                if now < (state.stpatPickupWarmupUntil or 0) then
-                    return
-                end
-
-                local targets = getRenderedChunkerPickupTargets()
-                local attempted = 0
-                for _, target in pairs(targets) do
-                    if attempted >= 30 then break end
-                    if shouldAttemptPickupId(target.id, 0.35) then
-                        if hrp and target.model then
+                    if shouldAttemptPickupTarget(target, 0.08) then
+                        if target.model and hrp then
                             movePlayerNearPickup(target.model, hrp)
                         end
-                        pcall(function() PickupCollectRemote:FireServer(target.id) end)
-                        pcall(function() Remote:FireServer("CollectPickup", target.id) end)
+
+                        pcall(function()
+                            PickupCollectRemote:FireServer(target.id)
+                        end)
+
+                        pcall(function()
+                            Remote:FireServer("CollectPickup", target.id)
+                        end)
+
                         attempted = attempted + 1
                     end
                 end
             end)
         end
 
-        -- ✅ St. Patrick: Auto Buy Event Shop
-        if state.stpatAutoShop then
+        -- ✅ Easter: Auto Buy Event Shop
+        if state.easterAutoShop and not state.easterAdvancedShop then
             local now = tick()
-            if now - state.lastStpatShopBuy >= 1 then
+            if now - state.lastEasterShopBuy >= 1 then
                 pcall(function()
-                    Remote:FireServer("BuyShopItem", "stpat-shop", state.stpatShopTier, false)
+                    Remote:FireServer("BuyShopItem", "easter-shop", state.easterShopTier, false)
                 end)
-                state.lastStpatShopBuy = now
+                state.lastEasterShopBuy = now
             end
         end
 
-        -- ✅ St. Patrick: Auto Buy Secret Shop
-        if state.stpatSecretShop then
+        -- ✅ Easter: Advanced Shop Mode (supports easter-shop, carrot-shop, secretegg-shop)
+        if state.easterAdvancedShop then
             local now = tick()
-            if now - state.lastStpatSecretShopBuy >= 1 then
+            if now - (state.lastEasterAdvancedShopBuy or 0) >= 1.25 then
+                pcall(function()
+                    local shopId = state.easterShopId or "easter-shop"
+                    local slot = math.clamp(tonumber(state.easterShopTier) or 1, 1, 6)
+                    if shopId == "secretegg-shop" then
+                        slot = 1
+                    elseif shopId == "carrot-shop" then
+                        slot = math.clamp(slot, 1, 2)
+                    end
+                    Remote:FireServer("BuyShopItem", shopId, slot, false)
+                end)
+                state.lastEasterAdvancedShopBuy = now
+            end
+        end
+
+        -- ✅ Easter: Auto Buy Secret Shop
+        if state.easterSecretShop then
+            local now = tick()
+            if now - state.lastEasterSecretShopBuy >= 1 then
                 pcall(function()
                     Remote:FireServer("BuyShopItem", "secret-shop", 1, false)
                 end)
-                state.lastStpatSecretShopBuy = now
+                state.lastEasterSecretShopBuy = now
             end
         end
 
-        -- ✅ St. Patrick: Auto Hatch Selected Event Egg (with priority override)
-        if state.stpatAutoEgg then
+        -- ✅ Easter: Auto Hatch Selected Event Egg (with priority override)
+        if state.easterAutoEgg then
             local now = tick()
-            if now - state.lastStpatEggHatch >= 0.3 then
+            local hatchInterval = state.easterLowLagHatch and 0.7 or 0.3
+            if now - state.lastEasterEggHatch >= hatchInterval then
                 pcall(function()
                     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
                     if not hrp then
                         return
                     end
 
-                    if not isInStPatEventArea(hrp) then
-                        teleportToStPatEvent(Remote, false)
+                    if not isInEasterEventArea(hrp) then
+                        teleportToEasterEvent(Remote, false)
                         return
                     end
 
-                    if now - (state.lastStpatEggScan or 0) >= 0.4 then
-                        scanStPatEventEggs()
-                        state.lastStpatEggScan = now
+                    local scanInterval = state.easterLowLagHatch and 0.8 or 0.4
+                    if now - (state.lastEasterEggScan or 0) >= scanInterval then
+                        scanEasterEventEggs()
+                        state.lastEasterEggScan = now
                     end
 
-                    local targetEggName = state.stpatSelectedEgg
-                    local function normalizeStPatEggName(name)
+                    local targetEggName = state.easterSelectedEgg
+                    local function normalizeEasterEggName(name)
                         if type(name) ~= "string" then
                             return ""
                         end
-                        if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" then
-                            return "4X Luck Gaelic Egg"
+                        if name == "4X Luck Fortune Egg" or name == "4X Gaelic Egg" or name == "4X Luck Gaelic Egg" then
+                            return "4x Luck Easter Bunny Egg"
+                        elseif name == "Gaelic Egg" or name == "Fortune Egg" then
+                            return "Easter Bunny Egg"
+                        elseif name == "Lucky Egg" then
+                            return "Basket Egg"
                         end
                         return name
                     end
 
                     -- Priority mode overrides normal selected egg while priority egg is spawned
-                    if state.stpatPriorityEggMode and type(state.stpatPriorityEggs) == "table" and #state.stpatPriorityEggs > 0 then
+                    if state.easterPriorityEggMode and type(state.easterPriorityEggs) == "table" and #state.easterPriorityEggs > 0 then
                         local foundPriority = nil
                         local bestPriorityScore = -1
 
-                        local function getStPatPriorityScore(name)
-                            local normalized = normalizeStPatEggName(name)
-                            if normalized == "4X Luck Gaelic Egg" then
+                        local function getEasterPriorityScore(name)
+                            local normalized = normalizeEasterEggName(name)
+                            if normalized == "4x Luck Easter Bunny Egg" then
                                 return 300
-                            elseif normalized == "Gaelic Egg" then
+                            elseif normalized == "Easter Bunny Egg" then
                                 return 200
-                            elseif normalized == "Fortune Egg" then
+                            elseif normalized == "Basket Egg" then
                                 return 100
-                            elseif normalized == "Lucky Egg" then
+                            elseif normalized == "Painted Egg" then
                                 return 50
                             end
                             return 0
                         end
 
-                        for _, priorityName in ipairs(state.stpatPriorityEggs) do
+                        for _, priorityName in ipairs(state.easterPriorityEggs) do
                             for _, eventEgg in ipairs(state.currentEventEggs) do
-                                local normalizedEventEggName = normalizeStPatEggName(eventEgg.name)
-                                local normalizedPriorityName = normalizeStPatEggName(priorityName)
+                                local normalizedEventEggName = normalizeEasterEggName(eventEgg.name)
+                                local normalizedPriorityName = normalizeEasterEggName(priorityName)
                                 if normalizedEventEggName == normalizedPriorityName and eventEgg.instance and eventEgg.instance:IsDescendantOf(Workspace) then
-                                    local score = getStPatPriorityScore(eventEgg.name)
+                                    local score = getEasterPriorityScore(eventEgg.name)
                                     if score > bestPriorityScore then
                                         bestPriorityScore = score
                                         foundPriority = eventEgg.name
@@ -6599,9 +7212,9 @@ task.spawn(function()
 
                     if not targetEggName then return end
 
-                    if state.stpatLastEggTarget ~= targetEggName then
-                        state.stpatLastEggTarget = targetEggName
-                        state.stpatLastEggPosition = nil
+                    if state.easterLastEggTarget ~= targetEggName then
+                        state.easterLastEggTarget = targetEggName
+                        state.easterLastEggPosition = nil
                     end
 
                     local matchedEgg = false
@@ -6609,18 +7222,23 @@ task.spawn(function()
                         if egg.name == targetEggName and egg.instance and egg.instance:IsDescendantOf(Workspace) then
                             matchedEgg = true
                             local eggPos = egg.instance:GetPivot().Position
-                            local shouldTeleport = (not state.stpatLastEggPosition)
-                                or ((eggPos - state.stpatLastEggPosition).Magnitude > 8)
-                                or ((hrp.Position - eggPos).Magnitude > 25)
+                            local teleportThreshold = state.easterLowLagHatch and 45 or 25
+                            local shouldTeleport = (not state.easterLastEggPosition)
+                                or ((eggPos - state.easterLastEggPosition).Magnitude > 8)
+                                or ((hrp.Position - eggPos).Magnitude > teleportThreshold)
 
                             if shouldTeleport then
                                 tpToModel(egg.instance)
                                 task.wait(0.15)
                             end
 
-                            state.stpatLastEggPosition = eggPos
-                            Remote:FireServer("HatchEgg", egg.name, 99)
-                            if state.stpatHideEggAnim then
+                            state.easterLastEggPosition = eggPos
+                            local hatchAmount = math.clamp(tonumber(state.easterHatchAmount) or 3, 1, 99)
+                            if state.easterLowLagHatch then
+                                hatchAmount = 1
+                            end
+                            Remote:FireServer("HatchEgg", egg.name, hatchAmount)
+                            if state.easterHideEggAnim then
                                 task.defer(stopHatchAnimation)
                             end
                             break
@@ -6628,22 +7246,40 @@ task.spawn(function()
                     end
 
                     if not matchedEgg then
-                        scanStPatEventEggs()
+                        scanEasterEventEggs()
                     end
                 end)
-                state.lastStpatEggHatch = now
+                state.lastEasterEggHatch = now
             end
         end
 
-        -- ✅ St. Patrick: Auto Claim Pot O Gold
-        if state.stpatAutoChest then
+        -- ✅ Easter: Auto Claim Easter Chest
+        if state.easterAutoChest then
             local now = tick()
-            if now - state.lastStpatChestClaim >= 2 then
+            if now - state.lastEasterChestClaim >= 2 then
                 pcall(function()
-                    Remote:FireServer("ClaimChest", "Pot O Gold", true)
+                    local claimNames = {"Easter Chest", "Easter chest"}
+                    for _, chestName in ipairs(claimNames) do
+                        Remote:FireServer("ClaimChest", chestName, true)
+                    end
                 end)
-                state.lastStpatChestClaim = now
+                state.lastEasterChestClaim = now
             end
+        end
+
+        -- ✅ Easter: Hunt/Jester/Rewards/Mastery helpers
+        if state.easterAutoHunt or state.easterAutoJester or state.easterAutoClaimRewards or state.easterAutoMastery then
+            pcall(function()
+                local playerData = getPlayerData()
+                if not playerData then
+                    return
+                end
+
+                updateEasterProgressText(playerData)
+                tryEasterHuntAction(Remote, playerData)
+                tryEasterJesterAction(Remote, playerData)
+                tryEasterRewardsAndMastery(Remote)
+            end)
         end
 
         -- ✅ Auto Fishing (runs every 0.1s but only fishes when cooldown expires)
